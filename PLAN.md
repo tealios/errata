@@ -54,9 +54,9 @@ Browser <--HTTP--> TanStack Start (Vinxi/Vite)
 | Validation    | Zod                           | 3.x                     |
 | LLM SDK       | Vercel AI SDK (`ai`)          | 6.x                     |
 | LLM Provider  | `@ai-sdk/deepseek`           | latest                   |
-| Styling       | Tailwind CSS                  | 4.x                     |
+| Styling       | Tailwind CSS + shadcn/ui      | 4.x / latest             |
 | Editor        | TipTap or Lexical (TBD)       | latest                   |
-| Testing       | Bun test + React Testing Lib  | built-in / latest        |
+| Testing       | Vitest + React Testing Lib    | 3.x / latest             |
 
 ### Key Dependencies
 ```jsonc
@@ -78,8 +78,9 @@ Browser <--HTTP--> TanStack Start (Vinxi/Vite)
     "ai": "^6.x",
     "@ai-sdk/deepseek": "latest",
 
-    // Styling
+    // Styling & UI Components
     "tailwindcss": "^4.x",
+    // shadcn/ui components installed via `bunx shadcn@latest add <component>`
 
     // Editor (evaluate during Phase 2)
     // "@tiptap/react": "^2.x"  OR  "lexical": "^0.x"
