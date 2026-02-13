@@ -11,10 +11,11 @@ Errata is an AI-assisted writing app built around a **fragment system** — ever
 ```bash
 bun install                          # Install dependencies
 bun run dev                          # Start dev server (TanStack Start + Elysia)
-bun test                             # Run all tests
-bun test --watch                     # Watch mode
-bun test tests/fragments/            # Run tests in a specific directory
-bun test --filter "storage"          # Filter tests by name
+bun run test                         # Run all tests (vitest)
+bun run test:watch                   # Watch mode
+bunx vitest run tests/fragments/     # Run tests in a specific directory
+bunx vitest run --config vitest.config.ts -t "storage"  # Filter tests by name
+bunx shadcn@latest add <component>   # Add a shadcn/ui component
 ```
 
 ## Architecture
@@ -57,6 +58,7 @@ Commit messages use conventional commits: `test(fragments): add storage CRUD tes
 - The fragment type registry (`src/server/fragments/registry.ts`) is the source of truth for all fragment types. Plugins extend it at startup.
 - Eden Treaty isomorphic client (`src/server/treaty.ts`) uses `createIsomorphicFn()` — always use `getTreaty()` for API calls, never raw `fetch`.
 - LLM tools for fragments are defined in `src/server/llm/tools.ts` using Vercel AI SDK's `tool()` helper with Zod parameter schemas.
+- **UI components** use **shadcn/ui** on top of Tailwind CSS. Add components via `bunx shadcn@latest add <name>`. Components land in `src/components/ui/`.
 - Environment variables: `DEEPSEEK_API_KEY`, `DATA_DIR` (default `./data`), `PORT` (default `3000`).
 
 ## Efficiency Tips
@@ -65,3 +67,17 @@ Commit messages use conventional commits: `test(fragments): add storage CRUD tes
 - When adding a new fragment type (built-in or plugin), touch: schema.ts (Zod), registry.ts (type definition + prefix), fragment-ids.ts (prefix map), and context-builder.ts (context behavior).
 - When adding a new LLM tool, add it in `tools.ts` and register it in the tool pool passed to `streamText()` in the generation route.
 - The `data/` directory is gitignored. Tests should use `Bun.tmpdir()` or `mkdtemp`, never write to `data/`.
+
+## Important
+
+Important: Make sure to look up the latest documentation via websearch (you don't know the latest version)
+Important: Ask questions about uncertainities.
+
+Use the following LLM endpoint (compatible with v1/chat/completions endpoint) for testing and development:
+API: https://api.deepseek.com
+APIKey: sk-2106322f663f4d68a89c1386cb8f0ba5
+
+
+## Scratchpad
+
+Use .agent/ as a scratchpad, update this file along with the short description of it's contents. 
