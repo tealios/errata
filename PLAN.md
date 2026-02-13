@@ -898,7 +898,7 @@ PORT=3000
 ## Open Questions / Decisions for Later
 
 1. **Rich text editor**: TipTap vs Lexical - evaluate during Phase 3 based on markdown support and extensibility.
-2. **Fragment versioning**: Should we keep history of fragment edits? Could store as `.json.bak` or a git-like approach. Deferring to Phase 6+.
+2. ~~**Fragment versioning**~~: **DECIDED** — Keep a full history of generated fragments. History should be accessible, especially when viewing previously generated prose. Implementation: store version snapshots (e.g. `fragments/<id>/versions/<timestamp>.json`) alongside the current fragment. UI should allow browsing past versions when viewing generated prose.
 3. **Multi-user**: Currently single-user. If needed later, add auth layer.
 4. **Export**: Export story as single markdown/text file. Nice-to-have for Phase 6.
-5. **Librarian feedback loop**: Should librarian suggestions auto-apply or require author approval? Start with approval-based.
+5. ~~**Librarian feedback loop**~~: **DECIDED** — Approval-based with auto-apply option. Librarian suggestions require author approval by default, but users can toggle an auto-apply mode for trusted operations. UI should show pending suggestions with accept/reject controls, plus a global toggle for auto-apply.
