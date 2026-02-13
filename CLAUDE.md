@@ -22,7 +22,7 @@ bunx shadcn@latest add <component>   # Add a shadcn/ui component
 
 **Embedded Elysia in TanStack Start**: Elysia runs inside a TanStack Start catch-all server route (`src/routes/api.$.ts`). Eden Treaty provides end-to-end type safety — server-side calls bypass HTTP entirely, client-side calls use HTTP with full type inference. The isomorphic client lives at `src/server/treaty.ts`.
 
-**Filesystem storage**: No database. All data is JSON files under `data/stories/<storyId>/`. Fragments are individual files (`pr-a1b2.json`), associations are in `associations.json`. Uses `Bun.file()` / `Bun.write()`.
+**Filesystem storage**: No database. All data is JSON files under `data/stories/<storyId>/`. Fragments are individual files (`pr-a1b2.json`), associations are in `associations.json`. Uses Node.js `fs/promises` (for vitest compatibility).
 
 **Fragment IDs**: Short, human-readable. Pattern: `{2-char-prefix}-{4-8 alphanumeric}`. Prefixes: `pr` (prose), `ch` (character), `gl` (guideline), `kn` (knowledge). Plugins register their own prefixes.
 
@@ -46,7 +46,7 @@ Commit messages use conventional commits: `test(fragments): add storage CRUD tes
 
 **Test patterns by layer:**
 - Storage/schemas: real filesystem in temp directories, cleaned up in `afterEach`
-- API routes: call Elysia via Eden Treaty, assert responses
+- API routes: call Elysia directly via `app.fetch(new Request(...))`, assert responses
 - LLM/generation: mock Vercel AI SDK (`streamText`, `generateText`), verify message assembly and side effects
 - Plugins: use a test plugin fixture, verify registration and hook execution
 - Components: React Testing Library
@@ -66,7 +66,10 @@ Commit messages use conventional commits: `test(fragments): add storage CRUD tes
 - Read `PLAN.md` for schemas, interfaces, and data flow before implementing — most types and signatures are already defined there.
 - When adding a new fragment type (built-in or plugin), touch: schema.ts (Zod), registry.ts (type definition + prefix), fragment-ids.ts (prefix map), and context-builder.ts (context behavior).
 - When adding a new LLM tool, add it in `tools.ts` and register it in the tool pool passed to `streamText()` in the generation route.
-- The `data/` directory is gitignored. Tests should use `Bun.tmpdir()` or `mkdtemp`, never write to `data/`.
+- The `data/` directory is gitignored. Tests use `createTempDir()` from `tests/setup.ts`, never write to `data/`.
+- Zod v4 is installed (`zod/v4` import path). Use `z.iso.datetime()` not `z.string().datetime()`.
+- `createApp(dataDir)` in `src/server/api.ts` accepts a custom data directory for test isolation.
+- Frontend uses `src/lib/api.ts` client for typed fetch calls (not Eden Treaty on client side currently).
 
 ## Important
 
