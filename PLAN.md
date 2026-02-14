@@ -767,15 +767,15 @@ Plugins mount under `/api/plugins/<plugin-name>/*`.
 > Goal: Generate prose from author input using fragment context
 > Approach: **Tests first** — mock LLM responses for deterministic tests.
 
-- [ ] Set up Vercel AI SDK with DeepSeek provider
-- [ ] **Test** → Implement context builder (verify correct message assembly from fixtures)
-- [ ] **Test** → Implement LLM tool definitions (verify schema, mock execute functions)
-- [ ] **Test** → Build generation endpoint (mock AI SDK, verify streaming contract)
-- [ ] **Test** → Save generated prose as new fragment (verify storage side effects)
-- [ ] Author input UI + generate button
-- [ ] Streaming output display in editor
-- [ ] Wire up the full generation pipeline (context -> LLM -> stream -> save)
-- [ ] **Integration test**: end-to-end generation with mocked LLM
+- [x] Set up Vercel AI SDK with DeepSeek provider
+- [x] **Test** → Implement context builder (verify correct message assembly from fixtures)
+- [x] **Test** → Implement LLM tool definitions (verify schema, mock execute functions)
+- [x] **Test** → Build generation endpoint (mock AI SDK, verify streaming contract)
+- [x] **Test** → Save generated prose as new fragment (verify storage side effects)
+- [x] Author input UI + generate button
+- [x] Streaming output display in editor
+- [x] Wire up the full generation pipeline (context -> LLM -> stream -> save)
+- [x] **Integration test**: end-to-end generation with mocked LLM
 
 ### Phase 3: Editor & Polish
 > Goal: Proper text editor experience and refined UX

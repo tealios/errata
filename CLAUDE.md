@@ -26,7 +26,12 @@ bunx shadcn@latest add <component>   # Add a shadcn/ui component
 
 **Fragment IDs**: Short, human-readable. Pattern: `{2-char-prefix}-{4-8 alphanumeric}`. Prefixes: `pr` (prose), `ch` (character), `gl` (guideline), `kn` (knowledge). Plugins register their own prefixes.
 
-**LLM integration**: Vercel AI SDK v6 with `@ai-sdk/deepseek`. The context builder (`src/server/llm/context-builder.ts`) assembles messages from fragments — sticky fragments go in full, others appear as shortlists (id + description). The LLM gets tool calls (`fragmentGet`, `fragmentList`, etc.) to fetch additional context on demand.
+**LLM integration** (Phase 2 complete): Vercel AI SDK v6 (`ai@6.x`) with `@ai-sdk/deepseek`. Key files:
+- `src/server/llm/client.ts` — DeepSeek provider + default model
+- `src/server/llm/context-builder.ts` — Assembles system+user messages from fragments (sticky in full, non-sticky as shortlists)
+- `src/server/llm/tools.ts` — 6 fragment tools: `fragmentGet`, `fragmentSet`, `fragmentEdit`, `fragmentDelete`, `fragmentList`, `fragmentTypesList`
+- Generation endpoint: `POST /api/stories/:storyId/generate` with `{ input, saveResult }` body
+- AI SDK v6 API: `tool()` uses `inputSchema` (not `parameters`), `streamText()` uses `stopWhen: stepCountIs(N)` (not `maxSteps`), streaming via `toTextStreamResponse()`
 
 **Plugin system**: Plugins live in `plugins/<name>/plugin.ts` and implement `WritingPlugin`. They can register fragment types, LLM tools, API routes, and pipeline hooks (`beforeContext`, `beforeGeneration`, `afterGeneration`, `afterSave`). Plugins are enabled per-story.
 
@@ -65,7 +70,8 @@ Commit messages use conventional commits: `test(fragments): add storage CRUD tes
 
 - Read `PLAN.md` for schemas, interfaces, and data flow before implementing — most types and signatures are already defined there.
 - When adding a new fragment type (built-in or plugin), touch: schema.ts (Zod), registry.ts (type definition + prefix), fragment-ids.ts (prefix map), and context-builder.ts (context behavior).
-- When adding a new LLM tool, add it in `tools.ts` and register it in the tool pool passed to `streamText()` in the generation route.
+- When adding a new LLM tool, add it in `tools.ts` using AI SDK's `tool({ inputSchema: z.object(...), execute: async (...) => ... })` and include it in `createFragmentTools()`. The generation route in `api.ts` passes all tools to `streamText()`.
+- To mock `streamText` in tests: `vi.mock('ai', ...)` and return an object with `text: Promise.resolve(...)`, `toTextStreamResponse: () => new Response(...)`. See `tests/llm/generation.test.ts` for the pattern.
 - The `data/` directory is gitignored. Tests use `createTempDir()` from `tests/setup.ts`, never write to `data/`.
 - Zod v4 is installed (`zod/v4` import path). Use `z.iso.datetime()` not `z.string().datetime()`.
 - `createApp(dataDir)` in `src/server/api.ts` accepts a custom data directory for test isolation.
