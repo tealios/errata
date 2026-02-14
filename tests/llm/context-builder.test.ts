@@ -54,17 +54,17 @@ describe('context-builder', () => {
     await cleanup()
   })
 
-  it('builds context with system message containing story info', async () => {
+  it('builds context with user message containing story info', async () => {
     const story = makeStory()
     await createStory(dataDir, story)
 
     const messages = await buildContext(dataDir, story.id, 'Continue the story')
-    const system = messages.find((m) => m.role === 'system')
+    const msg = messages.find((m) => m.role === 'user')
 
-    expect(system).toBeDefined()
-    expect(system!.content).toContain('Test Story')
-    expect(system!.content).toContain('A test story')
-    expect(system!.content).toContain('The hero embarked on a journey.')
+    expect(msg).toBeDefined()
+    expect(msg!.content).toContain('Test Story')
+    expect(msg!.content).toContain('A test story')
+    expect(msg!.content).toContain('The hero embarked on a journey.')
   })
 
   it('includes recent prose fragments in context', async () => {
@@ -89,10 +89,10 @@ describe('context-builder', () => {
     await createFragment(dataDir, story.id, prose2)
 
     const messages = await buildContext(dataDir, story.id, 'What happens next?')
-    const system = messages.find((m) => m.role === 'system')
+    const msg = messages.find((m) => m.role === 'user')
 
-    expect(system!.content).toContain('The adventure begins here.')
-    expect(system!.content).toContain('The hero meets a friend.')
+    expect(msg!.content).toContain('The adventure begins here.')
+    expect(msg!.content).toContain('The hero meets a friend.')
   })
 
   it('includes sticky guidelines in full', async () => {
@@ -110,9 +110,9 @@ describe('context-builder', () => {
     await createFragment(dataDir, story.id, guideline)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')
+    const msg = messages.find((m) => m.role === 'user')
 
-    expect(system!.content).toContain('Write in a dark, gothic style.')
+    expect(msg!.content).toContain('Write in a dark, gothic style.')
   })
 
   it('includes sticky knowledge in full', async () => {
@@ -130,9 +130,9 @@ describe('context-builder', () => {
     await createFragment(dataDir, story.id, knowledge)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')
+    const msg = messages.find((m) => m.role === 'user')
 
-    expect(system!.content).toContain('Magic requires blood sacrifice.')
+    expect(msg!.content).toContain('Magic requires blood sacrifice.')
   })
 
   it('includes non-sticky guidelines as shortlist only', async () => {
@@ -150,12 +150,12 @@ describe('context-builder', () => {
     await createFragment(dataDir, story.id, guideline)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')
+    const msg = messages.find((m) => m.role === 'user')
 
     // Shortlist should contain id and description but not full content
-    expect(system!.content).toContain('gl-0002')
-    expect(system!.content).toContain('Point of view constraints')
-    expect(system!.content).not.toContain('Always use third person limited.')
+    expect(msg!.content).toContain('gl-0002')
+    expect(msg!.content).toContain('Point of view constraints')
+    expect(msg!.content).not.toContain('Always use third person limited.')
   })
 
   it('includes the author input as the user message', async () => {
@@ -193,10 +193,10 @@ describe('context-builder', () => {
     await createFragment(dataDir, story.id, prose2)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')!.content as string
+    const content = messages.find((m) => m.role === 'user')!.content as string
 
-    const firstIdx = system.indexOf('First fragment.')
-    const secondIdx = system.indexOf('Second fragment.')
+    const firstIdx = content.indexOf('First fragment.')
+    const secondIdx = content.indexOf('Second fragment.')
     expect(firstIdx).toBeLessThan(secondIdx)
   })
 
@@ -216,13 +216,13 @@ describe('context-builder', () => {
     }
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')!.content as string
+    const content = messages.find((m) => m.role === 'user')!.content as string
 
     // Should include the last 10 (5-14) but not the first 5 (0-4)
-    expect(system).not.toContain('Content of prose 0')
-    expect(system).not.toContain('Content of prose 4')
-    expect(system).toContain('Content of prose 5')
-    expect(system).toContain('Content of prose 14')
+    expect(content).not.toContain('Content of prose 0')
+    expect(content).not.toContain('Content of prose 4')
+    expect(content).toContain('Content of prose 5')
+    expect(content).toContain('Content of prose 14')
   })
 
   it('returns ContextBuildState with correct structure', async () => {
@@ -250,10 +250,9 @@ describe('context-builder', () => {
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
 
-    // Should have at least system + user messages
-    expect(messages.length).toBeGreaterThanOrEqual(2)
-    expect(messages[0].role).toBe('system')
-    expect(messages[messages.length - 1].role).toBe('user')
+    // Should have a single user message with all context
+    expect(messages.length).toBe(1)
+    expect(messages[0].role).toBe('user')
   })
 
   it('includes fragment tool availability note in system message', async () => {
@@ -261,10 +260,10 @@ describe('context-builder', () => {
     await createStory(dataDir, story)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const system = messages.find((m) => m.role === 'system')!.content as string
+    const content = messages.find((m) => m.role === 'user')!.content as string
 
-    // System message should mention tool availability
-    expect(system).toContain('fragmentGet')
-    expect(system).toContain('fragmentList')
+    // Message should mention aliased tool availability
+    expect(content).toContain('getCharacter')
+    expect(content).toContain('listCharacters')
   })
 })

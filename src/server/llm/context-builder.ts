@@ -20,16 +20,15 @@ export interface ContextMessage {
 const DEFAULT_PROSE_LIMIT = 10
 
 /**
- * Builds the LLM message array from story fragments.
- * System message contains: story info, prose chain, sticky fragments, shortlists, tool hints.
- * User message contains: the author's input/direction.
+ * Loads fragments and builds the intermediate state for context assembly.
+ * This is the first step — hooks can modify this state before message assembly.
  */
-export async function buildContext(
+export async function buildContextState(
   dataDir: string,
   storyId: string,
   authorInput: string,
   proseLimit: number = DEFAULT_PROSE_LIMIT,
-): Promise<ContextMessage[]> {
+): Promise<ContextBuildState> {
   const story = await getStory(dataDir, storyId)
   if (!story) {
     throw new Error(`Story not found: ${storyId}`)
@@ -54,7 +53,37 @@ export async function buildContext(
   const stickyKnowledge = allKnowledge.filter((f) => f.sticky)
   const nonStickyKnowledge = allKnowledge.filter((f) => !f.sticky)
 
-  // Build system message
+  return {
+    story,
+    proseFragments: recentProse,
+    stickyGuidelines,
+    stickyKnowledge,
+    guidelineShortlist: nonStickyGuidelines,
+    knowledgeShortlist: nonStickyKnowledge,
+    authorInput,
+  }
+}
+
+export interface AssembleOptions {
+  /** Extra tool descriptions to include in the context (e.g. plugin tools) */
+  extraTools?: Array<{ name: string; description: string }>
+}
+
+/**
+ * Assembles the final LLM message array from the context state.
+ * This is the second step — called after hook modifications.
+ */
+export function assembleMessages(state: ContextBuildState, opts: AssembleOptions = {}): ContextMessage[] {
+  const {
+    story,
+    proseFragments,
+    stickyGuidelines,
+    stickyKnowledge,
+    guidelineShortlist,
+    knowledgeShortlist,
+    authorInput,
+  } = state
+
   const systemParts: string[] = []
 
   // Story info
@@ -81,48 +110,75 @@ export async function buildContext(
   }
 
   // Shortlists for non-sticky guidelines
-  if (nonStickyGuidelines.length > 0) {
-    systemParts.push('\n## Available Guidelines (use fragmentGet to retrieve)')
-    for (const g of nonStickyGuidelines) {
+  if (guidelineShortlist.length > 0) {
+    systemParts.push('\n## Available Guidelines (use getGuideline(id) to retrieve)')
+    for (const g of guidelineShortlist) {
       systemParts.push(`- ${g.id}: ${g.name} — ${g.description}`)
     }
   }
 
   // Shortlists for non-sticky knowledge
-  if (nonStickyKnowledge.length > 0) {
-    systemParts.push('\n## Available Knowledge (use fragmentGet to retrieve)')
-    for (const k of nonStickyKnowledge) {
+  if (knowledgeShortlist.length > 0) {
+    systemParts.push('\n## Available Knowledge (use getKnowledge(id) to retrieve)')
+    for (const k of knowledgeShortlist) {
       systemParts.push(`- ${k.id}: ${k.name} — ${k.description}`)
     }
   }
 
   // Prose chain
-  if (recentProse.length > 0) {
+  if (proseFragments.length > 0) {
     systemParts.push('\n## Recent Prose')
-    for (const p of recentProse) {
+    for (const p of proseFragments) {
       systemParts.push(registry.renderContext(p))
     }
   }
 
   // Instructions + tool availability note
+  const toolLines: string[] = []
+  const types = registry.listTypes()
+  for (const t of types) {
+    const cap = t.type.charAt(0).toUpperCase() + t.type.slice(1)
+    const plural = ['prose', 'knowledge'].includes(t.type) ? cap : cap + 's'
+    toolLines.push(`- get${cap}(id): Get full content of a ${t.type} fragment`)
+    toolLines.push(`- list${plural}(): List all ${t.type} fragments`)
+  }
+  toolLines.push('- listFragmentTypes(): List all available fragment types')
+  if (opts.extraTools) {
+    for (const t of opts.extraTools) {
+      toolLines.push(`- ${t.name}: ${t.description}`)
+    }
+  }
+
   systemParts.push(
     '\n## Instructions\n' +
       'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.\n' +
       'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.\n' +
       'Only use tools to look up context you need before writing.\n' +
       '\n## Available Tools\n' +
-      'You have access to fragment tools to look up additional context:\n' +
-      '- fragmentGet: Retrieve the full content of any fragment by ID\n' +
-      '- fragmentList: List all fragments of a given type (returns id, name, description)\n' +
-      '- fragmentTypesList: List all available fragment types\n' +
-      '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
+      'You have access to the following tools:\n' +
+      toolLines.join('\n') +
+      '\n\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
       'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.',
+      '\nThe author wants the following to happen next: ' + authorInput
   )
 
   const systemContent = systemParts.join('\n')
 
   return [
-    { role: 'system', content: systemContent },
-    { role: 'user', content: authorInput },
+    { role: 'user', content: systemContent },
   ]
+}
+
+/**
+ * Builds the LLM message array from story fragments.
+ * Convenience wrapper that calls buildContextState then assembleMessages.
+ */
+export async function buildContext(
+  dataDir: string,
+  storyId: string,
+  authorInput: string,
+  proseLimit: number = DEFAULT_PROSE_LIMIT,
+): Promise<ContextMessage[]> {
+  const state = await buildContextState(dataDir, storyId, authorInput, proseLimit)
+  return assembleMessages(state)
 }

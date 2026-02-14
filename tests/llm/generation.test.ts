@@ -136,10 +136,9 @@ describe('generation endpoint', () => {
     // Verify streamText was called with correct messages
     const callArgs = mockedStreamText.mock.calls[0][0]
     expect(callArgs.messages).toBeDefined()
-    const systemMsg = callArgs.messages!.find((m: any) => m.role === 'system')
-    expect(systemMsg!.content).toContain('Dark gothic style.')
-    const userMsg = callArgs.messages!.find((m: any) => m.role === 'user')
-    expect(userMsg!.content).toContain('Continue the story')
+    const msg = callArgs.messages!.find((m: any) => m.role === 'user')
+    expect(msg!.content).toContain('Dark gothic style.')
+    expect(msg!.content).toContain('Continue the story')
   })
 
   it('POST /stories/:storyId/generate includes fragment tools', async () => {
@@ -160,9 +159,9 @@ describe('generation endpoint', () => {
 
     const callArgs = mockedStreamText.mock.calls[0][0]
     expect(callArgs.tools).toBeDefined()
-    expect(callArgs.tools).toHaveProperty('fragmentGet')
-    expect(callArgs.tools).toHaveProperty('fragmentList')
-    expect(callArgs.tools).toHaveProperty('fragmentTypesList')
+    expect(callArgs.tools).toHaveProperty('getCharacter')
+    expect(callArgs.tools).toHaveProperty('listCharacters')
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
   })
 
   it('POST /stories/:storyId/generate saves result when saveResult=true', async () => {

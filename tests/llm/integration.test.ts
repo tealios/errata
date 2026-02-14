@@ -182,30 +182,30 @@ describe('end-to-end generation integration', () => {
     expect(mockedStreamText).toHaveBeenCalledTimes(1)
     const callArgs = mockedStreamText.mock.calls[0][0]
 
-    // Should have messages (system + user)
+    // Should have a single user message with all context
     expect(callArgs.messages).toBeDefined()
-    expect(callArgs.messages!.length).toBe(2)
+    expect(callArgs.messages!.length).toBe(1)
 
-    const systemMsg = callArgs.messages![0]
-    expect(systemMsg.role).toBe('system')
-    // System should contain the story name
-    expect(systemMsg.content).toContain('Epic Tale')
-    // System should contain the existing prose
-    expect(systemMsg.content).toContain('I wake up to the sound of distant thunder.')
-    // System should mention fragment tools
-    expect(systemMsg.content).toContain('fragmentGet')
+    const msg = callArgs.messages![0]
+    expect(msg.role).toBe('user')
+    // Should contain the story name
+    expect(msg.content).toContain('Epic Tale')
+    // Should contain the existing prose
+    expect(msg.content).toContain('I wake up to the sound of distant thunder.')
+    // Should mention aliased fragment tools
+    expect(msg.content).toContain('getCharacter')
+    // Should contain the author input
+    expect(msg.content).toContain('Elena hears danger approaching')
 
-    const userMsg = callArgs.messages![1]
-    expect(userMsg.role).toBe('user')
-    expect(userMsg.content).toContain('Elena hears danger approaching')
-
-    // Should have read-only tools (no write tools during generation)
-    expect(callArgs.tools).toHaveProperty('fragmentGet')
-    expect(callArgs.tools).toHaveProperty('fragmentList')
-    expect(callArgs.tools).toHaveProperty('fragmentTypesList')
-    expect(callArgs.tools).not.toHaveProperty('fragmentSet')
-    expect(callArgs.tools).not.toHaveProperty('fragmentEdit')
-    expect(callArgs.tools).not.toHaveProperty('fragmentDelete')
+    // Should have type-specific read-only tools (no write tools during generation)
+    expect(callArgs.tools).toHaveProperty('getCharacter')
+    expect(callArgs.tools).toHaveProperty('getProse')
+    expect(callArgs.tools).toHaveProperty('listCharacters')
+    expect(callArgs.tools).toHaveProperty('listProse')
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
+    expect(callArgs.tools).not.toHaveProperty('updateFragment')
+    expect(callArgs.tools).not.toHaveProperty('editFragment')
+    expect(callArgs.tools).not.toHaveProperty('deleteFragment')
 
     // Step 8: Verify the generated prose was saved as a fragment
     const proseFragments = await listFragments(dataDir, sid, 'prose')
@@ -287,14 +287,14 @@ describe('end-to-end generation integration', () => {
     expect(genRes.status).toBe(200)
     await genRes.text()
 
-    const systemContent = mockedStreamText.mock.calls[0][0].messages![0].content as string
+    const content = mockedStreamText.mock.calls[0][0].messages![0].content as string
 
     // Sticky guideline content should be in full
-    expect(systemContent).toContain('Never break the fourth wall.')
+    expect(content).toContain('Never break the fourth wall.')
 
     // Non-sticky should be in shortlist (id + description) but NOT full content
-    expect(systemContent).toContain('gl-0002')
-    expect(systemContent).toContain('Optional writing advice')
-    expect(systemContent).not.toContain('Consider using metaphors sparingly.')
+    expect(content).toContain('gl-0002')
+    expect(content).toContain('Optional writing advice')
+    expect(content).not.toContain('Consider using metaphors sparingly.')
   })
 })
