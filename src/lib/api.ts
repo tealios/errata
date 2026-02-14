@@ -176,7 +176,7 @@ export const api = {
     list: () => apiFetch<PluginManifestInfo[]>('/plugins'),
   },
   settings: {
-    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown' }) =>
+    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number }) =>
       apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify(data),

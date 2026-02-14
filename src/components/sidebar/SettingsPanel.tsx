@@ -16,7 +16,7 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown' }) =>
+    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -60,6 +60,35 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
           >
             Markdown
           </Button>
+        </div>
+      </div>
+
+      <div className="h-px bg-border/30" />
+
+      {/* Summarization Threshold */}
+      <div>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">
+          Summarization Threshold
+        </label>
+        <p className="text-xs text-muted-foreground/60 mb-2">
+          Only summarize prose fragments that are at least this many positions back from the most recent.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={20}
+            value={story.settings.summarizationThreshold ?? 4}
+            onChange={(e) => {
+              const value = parseInt(e.target.value, 10)
+              if (!isNaN(value) && value >= 0 && value <= 20) {
+                updateMutation.mutate({ summarizationThreshold: value })
+              }
+            }}
+            className="w-16 h-7 px-2 text-sm bg-background border border-border/40 rounded-md focus:border-primary/30 focus:outline-none"
+            disabled={updateMutation.isPending}
+          />
+          <span className="text-xs text-muted-foreground/40">positions back</span>
         </div>
       </div>
 

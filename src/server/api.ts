@@ -144,6 +144,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           ...existing.settings,
           ...(body.enabledPlugins !== undefined ? { enabledPlugins: body.enabledPlugins } : {}),
           ...(body.outputFormat !== undefined ? { outputFormat: body.outputFormat } : {}),
+          ...(body.summarizationThreshold !== undefined ? { summarizationThreshold: body.summarizationThreshold } : {}),
         },
         updatedAt: new Date().toISOString(),
       }
@@ -153,6 +154,7 @@ export function createApp(dataDir: string = DATA_DIR) {
       body: t.Object({
         enabledPlugins: t.Optional(t.Array(t.String())),
         outputFormat: t.Optional(t.Union([t.Literal('plaintext'), t.Literal('markdown')])),
+        summarizationThreshold: t.Optional(t.Number()),
       }),
     })
 
@@ -536,13 +538,13 @@ export function createApp(dataDir: string = DATA_DIR) {
             const toolCalls: ToolCallLog[] = []
             if (Array.isArray(steps)) {
               for (const step of steps) {
-                const stepObj = step as { toolResults?: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> }
+                const stepObj = step as { toolResults?: Array<{ toolName: string; input: unknown; output: unknown }> }
                 if (Array.isArray(stepObj.toolResults)) {
                   for (const tr of stepObj.toolResults) {
                     toolCalls.push({
                       toolName: tr.toolName,
-                      args: tr.args ?? {},
-                      result: tr.result,
+                      args: (tr.input as Record<string, unknown>) ?? {},
+                      result: tr.output,
                     })
                   }
                 }

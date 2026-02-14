@@ -10,6 +10,8 @@ interface ProseActionInputProps {
   mode: 'regenerate' | 'refine'
   onComplete: () => void
   onCancel: () => void
+  onStreamStart: () => void
+  onStream: (text: string) => void
 }
 
 export function ProseActionInput({
@@ -18,6 +20,8 @@ export function ProseActionInput({
   mode,
   onComplete,
   onCancel,
+  onStreamStart,
+  onStream,
 }: ProseActionInputProps) {
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
@@ -29,6 +33,7 @@ export function ProseActionInput({
 
     setIsLoading(true)
     setError(null)
+    onStreamStart()
 
     try {
       const stream = mode === 'regenerate'
@@ -36,9 +41,12 @@ export function ProseActionInput({
         : await api.generation.refine(storyId, fragmentId, input)
 
       const reader = stream.getReader()
+      let accumulated = ''
       while (true) {
-        const { done } = await reader.read()
+        const { done, value } = await reader.read()
         if (done) break
+        accumulated += value
+        onStream(accumulated)
       }
 
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
@@ -49,7 +57,7 @@ export function ProseActionInput({
     } finally {
       setIsLoading(false)
     }
-  }, [input, isLoading, storyId, fragmentId, mode, queryClient, onComplete])
+  }, [input, isLoading, storyId, fragmentId, mode, queryClient, onComplete, onStreamStart, onStream])
 
   const placeholder = mode === 'regenerate'
     ? 'New direction...'

@@ -6,6 +6,7 @@ import {
   createFragment,
 } from '@/server/fragments/storage'
 import { getState, getAnalysis, listAnalyses } from '@/server/librarian/storage'
+import { initProseChain, addProseSection } from '@/server/fragments/prose-chain'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
 // Mock the AI SDK generateText
@@ -31,7 +32,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [] },
+    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 0 },
     ...overrides,
   }
 }
@@ -72,6 +73,15 @@ function mockGenerateTextResponse(json: Record<string, unknown>) {
   } as any)
 }
 
+// Helper to set up prose chain for tests
+async function setupProseChain(dataDir: string, storyId: string, proseIds: string[]) {
+  if (proseIds.length === 0) return
+  await initProseChain(dataDir, storyId, proseIds[0])
+  for (let i = 1; i < proseIds.length; i++) {
+    await addProseSection(dataDir, storyId, proseIds[i])
+  }
+}
+
 describe('librarian agent', () => {
   let dataDir: string
   let cleanup: () => Promise<void>
@@ -94,6 +104,7 @@ describe('librarian agent', () => {
       id: 'pr-0001',
       content: 'The hero walked into the dark forest.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'The hero ventured into the dark forest.',
@@ -114,6 +125,7 @@ describe('librarian agent', () => {
   it('sets summary when story had no summary', async () => {
     await createStory(dataDir, makeStory({ summary: '' }))
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'The story begins.',
@@ -141,6 +153,7 @@ describe('librarian agent', () => {
       id: 'pr-0001',
       content: 'Alice drew her sword and faced the dragon.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'Alice confronted a dragon.',
@@ -174,6 +187,7 @@ describe('librarian agent', () => {
       id: 'pr-0002',
       content: 'Alice found the treasure room.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001', 'pr-0002'])
 
     // First run
     mockGenerateTextResponse({
@@ -206,6 +220,7 @@ describe('librarian agent', () => {
       id: 'pr-0001',
       content: 'Alice looked at him with her green eyes.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'Alice stared at the stranger.',
@@ -231,6 +246,7 @@ describe('librarian agent', () => {
       id: 'pr-0001',
       content: 'The ancient city of Valdris stood atop the mountain.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'An ancient city called Valdris was revealed.',
@@ -258,6 +274,7 @@ describe('librarian agent', () => {
       id: 'pr-0001',
       content: 'The hero defeated the dragon. The village celebrated.',
     }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'The hero defeated the dragon and the village celebrated.',
@@ -282,6 +299,7 @@ describe('librarian agent', () => {
   it('saves the analysis result', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockGenerateTextResponse({
       summaryUpdate: 'Something happened.',
@@ -308,6 +326,7 @@ describe('librarian agent', () => {
   it('handles malformed LLM JSON gracefully', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     mockedGenerateText.mockResolvedValue({
       text: 'This is not valid JSON at all',
@@ -330,6 +349,7 @@ describe('librarian agent', () => {
   it('handles JSON wrapped in markdown fences', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
 
     const json = JSON.stringify({
       summaryUpdate: 'Fenced response.',

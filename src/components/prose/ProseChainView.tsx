@@ -323,6 +323,8 @@ function ProseBlock({
   const [editContent, setEditContent] = useState(fragment.content)
   const [actionMode, setActionMode] = useState<'regenerate' | 'refine' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
+  const [isStreamingAction, setIsStreamingAction] = useState(false)
+  const [streamedActionText, setStreamedActionText] = useState('')
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -363,6 +365,8 @@ function ProseBlock({
 
   const handleActionComplete = () => {
     setActionMode(null)
+    setIsStreamingAction(false)
+    setStreamedActionText('')
     setShowUndo(true)
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
@@ -433,7 +437,13 @@ function ProseBlock({
         className="text-left w-full rounded-lg p-4 -mx-4 transition-colors duration-150 hover:bg-card/40"
       >
         <div className="prose-content whitespace-pre-wrap">
-          {fragment.content}
+          {(isStreamingAction || streamedActionText)
+            ? streamedActionText || ''
+            : fragment.content
+          }
+          {isStreamingAction && (
+            <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+          )}
         </div>
 
         {/* Metadata bar — visible on hover */}
@@ -513,13 +523,22 @@ function ProseBlock({
         </div>
       )}
 
-      {actionMode && (
+      {(actionMode || isStreamingAction || streamedActionText) && (
         <ProseActionInput
           storyId={storyId}
           fragmentId={fragment.id}
-          mode={actionMode}
+          mode={actionMode || 'regenerate'}
           onComplete={handleActionComplete}
-          onCancel={() => setActionMode(null)}
+          onCancel={() => {
+            setActionMode(null)
+            setIsStreamingAction(false)
+            setStreamedActionText('')
+          }}
+          onStreamStart={() => {
+            setIsStreamingAction(true)
+            setStreamedActionText('')
+          }}
+          onStream={(text) => setStreamedActionText(text)}
         />
       )}
 

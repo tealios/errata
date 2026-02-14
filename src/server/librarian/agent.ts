@@ -1,6 +1,7 @@
 import { generateText } from 'ai'
 import { defaultModel } from '../llm/client'
 import { getStory, updateStory, listFragments, getFragment } from '../fragments/storage'
+import { getActiveProseIds } from '../fragments/prose-chain'
 import {
   saveAnalysis,
   getState,
@@ -115,6 +116,20 @@ export async function runLibrarian(
     knowledgeCount: knowledge.length,
   })
 
+  // Check prose position to determine if we should summarize
+  // Only summarize proses that are at least N positions back from the most recent
+  const proseIds = await getActiveProseIds(dataDir, storyId)
+  const proseIndex = proseIds.indexOf(fragmentId)
+  const summarizationThreshold = story.settings?.summarizationThreshold ?? 4
+  const shouldSummarize = proseIndex >= 0 && proseIndex < proseIds.length - summarizationThreshold
+
+  requestLogger.debug('Prose position check', {
+    proseIndex,
+    totalProse: proseIds.length,
+    threshold: summarizationThreshold,
+    shouldSummarize
+  })
+
   // Load current librarian state for context
   const state = await getState(dataDir, storyId)
 
@@ -153,6 +168,15 @@ export async function runLibrarian(
     createdAt: new Date().toISOString(),
     fragmentId,
     ...parsed,
+  }
+
+  // Only apply summary if prose is old enough (based on threshold)
+  if (!shouldSummarize) {
+    analysis.summaryUpdate = ''
+    requestLogger.debug('Skipping summary - prose is too recent', {
+      proseIndex,
+      threshold: summarizationThreshold
+    })
   }
 
   // Apply updates: append summary

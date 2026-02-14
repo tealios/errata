@@ -36,8 +36,9 @@ export const StoryMetaSchema = z.object({
     .object({
       outputFormat: z.enum(['plaintext', 'markdown']).default('markdown'),
       enabledPlugins: z.array(z.string()).default([]),
+      summarizationThreshold: z.int().min(0).default(4),
     })
-    .default({ outputFormat: 'markdown', enabledPlugins: [] }),
+    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4 }),
 })
 
 export type StoryMeta = z.infer<typeof StoryMetaSchema>
