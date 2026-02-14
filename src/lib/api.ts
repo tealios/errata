@@ -83,6 +83,7 @@ export interface LibrarianAnalysis {
     fragmentIds: string[]
   }>
   knowledgeSuggestions: Array<{
+    type: 'character' | 'knowledge'
     name: string
     description: string
     content: string

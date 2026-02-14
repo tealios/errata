@@ -241,7 +241,10 @@ function AnalysisItem({
               {analysis.knowledgeSuggestions.map((s, i) => (
                 <div key={i} className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-1.5 flex items-start justify-between gap-1">
                   <div>
-                    <p className="font-medium">{s.name}</p>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className="text-[10px]">{s.type ?? 'knowledge'}</Badge>
+                      <p className="font-medium">{s.name}</p>
+                    </div>
                     <p className="text-muted-foreground">{s.description}</p>
                   </div>
                   {onCreateFragment && (
@@ -251,7 +254,7 @@ function AnalysisItem({
                       className="size-5 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation()
-                        onCreateFragment('knowledge', {
+                        onCreateFragment(s.type ?? 'knowledge', {
                           name: s.name,
                           description: s.description,
                           content: s.content,

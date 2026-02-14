@@ -16,14 +16,14 @@ Given the story context (summary, characters, knowledge) and a newly written pro
   "summaryUpdate": "A 1-2 sentence addition to the running story summary describing what happened in this new prose.",
   "mentionedCharacters": ["ch-xxxx"],
   "contradictions": [{"description": "what contradicts what", "fragmentIds": ["pr-xxxx", "kn-xxxx"]}],
-  "knowledgeSuggestions": [{"name": "short name", "description": "max 50 chars", "content": "details worth remembering"}],
+  "knowledgeSuggestions": [{"type": "character|knowledge", "name": "short name", "description": "max 50 chars", "content": "details worth remembering"}],
   "timelineEvents": [{"event": "what happened", "position": "before|during|after"}]
 }
 
 Rules:
 - mentionedCharacters: only include character IDs from the provided list that are actually referenced in the new prose (by name or clear reference).
 - contradictions: flag when the new prose contradicts established facts in the summary, character descriptions, or knowledge. Only flag clear contradictions, not ambiguities.
-- knowledgeSuggestions: suggest new knowledge fragments for important world-building details, locations, items, or facts introduced in the new prose that aren't already captured.
+- knowledgeSuggestions: suggest new fragments for important details introduced in the new prose that aren't already captured. Set type to "character" for new characters or "knowledge" for world-building details, locations, items, or facts.
 - timelineEvents: note significant events. "position" is relative to the previous prose: "before" if it's a flashback, "during" if concurrent, "after" if it follows sequentially.
 - If there are no contradictions, suggestions, or timeline events, use empty arrays.
 

@@ -86,7 +86,7 @@ describe('librarian storage', () => {
           { description: 'Eye color changed', fragmentIds: ['pr-0001', 'pr-0002'] },
         ],
         knowledgeSuggestions: [
-          { name: 'Cave', description: 'The dark cave', content: 'A cave in the mountains' },
+          { type: 'knowledge' as const, name: 'Cave', description: 'The dark cave', content: 'A cave in the mountains' },
         ],
         timelineEvents: [
           { event: 'Entered cave', position: 'during' },

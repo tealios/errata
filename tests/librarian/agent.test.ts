@@ -238,6 +238,7 @@ describe('librarian agent', () => {
       contradictions: [],
       knowledgeSuggestions: [
         {
+          type: 'knowledge',
           name: 'Valdris',
           description: 'Ancient mountain city',
           content: 'Valdris is an ancient city located atop a mountain.',
