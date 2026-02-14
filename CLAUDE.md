@@ -33,6 +33,13 @@ bunx shadcn@latest add <component>   # Add a shadcn/ui component
 - Generation endpoint: `POST /api/stories/:storyId/generate` with `{ input, saveResult }` body
 - AI SDK v6 API: `tool()` uses `inputSchema` (not `parameters`), `streamText()` uses `stopWhen: stepCountIs(N)` (not `maxSteps`), streaming via `toTextStreamResponse()`
 
+**Frontend UI** (Phase 3 complete):
+- `src/components/prose/ProseChainView.tsx` — Scrollable prose chain with inline editing of the last block
+- `src/components/fragments/FragmentEditor.tsx` — Full fragment editor with tags, refs, and sticky toggle
+- `src/components/fragments/FragmentList.tsx` — Sidebar list with search filtering and sort (order/name/newest/oldest)
+- `src/components/wizard/StoryWizard.tsx` — Multi-step creation wizard (Guidelines → Characters → Knowledge → Prose), auto-shows for empty stories
+- `src/components/generation/GenerationPanel.tsx` — Streaming LLM generation UI
+
 **Plugin system**: Plugins live in `plugins/<name>/plugin.ts` and implement `WritingPlugin`. They can register fragment types, LLM tools, API routes, and pipeline hooks (`beforeContext`, `beforeGeneration`, `afterGeneration`, `afterSave`). Plugins are enabled per-story.
 
 **Generation pipeline**: Author input → `buildContext()` → plugin `beforeContext` hooks → plugin `beforeGeneration` hooks → `streamText()` with tools → stream to client → `afterGeneration` hooks → save fragment → `afterSave` hooks → trigger librarian.

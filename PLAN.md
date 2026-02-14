@@ -781,12 +781,12 @@ Plugins mount under `/api/plugins/<plugin-name>/*`.
 > Goal: Proper text editor experience and refined UX
 
 - [ ] Evaluate and integrate rich text editor (TipTap or Lexical)
-- [ ] **Test** → Prose chain view (scrollable history of prose fragments)
-- [ ] Editable current prose block
-- [ ] **Test** → Creation wizard (multi-step: verify each step creates correct fragments)
-- [ ] **Test** → Fragment tagging UI (verify tag operations)
-- [ ] **Test** → Fragment association/linking UI (verify ref operations)
-- [ ] Sidebar improvements: search, filter by tag, sort
+- [x] **Test** → Prose chain view (scrollable history of prose fragments)
+- [x] Editable current prose block (inline editing of last prose block)
+- [x] **Test** → Creation wizard (multi-step: Guidelines → Characters → Knowledge → Prose)
+- [x] **Test** → Fragment tagging UI (verify tag operations)
+- [x] **Test** → Fragment association/linking UI (verify ref operations)
+- [x] Sidebar improvements: search, filter by tag, sort
 
 ### Phase 4: Plugin System
 > Goal: Extensible plugin architecture
