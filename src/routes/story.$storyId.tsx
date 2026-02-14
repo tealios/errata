@@ -8,6 +8,7 @@ import { FragmentList } from '@/components/fragments/FragmentList'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
 import { GenerationPanel } from '@/components/generation/GenerationPanel'
 import { ProseChainView } from '@/components/prose/ProseChainView'
+import { StoryWizard } from '@/components/wizard/StoryWizard'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -27,6 +28,7 @@ function StoryEditorPage() {
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
   const [createType, setCreateType] = useState<string>('prose')
   const [showGenerate, setShowGenerate] = useState(false)
+  const [showWizard, setShowWizard] = useState<boolean | null>(null)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -37,6 +39,20 @@ function StoryEditorPage() {
     queryKey: ['fragments', storyId, 'prose'],
     queryFn: () => api.fragments.list(storyId, 'prose'),
   })
+
+  const { data: allFragments } = useQuery({
+    queryKey: ['fragments', storyId],
+    queryFn: () => api.fragments.list(storyId),
+  })
+
+  // Auto-show wizard when story has no fragments
+  if (showWizard === null && allFragments !== undefined) {
+    if (allFragments.length === 0) {
+      setShowWizard(true)
+    } else {
+      setShowWizard(false)
+    }
+  }
 
   const handleSelectFragment = (fragment: Fragment) => {
     setSelectedFragment(fragment)
@@ -113,7 +129,9 @@ function StoryEditorPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {isEditingFragment ? (
+        {showWizard ? (
+          <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
+        ) : isEditingFragment ? (
           <FragmentEditor
             storyId={storyId}
             fragment={selectedFragment}
