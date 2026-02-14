@@ -29,6 +29,7 @@ import {
   Archive,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
+import { ErrataMark } from '@/components/ErrataLogo'
 
 export type SidebarSection =
   | 'story-info'
@@ -71,8 +72,11 @@ export function StorySidebar({
     <Sidebar collapsible="icon" data-component-id="story-sidebar">
       <SidebarHeader>
         <div className="flex items-center justify-between px-2 py-1.5" data-component-id="story-sidebar-header">
-          <span className="font-display text-base italic truncate group-data-[collapsible=icon]:hidden">
-            {story?.name ?? 'Errata'}
+          <span className="flex items-center gap-1.5 truncate">
+            <ErrataMark size={16} className="shrink-0 opacity-60" />
+            <span className="font-display text-base italic truncate group-data-[collapsible=icon]:hidden">
+              {story?.name ?? 'Errata'}
+            </span>
           </span>
           <SidebarTrigger data-component-id="sidebar-collapse-trigger" />
         </div>
