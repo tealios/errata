@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
-import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronsDown, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronLeft, ChevronRight, Trash2, List } from 'lucide-react'
 import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
@@ -122,12 +122,6 @@ export function ProseChainView({
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
-  const scrollToBottom = useCallback(() => {
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (!viewport) return
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
-  }, [])
-
   return (
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
@@ -204,96 +198,114 @@ export function ProseChainView({
         </div>
       </ScrollArea>
 
-      {/* Section navigator */}
+      {/* Outline toggle + panel */}
       {sorted.length > 1 && (
-        <ProseNavigator
-          count={sorted.length}
+        <ProseOutlinePanel
+          fragments={sorted}
           activeIndex={activeIndex}
           onJump={scrollToIndex}
-          onJumpToBottom={scrollToBottom}
         />
       )}
     </div>
   )
 }
 
-// --- Section navigator ---
+// --- Prose Outline Panel ---
 
-interface ProseNavigatorProps {
-  count: number
+function ProseOutlinePanel({
+  fragments,
+  activeIndex,
+  onJump,
+}: {
+  fragments: Fragment[]
   activeIndex: number
   onJump: (index: number) => void
-  onJumpToBottom: () => void
-}
+}) {
+  const [open, setOpen] = useState(false)
+  const activeRef = useRef<HTMLButtonElement>(null)
 
-function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNavigatorProps) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [hovered, setHovered] = useState<number | null>(null)
+  // Scroll the active item into view when panel opens or active changes
+  useEffect(() => {
+    if (open && activeRef.current) {
+      activeRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [open, activeIndex])
 
-  // For large counts, cap the rendered ticks and map positions proportionally
-  const maxTicks = 60
-  const condensed = count > maxTicks
-  const tickCount = condensed ? maxTicks : count
-
-  const getSourceIndex = (tickIndex: number) => {
-    if (!condensed) return tickIndex
-    return Math.round((tickIndex / (tickCount - 1)) * (count - 1))
+  // Extract a short preview from fragment content
+  const preview = (content: string) => {
+    const line = content.replace(/\n+/g, ' ').trim()
+    return line.length > 60 ? line.slice(0, 60) + '\u2026' : line
   }
-
-  const getTickIndex = (sourceIndex: number) => {
-    if (!condensed) return sourceIndex
-    return Math.round((sourceIndex / (count - 1)) * (tickCount - 1))
-  }
-
-  const activeTickIndex = getTickIndex(activeIndex)
 
   return (
-    <div
-      data-component-id="prose-navigator"
-      className="absolute right-3 top-0 bottom-0 flex flex-col items-center py-6 z-10 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
-      style={{ width: 20 }}
-    >
-      {/* Track */}
-      <div ref={trackRef} className="flex-1 flex flex-col justify-between min-h-0 py-1">
-        {Array.from({ length: tickCount }, (_, i) => {
-          const sourceIdx = getSourceIndex(i)
-          const isActive = i === activeTickIndex
-          const isHovered = hovered === i
-          return (
-            <button
-              key={i}
-              data-component-id={`prose-navigator-jump-${sourceIdx}`}
-              className="group/tick flex items-center justify-center shrink-0"
-              style={{ height: tickCount > 30 ? 4 : 6, padding: '0 2px' }}
-              onClick={() => onJump(sourceIdx)}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              title={`Section ${sourceIdx + 1}`}
-            >
-              <div
-                className={`rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-primary w-2.5 h-1.5'
-                    : isHovered
-                      ? 'bg-muted-foreground/60 w-2 h-1'
-                      : 'bg-muted-foreground/20 w-1.5 h-0.5'
-                }`}
-              />
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Jump to bottom */}
+    <>
+      {/* Toggle button — fixed to right edge */}
       <button
-        onClick={onJumpToBottom}
-        data-component-id="prose-navigator-jump-bottom"
-        className="mt-2 p-1 rounded text-muted-foreground/30 hover:text-muted-foreground transition-colors"
-        title="Jump to bottom"
+        onClick={() => setOpen(!open)}
+        data-component-id="prose-outline-toggle"
+        className={`absolute right-3 top-4 z-20 flex items-center justify-center size-7 rounded-md transition-all duration-200 ${
+          open
+            ? 'bg-accent text-foreground'
+            : 'text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-accent/50'
+        }`}
+        title="Outline"
       >
-        <ChevronsDown className="size-3.5" />
+        <List className="size-3.5" />
       </button>
-    </div>
+
+      {/* Outline panel */}
+      <div
+        data-component-id="prose-outline-panel"
+        className={`absolute right-0 top-0 bottom-0 z-10 flex flex-col border-l border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-250 ease-out ${
+          open
+            ? 'w-56 opacity-100 translate-x-0'
+            : 'w-0 opacity-0 translate-x-4 pointer-events-none'
+        }`}
+        style={{ willChange: 'width, opacity, transform' }}
+      >
+        {/* Header */}
+        <div className="shrink-0 px-4 pt-14 pb-3">
+          <h3 className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/40 font-medium">
+            Passages
+          </h3>
+        </div>
+
+        {/* Scrollable list */}
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-2 pb-4">
+          {fragments.map((fragment, idx) => {
+            const isActive = idx === activeIndex
+            return (
+              <button
+                key={fragment.id}
+                ref={isActive ? activeRef : undefined}
+                data-component-id={`prose-outline-item-${idx}`}
+                onClick={() => {
+                  onJump(idx)
+                }}
+                className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition-colors duration-100 group/item ${
+                  isActive
+                    ? 'bg-accent/70'
+                    : 'hover:bg-accent/40'
+                }`}
+              >
+                <span className={`block text-[10px] font-mono mb-0.5 ${
+                  isActive ? 'text-primary/70' : 'text-muted-foreground/25'
+                }`}>
+                  {idx + 1}
+                </span>
+                <span className={`block text-[11px] leading-snug font-prose ${
+                  isActive
+                    ? 'text-foreground/80'
+                    : 'text-muted-foreground/45 group-hover/item:text-muted-foreground/65'
+                }`}>
+                  {preview(fragment.content)}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </>
   )
 }
 
