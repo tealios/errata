@@ -6,13 +6,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { InlineGenerationInput } from '@/components/generation/InlineGenerationInput'
 
 interface ProseChainViewProps {
   storyId: string
   fragments: Fragment[]
   onSelectFragment: (fragment: Fragment) => void
-  onGenerate: () => void
-  onCreateNew: () => void
   onDebugLog?: (logId: string) => void
 }
 
@@ -20,8 +19,6 @@ export function ProseChainView({
   storyId,
   fragments,
   onSelectFragment,
-  onGenerate,
-  onCreateNew,
   onDebugLog,
 }: ProseChainViewProps) {
   const sorted = [...fragments].sort(
@@ -30,17 +27,6 @@ export function ProseChainView({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-lg font-semibold">Story</h2>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={onCreateNew}>
-            Write
-          </Button>
-          <Button size="sm" onClick={onGenerate}>
-            Generate
-          </Button>
-        </div>
-      </div>
       <ScrollArea className="flex-1">
         {sorted.length > 0 ? (
           <div className="max-w-prose mx-auto py-6 px-6 space-y-1">
@@ -58,15 +44,14 @@ export function ProseChainView({
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-muted-foreground mb-4">No prose fragments yet.</p>
-            <div className="flex gap-2">
-              <Button onClick={onCreateNew}>Write manually</Button>
-              <Button variant="outline" onClick={onGenerate}>
-                Generate with AI
-              </Button>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Use the input below to generate your first passage.
+            </p>
           </div>
         )}
       </ScrollArea>
+
+      <InlineGenerationInput storyId={storyId} onDebugLog={onDebugLog} />
     </div>
   )
 }
@@ -184,7 +169,7 @@ function ProseBlock({
               click to edit
             </span>
           )}
-          {fragment.meta?.generatedFrom && (
+          {!!fragment.meta?.generatedFrom && (
             <Badge
               variant="secondary"
               className="text-[10px] cursor-pointer hover:bg-primary/20"

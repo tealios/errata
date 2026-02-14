@@ -63,6 +63,42 @@ export interface GenerationLogSummary {
   stepsExceeded: boolean
 }
 
+export interface LibrarianAnalysisSummary {
+  id: string
+  createdAt: string
+  fragmentId: string
+  contradictionCount: number
+  suggestionCount: number
+  timelineEventCount: number
+}
+
+export interface LibrarianAnalysis {
+  id: string
+  createdAt: string
+  fragmentId: string
+  summaryUpdate: string
+  mentionedCharacters: string[]
+  contradictions: Array<{
+    description: string
+    fragmentIds: string[]
+  }>
+  knowledgeSuggestions: Array<{
+    name: string
+    description: string
+    content: string
+  }>
+  timelineEvents: Array<{
+    event: string
+    position: 'before' | 'during' | 'after'
+  }>
+}
+
+export interface LibrarianState {
+  lastAnalyzedFragmentId: string | null
+  recentMentions: Record<string, string[]>
+  timeline: Array<{ event: string; fragmentId: string }>
+}
+
 export interface GenerationLog {
   id: string
   createdAt: string
@@ -111,7 +147,24 @@ async function fetchStream(
   })
 }
 
+export interface PluginManifestInfo {
+  name: string
+  version: string
+  description: string
+  panel?: { title: string }
+}
+
 export const api = {
+  plugins: {
+    list: () => apiFetch<PluginManifestInfo[]>('/plugins'),
+  },
+  settings: {
+    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown' }) =>
+      apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
   stories: {
     list: () => apiFetch<StoryMeta[]>('/stories'),
     get: (id: string) => apiFetch<StoryMeta>(`/stories/${id}`),
@@ -178,5 +231,13 @@ export const api = {
     /** Get a full generation log by ID */
     getLog: (storyId: string, logId: string) =>
       apiFetch<GenerationLog>(`/stories/${storyId}/generation-logs/${logId}`),
+  },
+  librarian: {
+    getStatus: (storyId: string) =>
+      apiFetch<LibrarianState>(`/stories/${storyId}/librarian/status`),
+    listAnalyses: (storyId: string) =>
+      apiFetch<LibrarianAnalysisSummary[]>(`/stories/${storyId}/librarian/analyses`),
+    getAnalysis: (storyId: string, id: string) =>
+      apiFetch<LibrarianAnalysis>(`/stories/${storyId}/librarian/analyses/${id}`),
   },
 }
