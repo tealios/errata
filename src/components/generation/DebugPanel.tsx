@@ -75,7 +75,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
         )}
 
         {/* Log detail */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {selectedLog ? (
             <>
               {/* Tabs */}
@@ -121,7 +121,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
               )}
 
               {/* Tab content */}
-              <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="p-6">
                   {activeTab === 'prompt' && <PromptTab log={selectedLog} />}
                   {activeTab === 'tools' && <ToolsTab log={selectedLog} />}
@@ -184,13 +184,17 @@ function PromptTab({ log }: { log: GenerationLog }) {
               variant={msg.role === 'system' ? 'default' : 'secondary'}
               className="text-[10px] h-4"
             >
-              {msg.role}
+              {msg.role === 'system' ? 'system prompt' : msg.role}
             </Badge>
             <span className="text-[10px] text-muted-foreground/40">
               {msg.content.length.toLocaleString()} chars
             </span>
           </div>
-          <pre className="whitespace-pre-wrap text-xs font-mono bg-card/50 rounded-lg p-4 max-h-[500px] overflow-auto border border-border/30">
+          <pre className={`whitespace-pre-wrap text-xs font-mono rounded-lg p-4 max-h-[500px] overflow-auto ${
+            msg.role === 'system'
+              ? 'bg-primary/5 border border-primary/20'
+              : 'bg-card/50 border border-border/30'
+          }`}>
             {msg.content}
           </pre>
         </div>

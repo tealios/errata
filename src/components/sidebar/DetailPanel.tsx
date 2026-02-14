@@ -7,6 +7,7 @@ import { ContextOrderPanel } from '@/components/fragments/ContextOrderPanel'
 import { StoryInfoPanel } from './StoryInfoPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { LibrarianPanel } from './LibrarianPanel'
+import { ArchivePanel } from './ArchivePanel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { X } from 'lucide-react'
@@ -28,6 +29,7 @@ const SECTION_TITLES: Record<string, string> = {
   guidelines: 'Guidelines',
   knowledge: 'Knowledge',
   media: 'Media',
+  archive: 'Archive',
   'context-order': 'Context Order',
   settings: 'Settings',
   'agent-activity': 'Agent Activity',
@@ -88,7 +90,7 @@ export function DetailPanel({
     ? pluginName ?? 'Plugin'
     : SECTION_TITLES[activeSection] ?? activeSection
 
-  const panelWidth = activeSection === 'agent-activity' ? 400 : activeSection === 'story-info' ? 440 : activeSection === 'settings' ? 400 : activeSection === 'context-order' ? 380 : 340
+  const panelWidth = activeSection === 'agent-activity' ? 400 : activeSection === 'story-info' ? 440 : activeSection === 'settings' ? 400 : activeSection === 'context-order' ? 380 : activeSection === 'archive' ? 340 : 340
 
   return (
     <div
@@ -131,6 +133,10 @@ export function DetailPanel({
                 onCreateFragment(type, prefill)
               }}
             />
+          )}
+
+          {activeSection === 'archive' && (
+            <ArchivePanel storyId={storyId} />
           )}
 
           {SECTION_TO_TYPE[activeSection] && (

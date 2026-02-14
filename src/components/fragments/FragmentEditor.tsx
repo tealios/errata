@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, ChevronDown } from 'lucide-react'
+import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2 } from 'lucide-react'
+import { CropDialog } from '@/components/fragments/CropDialog'
 
 export interface FragmentPrefill {
   name: string
@@ -26,7 +27,7 @@ interface FragmentEditorProps {
 
 export function FragmentEditor({
   storyId,
-  fragment,
+  fragment: fragmentProp,
   mode,
   createType,
   prefill,
@@ -40,23 +41,37 @@ export function FragmentEditor({
   const [type, setType] = useState(createType ?? 'prose')
   const [uploadError, setUploadError] = useState<string | null>(null)
 
+  // Fetch live fragment data so sticky/placement updates are reflected immediately
+  const { data: liveFragment } = useQuery({
+    queryKey: ['fragment', storyId, fragmentProp?.id],
+    queryFn: () => api.fragments.get(storyId, fragmentProp!.id),
+    enabled: !!fragmentProp?.id,
+    initialData: fragmentProp ?? undefined,
+  })
+
+  const fragment = liveFragment ?? fragmentProp
+
   useEffect(() => {
-    if (fragment) {
-      setName(fragment.name)
-      setDescription(fragment.description)
-      setContent(fragment.content)
-      setType(fragment.type)
+    if (fragmentProp) {
+      setName(fragmentProp.name)
+      setDescription(fragmentProp.description)
+      setContent(fragmentProp.content)
+      setType(fragmentProp.type)
     } else {
       setName(prefill?.name ?? '')
       setDescription(prefill?.description ?? '')
       setContent(prefill?.content ?? '')
       setType(createType ?? 'prose')
     }
-  }, [fragment, createType, prefill])
+  }, [fragmentProp, createType, prefill])
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    await queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] })
     await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    if (fragment?.id) {
+      await queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] })
+    }
   }
 
   const createMutation = useMutation({
@@ -82,6 +97,21 @@ export function FragmentEditor({
     onSuccess: () => {
       invalidate()
       onClose()
+    },
+  })
+
+  const archiveMutation = useMutation({
+    mutationFn: () => api.fragments.archive(storyId, fragment!.id),
+    onSuccess: () => {
+      invalidate()
+      onClose()
+    },
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: () => api.fragments.restore(storyId, fragment!.id),
+    onSuccess: () => {
+      invalidate()
     },
   })
 
@@ -194,19 +224,48 @@ export function FragmentEditor({
               {fragment.placement === 'system' ? 'System' : 'User'}
             </Button>
           )}
-          {mode === 'view' && fragment && (
+          {fragment && !fragment.archived && mode !== 'create' && (
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-xs text-destructive/70 hover:text-destructive"
+              className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
               onClick={() => {
-                if (confirm('Delete this fragment?')) {
-                  deleteMutation.mutate()
+                if (confirm('Archive this fragment?')) {
+                  archiveMutation.mutate()
                 }
               }}
+              disabled={archiveMutation.isPending}
             >
-              <Trash2 className="size-3" />
+              <Archive className="size-3" />
+              Archive
             </Button>
+          )}
+          {fragment && fragment.archived && mode !== 'create' && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs gap-1"
+                onClick={() => restoreMutation.mutate()}
+                disabled={restoreMutation.isPending}
+              >
+                <Undo2 className="size-3" />
+                Restore
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs gap-1 text-destructive/70 hover:text-destructive"
+                onClick={() => {
+                  if (confirm('Permanently delete this fragment? This cannot be undone.')) {
+                    deleteMutation.mutate()
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </>
           )}
           <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose}>
             <X className="size-4" />
@@ -390,21 +449,12 @@ export function FragmentEditor({
   )
 }
 
-function toNumberInRange(value: string, fallback: number, min: number, max: number) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return fallback
-  return Math.min(max, Math.max(min, parsed))
-}
-
 function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: string }) {
   const queryClient = useQueryClient()
   const [showPicker, setShowPicker] = useState(false)
-  const [showBoundary, setShowBoundary] = useState(false)
   const [pendingMedia, setPendingMedia] = useState<{ id: string; kind: 'icon' | 'image' } | null>(null)
-  const [bx, setBx] = useState('0')
-  const [by, setBy] = useState('0')
-  const [bw, setBw] = useState('1')
-  const [bh, setBh] = useState('1')
+  const [pendingBoundary, setPendingBoundary] = useState<BoundaryBox | undefined>(undefined)
+  const [showCropDialog, setShowCropDialog] = useState(false)
 
   const { data: currentFragment } = useQuery({
     queryKey: ['fragment', storyId, fragmentId],
@@ -447,8 +497,8 @@ function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentI
       queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
       queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       setPendingMedia(null)
+      setPendingBoundary(undefined)
       setShowPicker(false)
-      setShowBoundary(false)
     },
   })
 
@@ -498,15 +548,9 @@ function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentI
   }
 
   const handleLink = (mediaId: string, kind: 'icon' | 'image') => {
-    const boundary = showBoundary ? {
-      x: toNumberInRange(bx, 0, 0, 1),
-      y: toNumberInRange(by, 0, 0, 1),
-      width: toNumberInRange(bw, 1, 0.01, 1),
-      height: toNumberInRange(bh, 1, 0.01, 1),
-    } : undefined
     const nextRefs = [
       ...visualRefs.filter((r) => !(r.fragmentId === mediaId && r.kind === kind)),
-      { fragmentId: mediaId, kind, boundary },
+      { fragmentId: mediaId, kind, boundary: pendingBoundary },
     ]
     saveMutation.mutate(nextRefs)
   }
@@ -655,23 +699,35 @@ function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentI
                 </p>
               </div>
 
-              {/* Boundary (collapsed by default) */}
-              <button
-                type="button"
-                onClick={() => setShowBoundary(!showBoundary)}
-                className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-0.5 transition-colors"
-              >
-                <ChevronDown className={`size-3 transition-transform ${showBoundary ? '' : '-rotate-90'}`} />
-                Crop region
-              </button>
-              {showBoundary && (
-                <div className="flex gap-1.5">
-                  <Input value={bx} onChange={(e) => setBx(e.target.value)} placeholder="x" className="h-6 text-[11px] bg-transparent" />
-                  <Input value={by} onChange={(e) => setBy(e.target.value)} placeholder="y" className="h-6 text-[11px] bg-transparent" />
-                  <Input value={bw} onChange={(e) => setBw(e.target.value)} placeholder="w" className="h-6 text-[11px] bg-transparent" />
-                  <Input value={bh} onChange={(e) => setBh(e.target.value)} placeholder="h" className="h-6 text-[11px] bg-transparent" />
-                </div>
-              )}
+              {/* Visual crop */}
+              {(() => {
+                const selectedMedia = mediaById.get(pendingMedia.id)
+                const selectedUrl = selectedMedia ? readImageUrl(selectedMedia) : null
+                return selectedUrl ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={`h-7 text-xs gap-1.5 ${pendingBoundary ? 'border-primary/40 text-primary' : ''}`}
+                      onClick={() => setShowCropDialog(true)}
+                    >
+                      <Crop className="size-3" />
+                      {pendingBoundary
+                        ? `Crop: ${Math.round(pendingBoundary.width * 100)}% × ${Math.round(pendingBoundary.height * 100)}%`
+                        : 'Set crop region'}
+                    </Button>
+                    <CropDialog
+                      open={showCropDialog}
+                      onOpenChange={setShowCropDialog}
+                      imageUrl={selectedUrl}
+                      imageName={selectedMedia?.name ?? pendingMedia.id}
+                      initialBoundary={pendingBoundary}
+                      onApply={(b) => setPendingBoundary(b)}
+                    />
+                  </>
+                ) : null
+              })()}
 
               <div className="flex gap-1.5">
                 <Button
@@ -689,7 +745,7 @@ function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentI
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs"
-                  onClick={() => { setShowPicker(false); setPendingMedia(null); setShowBoundary(false) }}
+                  onClick={() => { setShowPicker(false); setPendingMedia(null); setPendingBoundary(undefined) }}
                 >
                   Cancel
                 </Button>

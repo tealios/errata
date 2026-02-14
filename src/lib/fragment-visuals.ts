@@ -87,6 +87,83 @@ export function gradientForId(id: string): string {
   return gradients[index]
 }
 
+// ── Bubble system ─────────────────────────────────────
+
+// Seeded PRNG (mulberry32)
+function seededRng(seed: number) {
+  return () => {
+    seed |= 0
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashString(str: string): number {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i)
+    h |= 0
+  }
+  return h
+}
+
+export interface Bubble {
+  cx: number
+  cy: number
+  r: number
+  color: string
+  opacity: number
+}
+
+export interface BubbleSet {
+  bg: string
+  bubbles: Bubble[]
+}
+
+const TYPE_PALETTES: Record<string, { bg: string; colors: string[] }> = {
+  character: {
+    bg: 'oklch(0.42 0.06 15)',
+    colors: ['oklch(0.68 0.17 10)', 'oklch(0.74 0.14 35)', 'oklch(0.63 0.15 350)', 'oklch(0.70 0.12 25)', 'oklch(0.78 0.10 50)'],
+  },
+  guideline: {
+    bg: 'oklch(0.40 0.06 250)',
+    colors: ['oklch(0.66 0.15 250)', 'oklch(0.72 0.12 220)', 'oklch(0.60 0.17 270)', 'oklch(0.76 0.10 200)', 'oklch(0.68 0.13 240)'],
+  },
+  knowledge: {
+    bg: 'oklch(0.40 0.06 160)',
+    colors: ['oklch(0.66 0.14 160)', 'oklch(0.72 0.12 140)', 'oklch(0.60 0.15 175)', 'oklch(0.76 0.10 150)', 'oklch(0.68 0.13 130)'],
+  },
+  prose: {
+    bg: 'oklch(0.44 0.04 60)',
+    colors: ['oklch(0.70 0.10 60)', 'oklch(0.65 0.08 45)', 'oklch(0.75 0.07 75)', 'oklch(0.62 0.11 50)', 'oklch(0.78 0.06 70)'],
+  },
+  image: {
+    bg: 'oklch(0.40 0.06 300)',
+    colors: ['oklch(0.66 0.15 300)', 'oklch(0.72 0.12 280)', 'oklch(0.60 0.14 320)', 'oklch(0.76 0.10 290)', 'oklch(0.68 0.15 310)'],
+  },
+}
+
+export function generateBubbles(id: string, type: string): BubbleSet {
+  const palette = TYPE_PALETTES[type] ?? TYPE_PALETTES.prose
+  const rng = seededRng(hashString(id))
+  const count = 4 + Math.floor(rng() * 3) // 4–6 bubbles
+
+  const bubbles: Bubble[] = []
+  for (let i = 0; i < count; i++) {
+    bubbles.push({
+      cx: rng() * 36,
+      cy: rng() * 36,
+      r: 5 + rng() * 12,
+      color: palette.colors[Math.floor(rng() * palette.colors.length)],
+      opacity: 0.35 + rng() * 0.45,
+    })
+  }
+
+  return { bg: palette.bg, bubbles }
+}
+
 export function resolveFragmentVisual(fragment: Fragment, mediaById: Map<string, Fragment>): {
   imageUrl: string | null
   boundary?: BoundaryBox

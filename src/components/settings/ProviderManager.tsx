@@ -7,8 +7,10 @@ import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Za
 
 const PRESETS = {
   deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
-  openai: { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
-  anthropic: { name: 'Anthropic', baseURL: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-4-5-20250929' },
+  openai: { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-5.2' },
+  anthropic: { name: 'Anthropic', baseURL: 'https://api.anthropic.com/v1', defaultModel: 'claude-opus-4-6' },
+  kimi: { name: 'Kimi', baseURL: 'https://api.moonshot.ai/v1', defaultModel: 'kimi-k2.5' },
+  'kimi-code': { name: 'Kimi Code', baseURL: 'https://api.kimi.com/coding/v1', defaultModel: 'kimi-for-coding' },
   openrouter: { name: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'deepseek/deepseek-chat-v3-0324' },
   custom: { name: '', baseURL: '', defaultModel: '' },
 } as const
@@ -271,6 +273,8 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                   <option value="deepseek">DeepSeek</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
+                  <option value="kimi">Kimi</option>
+                  <option value="kimi-code">Kimi Code</option>
                   <option value="openrouter">OpenRouter</option>
                   <option value="custom">Custom</option>
                 </select>

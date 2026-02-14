@@ -251,9 +251,10 @@ describe('context-builder', () => {
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
 
-    // Should have a single user message with all context
-    expect(messages.length).toBe(1)
-    expect(messages[0].role).toBe('user')
+    // Should have a system message and a user message
+    expect(messages.length).toBe(2)
+    expect(messages[0].role).toBe('system')
+    expect(messages[1].role).toBe('user')
   })
 
   it('includes sticky characters in full', async () => {
@@ -300,15 +301,16 @@ describe('context-builder', () => {
     expect(msg!.content).not.toContain('The dark lord rules with an iron fist.')
   })
 
-  it('includes fragment tool availability note in system message', async () => {
+  it('includes fragment tool availability in system message', async () => {
     const story = makeStory()
     await createStory(dataDir, story)
 
     const messages = await buildContext(dataDir, story.id, 'Continue')
-    const content = messages.find((m) => m.role === 'user')!.content as string
+    const sysMsg = messages.find((m) => m.role === 'system')!
 
-    // Message should mention aliased tool availability
-    expect(content).toContain('getCharacter')
-    expect(content).toContain('listCharacters')
+    // System message should list available tools
+    expect(sysMsg.content).toContain('getCharacter')
+    expect(sysMsg.content).toContain('listCharacters')
+    expect(sysMsg.content).toContain('creative writing assistant')
   })
 })

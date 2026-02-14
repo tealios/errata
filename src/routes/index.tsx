@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Sparkles } from 'lucide-react'
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -43,6 +44,29 @@ function StoryListPage() {
       queryClient.invalidateQueries({ queryKey: ['stories'] })
     },
   })
+
+  // Onboarding: show wizard when no providers are configured
+  const { data: globalConfig, isLoading: configLoading } = useQuery({
+    queryKey: ['global-config'],
+    queryFn: api.config.getProviders,
+  })
+  const [onboardingDismissed, setOnboardingDismissed] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('errata-onboarding-dismissed') === 'true'
+  )
+  const [manualWizard, setManualWizard] = useState(false)
+  const showOnboarding = manualWizard || (!configLoading && globalConfig && globalConfig.providers.length === 0 && !onboardingDismissed)
+
+  if (showOnboarding) {
+    return (
+      <OnboardingWizard
+        onComplete={() => {
+          setOnboardingDismissed(true)
+          setManualWizard(false)
+          queryClient.invalidateQueries({ queryKey: ['global-config'] })
+        }}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -167,6 +191,15 @@ function StoryListPage() {
           ))}
         </div>
       </main>
+
+      {/* Re-run onboarding */}
+      <button
+        onClick={() => setManualWizard(true)}
+        className="fixed bottom-4 left-4 flex items-center gap-1.5 text-[11px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+      >
+        <Sparkles className="size-3" />
+        Setup wizard
+      </button>
     </div>
   )
 }

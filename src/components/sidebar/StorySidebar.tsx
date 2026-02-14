@@ -26,6 +26,7 @@ import {
   Sparkles,
   Activity,
   ArrowUpDown,
+  Archive,
 } from 'lucide-react'
 
 export type SidebarSection =
@@ -34,6 +35,7 @@ export type SidebarSection =
   | 'guidelines'
   | 'knowledge'
   | 'media'
+  | 'archive'
   | 'context-order'
   | 'settings'
   | 'agent-activity'
@@ -89,6 +91,17 @@ export function StorySidebar({
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activeSection === 'story-info'}
+                  onClick={() => handleToggle('story-info')}
+                  tooltip="Story Info"
+                >
+                  <Info className="size-4" />
+                  <span>Story Info</span>
+                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -102,18 +115,6 @@ export function StorySidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={activeSection === 'story-info'}
-                  onClick={() => handleToggle('story-info')}
-                  tooltip="Story Info"
-                >
-                  <Info className="size-4" />
-                  <span>Story Info</span>
-                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
               {FRAGMENT_SECTIONS.map((section) => (
                 <SidebarMenuItem key={section.id}>
                   <SidebarMenuButton
@@ -141,6 +142,18 @@ export function StorySidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activeSection === 'archive'}
+                  onClick={() => handleToggle('archive')}
+                  tooltip="Archive"
+                >
+                  <Archive className="size-4" />
+                  <span>Archive</span>
+                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

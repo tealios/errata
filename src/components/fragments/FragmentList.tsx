@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
-import { gradientForId, resolveFragmentVisual } from '@/lib/fragment-visuals'
+import { resolveFragmentVisual, generateBubbles } from '@/lib/fragment-visuals'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Pin, GripVertical, Image as ImageIcon } from 'lucide-react'
+import { Plus, Pin, GripVertical } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -153,7 +153,7 @@ export function FragmentList({
   return (
     <div className="flex flex-col h-full">
       {/* Search + Sort controls */}
-      <div className="p-3 space-y-2 border-b border-border/50">
+      <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border/50">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -183,15 +183,15 @@ export function FragmentList({
       </div>
 
       {/* Pinning info */}
-      <div className="px-3 py-2 border-b border-border/30">
-        <p className="text-[11px] text-muted-foreground/60 leading-snug">
-          <Pin className="size-3 inline -mt-0.5 mr-0.5" />
-          Pinned fragments are always included in full in the AI context. Unpinned ones appear as a shortlist the AI can look up on demand.
+      <div className="px-3 py-2.5 border-b border-border/30">
+        <p className="text-[10px] text-muted-foreground/40 leading-relaxed">
+          <Pin className="size-2.5 inline -mt-0.5 mr-0.5" />
+          Pinned fragments are always sent to the AI. Unpinned ones appear as a shortlist.
         </p>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-0.5">
+        <div className="p-2 space-y-1">
           {filtered.length === 0 && (
             <p className="text-xs text-muted-foreground/50 py-8 text-center italic">
               {search.trim() ? 'No matches' : 'No fragments yet'}
@@ -205,7 +205,7 @@ export function FragmentList({
               onDragEnter={() => handleDragEnter(index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className={`group flex items-start gap-1 rounded-md px-2 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
+              className={`group flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
                 selectedId === fragment.id ? 'bg-accent' : ''
               } ${dragIndex === index ? 'opacity-50' : ''}`}
             >
@@ -219,28 +219,46 @@ export function FragmentList({
               {(() => {
                 const visual = resolveFragmentVisual(fragment, mediaById)
                 const boundary = visual.boundary
-                const focusX = boundary ? (boundary.x + boundary.width / 2) * 100 : 50
-                const focusY = boundary ? (boundary.y + boundary.height / 2) * 100 : 50
 
                 if (visual.imageUrl) {
-                  return (
-                    <div className="size-9 shrink-0 rounded-md overflow-hidden border border-border/40 bg-muted">
-                      <img
-                        src={visual.imageUrl}
-                        alt=""
-                        className="size-full object-cover"
-                        style={{ objectPosition: `${focusX}% ${focusY}%` }}
+                  if (boundary && boundary.width < 1 && boundary.height < 1) {
+                    // Zoom into the cropped region
+                    const bgPosX = boundary.width < 1 ? (boundary.x / (1 - boundary.width)) * 100 : 50
+                    const bgPosY = boundary.height < 1 ? (boundary.y / (1 - boundary.height)) * 100 : 50
+                    return (
+                      <div
+                        className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted bg-no-repeat"
+                        style={{
+                          backgroundImage: `url("${visual.imageUrl}")`,
+                          backgroundSize: `${100 / boundary.width}% ${100 / boundary.height}%`,
+                          backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+                        }}
                       />
+                    )
+                  }
+                  return (
+                    <div className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted">
+                      <img src={visual.imageUrl} alt="" className="size-full object-cover" />
                     </div>
                   )
                 }
 
+                const bubbleSet = generateBubbles(fragment.id, fragment.type)
                 return (
-                  <div
-                    className="size-9 shrink-0 rounded-md border border-border/40 flex items-center justify-center"
-                    style={{ backgroundImage: gradientForId(fragment.id) }}
-                  >
-                    <ImageIcon className="size-4 text-white/85" />
+                  <div className="size-9 shrink-0 rounded-lg overflow-hidden">
+                    <svg viewBox="0 0 36 36" className="size-full" aria-hidden>
+                      <rect width="36" height="36" fill={bubbleSet.bg} />
+                      {bubbleSet.bubbles.map((b, i) => (
+                        <circle
+                          key={i}
+                          cx={b.cx}
+                          cy={b.cy}
+                          r={b.r}
+                          fill={b.color}
+                          opacity={b.opacity}
+                        />
+                      ))}
+                    </svg>
                   </div>
                 )
               })()}

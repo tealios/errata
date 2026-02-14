@@ -50,6 +50,7 @@ export interface Fragment {
   updatedAt: string
   order: number
   meta: Record<string, unknown>
+  archived: boolean
 }
 
 export interface FragmentTypeInfo {
@@ -294,6 +295,15 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ placement }),
       }),
+    // Archive / Restore
+    archive: (storyId: string, fragmentId: string) =>
+      apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}/archive`, { method: 'POST' }),
+    restore: (storyId: string, fragmentId: string) =>
+      apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}/restore`, { method: 'POST' }),
+    listArchived: async (storyId: string) => {
+      const all = await apiFetch<Fragment[]>(`/stories/${storyId}/fragments?includeArchived=true`)
+      return all.filter((f) => f.archived)
+    },
   },
   generation: {
     /** Stream prose generation (returns ReadableStream of text chunks) */

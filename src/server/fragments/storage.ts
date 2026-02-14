@@ -114,11 +114,13 @@ export async function getFragment(
 export async function listFragments(
   dataDir: string,
   storyId: string,
-  type?: string
+  type?: string,
+  opts?: { includeArchived?: boolean }
 ): Promise<Fragment[]> {
   const dir = fragmentsDir(dataDir, storyId)
   if (!existsSync(dir)) return []
 
+  const includeArchived = opts?.includeArchived ?? false
   const entries = await readdir(dir)
   const fragments: Fragment[] = []
 
@@ -131,10 +133,48 @@ export async function listFragments(
     if (prefix && !id.startsWith(prefix + '-')) continue
 
     const fragment = await readJson<Fragment>(join(dir, entry))
-    if (fragment) fragments.push(fragment)
+    if (fragment) {
+      // Default archived to false for legacy files
+      if (fragment.archived === undefined) fragment.archived = false
+      // Skip archived fragments unless caller opts in
+      if (!includeArchived && fragment.archived) continue
+      fragments.push(fragment)
+    }
   }
 
   return fragments
+}
+
+export async function archiveFragment(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string
+): Promise<Fragment | null> {
+  const fragment = await getFragment(dataDir, storyId, fragmentId)
+  if (!fragment) return null
+  const updated: Fragment = {
+    ...fragment,
+    archived: true,
+    updatedAt: new Date().toISOString(),
+  }
+  await writeJson(fragmentPath(dataDir, storyId, fragmentId), updated)
+  return updated
+}
+
+export async function restoreFragment(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string
+): Promise<Fragment | null> {
+  const fragment = await getFragment(dataDir, storyId, fragmentId)
+  if (!fragment) return null
+  const updated: Fragment = {
+    ...fragment,
+    archived: false,
+    updatedAt: new Date().toISOString(),
+  }
+  await writeJson(fragmentPath(dataDir, storyId, fragmentId), updated)
+  return updated
 }
 
 export async function updateFragment(

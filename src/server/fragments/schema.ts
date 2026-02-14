@@ -22,6 +22,7 @@ export const FragmentSchema = z.object({
   updatedAt: z.iso.datetime(),
   order: z.int().default(0),
   meta: z.record(z.string(), z.unknown()).default({}),
+  archived: z.boolean().default(false),
 })
 
 export type Fragment = z.infer<typeof FragmentSchema>

@@ -11,6 +11,8 @@ import {
   listFragments,
   updateFragment,
   deleteFragment,
+  archiveFragment,
+  restoreFragment,
 } from './fragments/storage'
 import { createLogger } from './logging'
 import {
@@ -203,6 +205,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         updatedAt: now,
         order: 0,
         meta: {},
+        archived: false,
       }
       await createFragment(dataDir, params.storyId, fragment)
       return fragment
@@ -217,7 +220,8 @@ export function createApp(dataDir: string = DATA_DIR) {
 
     .get('/stories/:storyId/fragments', async ({ params, query }) => {
       const type = query.type as string | undefined
-      return listFragments(dataDir, params.storyId, type)
+      const includeArchived = (query as Record<string, string>).includeArchived === 'true'
+      return listFragments(dataDir, params.storyId, type, { includeArchived })
     })
 
     .get('/stories/:storyId/fragments/:fragmentId', async ({ params, set }) => {
@@ -293,9 +297,37 @@ export function createApp(dataDir: string = DATA_DIR) {
       }),
     })
 
-    .delete('/stories/:storyId/fragments/:fragmentId', async ({ params }) => {
+    .delete('/stories/:storyId/fragments/:fragmentId', async ({ params, set }) => {
+      const fragment = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!fragment) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      if (!fragment.archived) {
+        set.status = 422
+        return { error: 'Fragment must be archived before deletion' }
+      }
       await deleteFragment(dataDir, params.storyId, params.fragmentId)
       return { ok: true }
+    })
+
+    // --- Archive / Restore ---
+    .post('/stories/:storyId/fragments/:fragmentId/archive', async ({ params, set }) => {
+      const result = await archiveFragment(dataDir, params.storyId, params.fragmentId)
+      if (!result) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      return result
+    })
+
+    .post('/stories/:storyId/fragments/:fragmentId/restore', async ({ params, set }) => {
+      const result = await restoreFragment(dataDir, params.storyId, params.fragmentId)
+      if (!result) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      return result
     })
 
     // --- Tags ---

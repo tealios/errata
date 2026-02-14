@@ -189,18 +189,22 @@ describe('end-to-end generation integration', () => {
     expect(mockedStreamText).toHaveBeenCalledTimes(1)
     const callArgs = mockedStreamText.mock.calls[0][0]
 
-    // Should have a single user message with all context
+    // Should have a system message and a user message
     expect(callArgs.messages).toBeDefined()
-    expect(callArgs.messages!.length).toBe(1)
+    expect(callArgs.messages!.length).toBe(2)
 
-    const msg = callArgs.messages![0]
+    const sysMsg = callArgs.messages![0]
+    expect(sysMsg.role).toBe('system')
+    // System message should contain instructions and tool list
+    expect(sysMsg.content).toContain('creative writing assistant')
+    expect(sysMsg.content).toContain('getCharacter')
+
+    const msg = callArgs.messages![1]
     expect(msg.role).toBe('user')
     // Should contain the story name
     expect(msg.content).toContain('Epic Tale')
     // Should contain the existing prose
     expect(msg.content).toContain('I wake up to the sound of distant thunder.')
-    // Should mention aliased fragment tools
-    expect(msg.content).toContain('getCharacter')
     // Should contain the author input
     expect(msg.content).toContain('Elena hears danger approaching')
 
@@ -294,14 +298,15 @@ describe('end-to-end generation integration', () => {
     expect(genRes.status).toBe(200)
     await genRes.text()
 
-    const content = mockedStreamText.mock.calls[0][0].messages![0].content as string
+    const callArgs = mockedStreamText.mock.calls[0][0]
+    const userContent = callArgs.messages![1].content as string
 
-    // Sticky guideline content should be in full
-    expect(content).toContain('Never break the fourth wall.')
+    // Sticky guideline content should be in full in user message
+    expect(userContent).toContain('Never break the fourth wall.')
 
     // Non-sticky should be in shortlist (id + description) but NOT full content
-    expect(content).toContain('gl-0002')
-    expect(content).toContain('Optional writing advice')
-    expect(content).not.toContain('Consider using metaphors sparingly.')
+    expect(userContent).toContain('gl-0002')
+    expect(userContent).toContain('Optional writing advice')
+    expect(userContent).not.toContain('Consider using metaphors sparingly.')
   })
 })

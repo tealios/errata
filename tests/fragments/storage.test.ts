@@ -11,6 +11,8 @@ import {
   listFragments,
   updateFragment,
   deleteFragment,
+  archiveFragment,
+  restoreFragment,
 } from '@/server/fragments/storage'
 import type { Fragment, StoryMeta } from '@/server/fragments/schema'
 
@@ -159,5 +161,62 @@ describe('Fragment CRUD', () => {
   it('returns null for non-existent fragment', async () => {
     const result = await getFragment(dataDir, storyId, 'pr-zzzz')
     expect(result).toBeNull()
+  })
+})
+
+describe('Fragment Archive', () => {
+  const storyId = 'story-1'
+
+  beforeEach(async () => {
+    await createStory(dataDir, makeStory({ id: storyId }))
+  })
+
+  it('archiveFragment sets archived to true', async () => {
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-test' }))
+    const result = await archiveFragment(dataDir, storyId, 'ch-test')
+    expect(result).not.toBeNull()
+    expect(result!.archived).toBe(true)
+  })
+
+  it('restoreFragment sets archived to false', async () => {
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-test', archived: true }))
+    const result = await restoreFragment(dataDir, storyId, 'ch-test')
+    expect(result).not.toBeNull()
+    expect(result!.archived).toBe(false)
+  })
+
+  it('archiveFragment returns null for non-existent fragment', async () => {
+    const result = await archiveFragment(dataDir, storyId, 'pr-zzzz')
+    expect(result).toBeNull()
+  })
+
+  it('listFragments excludes archived fragments by default', async () => {
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-aaaa' }))
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-bbbb' }))
+    await archiveFragment(dataDir, storyId, 'ch-bbbb')
+
+    const fragments = await listFragments(dataDir, storyId)
+    expect(fragments).toHaveLength(1)
+    expect(fragments[0].id).toBe('ch-aaaa')
+  })
+
+  it('listFragments includes archived fragments when opted in', async () => {
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-aaaa' }))
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-bbbb' }))
+    await archiveFragment(dataDir, storyId, 'ch-bbbb')
+
+    const fragments = await listFragments(dataDir, storyId, undefined, { includeArchived: true })
+    expect(fragments).toHaveLength(2)
+  })
+
+  it('defaults archived to false for legacy fragments without the field', async () => {
+    // Create a fragment without the archived field (simulating legacy data)
+    const legacy = makeFragment({ id: 'pr-lega' })
+    delete (legacy as Record<string, unknown>).archived
+    await createFragment(dataDir, storyId, legacy)
+
+    const fragments = await listFragments(dataDir, storyId)
+    expect(fragments).toHaveLength(1)
+    expect(fragments[0].archived).toBe(false)
   })
 })

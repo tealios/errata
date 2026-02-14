@@ -78,9 +78,9 @@ export async function buildContextState(
         continue
       }
       const fragment = await getFragment(dataDir, storyId, proseId)
-      if (fragment) {
+      if (fragment && !fragment.archived) {
         proseFragments.push(fragment)
-      } else {
+      } else if (!fragment) {
         requestLogger.warn('Prose fragment not found in chain', { proseId })
       }
     }
@@ -228,17 +228,6 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     }
   }
 
-  const instructionsBlock =
-    '\n## Instructions\n' +
-    'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.\n' +
-    'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.\n' +
-    'Only use tools to look up context you need before writing.\n' +
-    '\n## Available Tools\n' +
-    'You have access to the following tools:\n' +
-    toolLines.join('\n') +
-    '\n\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
-    'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.'
-
   // Shortlists (always go in user message)
   const shortlistParts: string[] = []
   if (guidelineShortlist.length > 0) {
@@ -260,10 +249,26 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     }
   }
 
-  // Build system message content (if any fragments target system placement)
-  let systemMessageContent = ''
+  // Build system message — always present with instructions, optionally with system-placed fragments
+  const sysParts: string[] = []
+
+  sysParts.push(
+    'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.',
+    'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.',
+    'Only use tools to look up context you need before writing.',
+  )
+
+  // Available tools listed in system prompt
+  sysParts.push('\n## Available Tools')
+  sysParts.push('You have access to the following tools:')
+  sysParts.push(toolLines.join('\n'))
+  sysParts.push(
+    '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
+    'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.'
+  )
+
+  // System-placed fragments
   if (systemPlaced.length > 0) {
-    const sysParts: string[] = []
     if (contextOrderMode === 'advanced') {
       sysParts.push(...renderAdvancedOrder(systemPlaced, fragmentOrder))
     } else {
@@ -275,8 +280,9 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
       sysParts.push(...renderTypeGrouped(sysKnowledge, 'Knowledge'))
       sysParts.push(...renderTypeGrouped(sysCharacters, 'Characters'))
     }
-    systemMessageContent = sysParts.join('\n')
   }
+
+  const systemMessageContent = sysParts.join('\n')
 
   // Build user message content
   const userParts: string[] = []
@@ -312,21 +318,19 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
   // Shortlists
   userParts.push(...shortlistParts)
 
-  // Instructions + author input
-  userParts.push(instructionsBlock)
+  // Author input
   userParts.push('\nThe author wants the following to happen next: ' + authorInput)
 
   const userContent = userParts.join('\n')
 
-  const messages: ContextMessage[] = []
-  if (systemMessageContent) {
-    messages.push({ role: 'system', content: systemMessageContent })
-  }
-  messages.push({ role: 'user', content: userContent })
+  const messages: ContextMessage[] = [
+    { role: 'system', content: systemMessageContent },
+    { role: 'user', content: userContent },
+  ]
 
   requestLogger.info('Messages assembled', {
     messageCount: messages.length,
-    hasSystemMessage: !!systemMessageContent,
+    systemContentLength: systemMessageContent.length,
     userContentLength: userContent.length,
   })
 
