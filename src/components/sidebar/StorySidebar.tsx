@@ -47,7 +47,7 @@ interface StorySidebarProps {
 const FRAGMENT_SECTIONS = [
   { id: 'characters' as const, label: 'Characters', icon: Users },
   { id: 'guidelines' as const, label: 'Guidelines', icon: BookOpen },
-  { id: 'knowledge' as const, label: 'Knowledge Base', icon: Database },
+  { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
 ]
 
 export function StorySidebar({
@@ -63,8 +63,8 @@ export function StorySidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center justify-between px-2 py-1">
-          <span className="text-sm font-semibold truncate group-data-[collapsible=icon]:hidden">
+        <div className="flex items-center justify-between px-2 py-1.5">
+          <span className="font-display text-base italic truncate group-data-[collapsible=icon]:hidden">
             {story?.name ?? 'Errata'}
           </span>
           <SidebarTrigger />
@@ -79,7 +79,7 @@ export function StorySidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Home">
                   <Link to="/">
-                    <Home />
+                    <Home className="size-4" />
                     <span>Home</span>
                   </Link>
                 </SidebarMenuButton>
@@ -92,7 +92,9 @@ export function StorySidebar({
 
         {/* Fragments */}
         <SidebarGroup>
-          <SidebarGroupLabel>Fragments</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+            Fragments
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -101,9 +103,9 @@ export function StorySidebar({
                   onClick={() => handleToggle('story-info')}
                   tooltip="Story Info"
                 >
-                  <Info />
+                  <Info className="size-4" />
                   <span>Story Info</span>
-                  <ChevronRight className="ml-auto" />
+                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
@@ -114,9 +116,9 @@ export function StorySidebar({
                     onClick={() => handleToggle(section.id)}
                     tooltip={section.label}
                   >
-                    <section.icon />
+                    <section.icon className="size-4" />
                     <span>{section.label}</span>
-                    <ChevronRight className="ml-auto" />
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -129,7 +131,9 @@ export function StorySidebar({
           <>
             <SidebarSeparator />
             <SidebarGroup>
-              <SidebarGroupLabel>Plugins</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+                Plugins
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {enabledPanelPlugins.map((plugin) => (
@@ -139,9 +143,9 @@ export function StorySidebar({
                         onClick={() => handleToggle(`plugin-${plugin.name}`)}
                         tooltip={plugin.title}
                       >
-                        <Sparkles />
+                        <Sparkles className="size-4" />
                         <span>{plugin.title}</span>
-                        <ChevronRight className="ml-auto" />
+                        <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
@@ -155,7 +159,9 @@ export function StorySidebar({
 
         {/* Agent Activity */}
         <SidebarGroup>
-          <SidebarGroupLabel>Agent</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+            Agent
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -164,9 +170,9 @@ export function StorySidebar({
                   onClick={() => handleToggle('agent-activity')}
                   tooltip="Agent Activity"
                 >
-                  <Activity />
+                  <Activity className="size-4" />
                   <span>Librarian</span>
-                  <ChevronRight className="ml-auto" />
+                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -182,9 +188,9 @@ export function StorySidebar({
               onClick={() => handleToggle('settings')}
               tooltip="Settings"
             >
-              <Settings />
+              <Settings className="size-4" />
               <span>Settings</span>
-              <ChevronRight className="ml-auto" />
+              <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

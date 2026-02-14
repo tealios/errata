@@ -35,14 +35,14 @@ export function ProseActionInput({
         ? await api.generation.regenerate(storyId, fragmentId, input)
         : await api.generation.refine(storyId, fragmentId, input)
 
-      // Consume the stream
       const reader = stream.getReader()
       while (true) {
         const { done } = await reader.read()
         if (done) break
       }
 
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
       onComplete()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Operation failed')
@@ -56,12 +56,12 @@ export function ProseActionInput({
     : 'How to refine...'
 
   return (
-    <div className="mt-2 rounded-md border border-accent bg-accent/10 p-3">
+    <div className="mt-3 rounded-lg border border-primary/15 bg-card/30 p-4">
       <Textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder={placeholder}
-        className="min-h-[60px] max-h-[120px] resize-none text-sm border-muted"
+        className="min-h-[56px] max-h-[120px] resize-none text-sm bg-transparent border-border/40 placeholder:italic placeholder:text-muted-foreground/40"
         disabled={isLoading}
         autoFocus
         onKeyDown={(e) => {
@@ -75,18 +75,21 @@ export function ProseActionInput({
         }}
       />
       {error && (
-        <p className="text-sm text-destructive mt-1">{error}</p>
+        <p className="text-sm text-destructive mt-2">{error}</p>
       )}
-      <div className="flex items-center justify-between mt-2">
-        <span className="text-[10px] text-muted-foreground">
-          Esc to cancel, Ctrl+Enter to submit
+      <div className="flex items-center justify-between mt-2.5">
+        <span className="text-[10px] text-muted-foreground/40">
+          Esc to cancel &middot; Ctrl+Enter to submit
         </span>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={onCancel} disabled={isLoading}>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={!input.trim() || isLoading}>
-            {isLoading ? (mode === 'regenerate' ? 'Regenerating...' : 'Refining...') : (mode === 'regenerate' ? 'Regenerate' : 'Refine')}
+          <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={!input.trim() || isLoading}>
+            {isLoading
+              ? (mode === 'regenerate' ? 'Regenerating...' : 'Refining...')
+              : (mode === 'regenerate' ? 'Regenerate' : 'Refine')
+            }
           </Button>
         </div>
       </div>

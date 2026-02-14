@@ -64,10 +64,16 @@ function createMockStreamResult(text: string) {
     },
   })
 
+  // Create a proper ReadableStream for textStream that supports tee()
+  const textStream = new ReadableStream<string>({
+    start(controller) {
+      controller.enqueue(text)
+      controller.close()
+    },
+  })
+
   return {
-    textStream: (async function* () {
-      yield text
-    })(),
+    textStream,
     text: Promise.resolve(text),
     usage: Promise.resolve({ promptTokens: 10, completionTokens: 20, totalTokens: 30 }),
     finishReason: Promise.resolve('stop' as const),
@@ -248,15 +254,19 @@ describe('generation endpoint', () => {
     await res.text()
     await new Promise((r) => setTimeout(r, 100))
 
-    const updated = await getFragment(dataDir, storyId, 'pr-regen')
-    expect(updated).toBeDefined()
-    expect(updated!.content).toBe('Regenerated prose content.')
-    expect(updated!.meta.previousContent).toBe('Original prose content.')
-    expect(updated!.meta.generationMode).toBe('regenerate')
+    // Original fragment should be unchanged
+    const originalFragment = await getFragment(dataDir, storyId, 'pr-regen')
+    expect(originalFragment!.content).toBe('Original prose content.')
 
-    // Should NOT create a new fragment
-    const fragments = await listFragments(dataDir, storyId, 'prose')
-    expect(fragments.filter((f) => f.id === 'pr-regen').length).toBe(1)
+    // A new variation fragment should be created
+    const allFragments = await listFragments(dataDir, storyId, 'prose')
+    const variation = allFragments.find((f) => f.meta?.variationOf === 'pr-regen')
+    expect(variation).toBeDefined()
+    expect(variation!.content).toBe('Regenerated prose content.')
+    expect(variation!.meta.generationMode).toBe('regenerate')
+
+    // Should have 2 fragments now (original + variation)
+    expect(allFragments.length).toBe(2)
   })
 
   // --- Refine mode ---
@@ -293,11 +303,16 @@ describe('generation endpoint', () => {
     expect(userMsg!.content).toContain('The hero walked slowly through the forest.')
     expect(userMsg!.content).toContain('Make it more suspenseful')
 
-    // Verify fragment was updated in-place
-    const updated = await getFragment(dataDir, storyId, 'pr-refine')
-    expect(updated!.content).toBe('The hero crept through the dark forest.')
-    expect(updated!.meta.previousContent).toBe('The hero walked slowly through the forest.')
-    expect(updated!.meta.generationMode).toBe('refine')
+    // Verify a NEW fragment was created (not updated in-place)
+    const originalFragment = await getFragment(dataDir, storyId, 'pr-refine')
+    expect(originalFragment!.content).toBe('The hero walked slowly through the forest.') // Original unchanged
+
+    // Find the new variation fragment
+    const allFragments = await listFragments(dataDir, storyId, 'prose')
+    const variation = allFragments.find(f => f.meta?.variationOf === 'pr-refine')
+    expect(variation).toBeDefined()
+    expect(variation!.content).toBe('The hero crept through the dark forest.')
+    expect(variation!.meta.generationMode).toBe('refine')
   })
 
   // --- Validation ---

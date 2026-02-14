@@ -92,7 +92,7 @@ function StoryEditorPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Loading story...</p>
+        <p className="text-sm text-muted-foreground/50 italic">Loading story...</p>
       </div>
     )
   }
@@ -100,9 +100,9 @@ function StoryEditorPage() {
   if (!story) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">Story not found.</p>
+        <p className="text-sm text-muted-foreground/50 italic">Story not found.</p>
         <Link to="/">
-          <Button variant="outline">Back to stories</Button>
+          <Button variant="outline" size="sm">Back to stories</Button>
         </Link>
       </div>
     )

@@ -3,9 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { DebugPanel } from './DebugPanel'
+import { Send, Eye, Square, Bug, ArrowLeft } from 'lucide-react'
 
 interface GenerationPanelProps {
   storyId: string
@@ -43,15 +42,14 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
         accumulated += value
         setStreamedText(accumulated)
 
-        // Auto-scroll to bottom
         if (outputRef.current) {
           outputRef.current.scrollTop = outputRef.current.scrollHeight
         }
       }
 
       if (saveResult) {
-        // Invalidate fragment queries to refresh the list
-        queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+        await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+        await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
         setInput('')
       }
     } catch (err) {
@@ -71,19 +69,22 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-lg font-semibold">Generate</h2>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+        <h2 className="font-display text-lg">Generate</h2>
+        <div className="flex gap-1.5">
           <Button
             size="sm"
-            variant={showDebug ? 'secondary' : 'outline'}
+            variant={showDebug ? 'secondary' : 'ghost'}
+            className="h-7 text-xs gap-1"
             onClick={() => setShowDebug(!showDebug)}
           >
+            <Bug className="size-3" />
             Debug
           </Button>
           {onBack && (
-            <Button size="sm" variant="ghost" onClick={onBack}>
-              Back to Story
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={onBack}>
+              <ArrowLeft className="size-3" />
+              Back
             </Button>
           )}
         </div>
@@ -99,33 +100,33 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
           {/* Streaming output area */}
           {streamedText && (
             <>
-              <div ref={outputRef} className="flex-1 overflow-auto p-4">
-                <div className="max-w-prose mx-auto">
-                  <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+              <div ref={outputRef} className="flex-1 overflow-auto px-6 py-6">
+                <div className="max-w-[38rem] mx-auto">
+                  <div className="prose-content whitespace-pre-wrap">
                     {streamedText}
                   </div>
                   {isGenerating && (
-                    <span className="inline-block w-2 h-4 bg-foreground/60 animate-pulse ml-0.5" />
+                    <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
                   )}
                 </div>
               </div>
-              <Separator />
+              <div className="h-px bg-border/30" />
             </>
           )}
 
           {error && (
-            <div className="px-4 py-2 text-sm text-destructive bg-destructive/10 border-b">
+            <div className="px-6 py-2 text-sm text-destructive bg-destructive/5 border-b border-border/50">
               {error}
             </div>
           )}
 
           {/* Input area */}
-          <div className="p-4 space-y-3">
+          <div className="px-6 py-5 space-y-3">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Describe what should happen next in the story..."
-              className="min-h-[80px] resize-none text-sm"
+              className="min-h-[80px] resize-none text-sm bg-transparent placeholder:italic placeholder:text-muted-foreground/40"
               disabled={isGenerating}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -134,34 +135,41 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
                 }
               }}
             />
-            <div className="flex gap-2">
-              {isGenerating ? (
-                <Button variant="destructive" size="sm" onClick={handleStop}>
-                  Stop
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={() => handleGenerate(true)}
-                    disabled={!input.trim()}
-                  >
-                    Generate & Save
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1.5">
+                {isGenerating ? (
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={handleStop}>
+                    <Square className="size-3" />
+                    Stop
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleGenerate(false)}
-                    disabled={!input.trim()}
-                  >
-                    Preview
-                  </Button>
-                </>
-              )}
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => handleGenerate(true)}
+                      disabled={!input.trim()}
+                    >
+                      <Send className="size-3" />
+                      Generate & Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs gap-1.5 text-muted-foreground"
+                      onClick={() => handleGenerate(false)}
+                      disabled={!input.trim()}
+                    >
+                      <Eye className="size-3" />
+                      Preview
+                    </Button>
+                  </>
+                )}
+              </div>
+              <span className="text-[10px] text-muted-foreground/40">
+                Ctrl+Enter to generate & save
+              </span>
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              Ctrl+Enter to generate & save
-            </p>
           </div>
         </>
       )}

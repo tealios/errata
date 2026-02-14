@@ -14,8 +14,15 @@ vi.mock('ai', () => ({
   stepCountIs: vi.fn((n: number) => n),
   streamText: vi.fn(() => {
     const text = 'Generated text'
+    // Create a proper ReadableStream for textStream that supports tee()
+    const textStream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue(text)
+        controller.close()
+      },
+    })
     return {
-      textStream: (async function* () { yield text })(),
+      textStream,
       text: Promise.resolve(text),
       usage: Promise.resolve({ promptTokens: 10, completionTokens: 20, totalTokens: 30 }),
       finishReason: Promise.resolve('stop' as const),

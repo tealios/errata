@@ -4,12 +4,10 @@ import {
   api,
   type LibrarianAnalysis,
   type LibrarianAnalysisSummary,
-  type LibrarianState,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import {
   AlertTriangle,
   Lightbulb,
@@ -55,54 +53,54 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
       <div className="p-4 space-y-4">
         {/* Status */}
         <div>
-          <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">Status</h4>
+          <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2">Status</h4>
           <div className="flex items-center gap-2 text-sm">
-            <div className="size-2 rounded-full bg-green-500" />
-            <span>Idle</span>
+            <div className="size-1.5 rounded-full bg-green-500/70" />
+            <span className="text-sm">Idle</span>
           </div>
           {status?.lastAnalyzedFragmentId && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Last analyzed: {status.lastAnalyzedFragmentId}
+            <p className="text-[10px] text-muted-foreground/40 mt-1">
+              Last analyzed: <span className="font-mono">{status.lastAnalyzedFragmentId}</span>
             </p>
           )}
         </div>
 
-        <Separator />
+        <div className="h-px bg-border/30" />
 
         {/* Summary badges */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
           {totalContradictions > 0 && (
-            <Badge variant="destructive" className="text-xs">
-              <AlertTriangle className="size-3 mr-1" />
+            <Badge variant="destructive" className="text-xs gap-1">
+              <AlertTriangle className="size-3" />
               {totalContradictions} contradiction{totalContradictions !== 1 ? 's' : ''}
             </Badge>
           )}
           {totalSuggestions > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              <Lightbulb className="size-3 mr-1" />
+            <Badge variant="secondary" className="text-xs gap-1">
+              <Lightbulb className="size-3" />
               {totalSuggestions} suggestion{totalSuggestions !== 1 ? 's' : ''}
             </Badge>
           )}
           {analyses?.length === 0 && (
-            <p className="text-xs text-muted-foreground">No analyses yet. Generate some prose to get started.</p>
+            <p className="text-xs text-muted-foreground/40 italic">No analyses yet. Generate some prose to get started.</p>
           )}
         </div>
 
         {/* Character mentions */}
         {status && Object.keys(status.recentMentions).length > 0 && (
           <>
-            <Separator />
+            <div className="h-px bg-border/30" />
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                <Users className="size-3 inline mr-1" />
+              <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Users className="size-3" />
                 Character Mentions
               </h4>
               <div className="space-y-1">
                 {Object.entries(status.recentMentions).map(([charId, fragmentIds]) => (
                   <div key={charId} className="flex items-center justify-between text-xs">
-                    <span className="font-mono">{charId}</span>
-                    <Badge variant="outline" className="text-[10px]">
-                      {fragmentIds.length} mention{fragmentIds.length !== 1 ? 's' : ''}
+                    <span className="font-mono text-muted-foreground/60">{charId}</span>
+                    <Badge variant="outline" className="text-[10px] h-4">
+                      {fragmentIds.length}
                     </Badge>
                   </div>
                 ))}
@@ -114,17 +112,17 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
         {/* Timeline */}
         {status && status.timeline.length > 0 && (
           <>
-            <Separator />
+            <div className="h-px bg-border/30" />
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">
-                <Clock className="size-3 inline mr-1" />
+              <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Clock className="size-3" />
                 Timeline
               </h4>
               <div className="space-y-1">
                 {status.timeline.slice(-10).map((entry, i) => (
                   <div key={i} className="text-xs flex gap-2">
-                    <span className="font-mono text-muted-foreground shrink-0">{entry.fragmentId}</span>
-                    <span>{entry.event}</span>
+                    <span className="font-mono text-muted-foreground/40 shrink-0">{entry.fragmentId}</span>
+                    <span className="text-muted-foreground/70">{entry.event}</span>
                   </div>
                 ))}
               </div>
@@ -132,14 +130,14 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
           </>
         )}
 
-        <Separator />
+        <div className="h-px bg-border/30" />
 
         {/* Analyses list */}
         <div>
-          <h4 className="text-xs font-medium text-muted-foreground uppercase mb-2">
+          <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2">
             Recent Analyses
           </h4>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {analyses?.map((summary) => (
               <AnalysisItem
                 key={summary.id}
@@ -195,22 +193,22 @@ function AnalysisItem({
   }
 
   return (
-    <div className="border rounded-md">
+    <div className="rounded-lg border border-border/30">
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-2 p-2 text-xs hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center gap-2 p-2.5 text-xs hover:bg-card/30 transition-colors rounded-lg"
       >
-        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-        <span className="font-mono">{summary.fragmentId}</span>
-        <span className="text-muted-foreground">{timeStr}</span>
+        {expanded ? <ChevronDown className="size-3 text-muted-foreground/40" /> : <ChevronRight className="size-3 text-muted-foreground/40" />}
+        <span className="font-mono text-muted-foreground/60">{summary.fragmentId}</span>
+        <span className="text-muted-foreground/40">{timeStr}</span>
         <div className="ml-auto flex gap-1">
           {summary.contradictionCount > 0 && (
-            <Badge variant="destructive" className="text-[10px] px-1">
+            <Badge variant="destructive" className="text-[10px] h-4 px-1">
               {summary.contradictionCount}
             </Badge>
           )}
           {summary.suggestionCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] px-1">
+            <Badge variant="secondary" className="text-[10px] h-4 px-1">
               {summary.suggestionCount}
             </Badge>
           )}
@@ -218,36 +216,33 @@ function AnalysisItem({
       </button>
 
       {expanded && analysis && (
-        <div className="border-t p-2 space-y-3 text-xs">
-          {/* Summary update */}
+        <div className="border-t border-border/20 p-2.5 space-y-3 text-xs">
           {analysis.summaryUpdate && (
             <div>
               <span className="font-medium">Summary:</span>{' '}
-              <span className="text-muted-foreground">{analysis.summaryUpdate}</span>
+              <span className="text-muted-foreground/70">{analysis.summaryUpdate}</span>
             </div>
           )}
 
-          {/* Mentioned characters */}
           {analysis.mentionedCharacters.length > 0 && (
             <div>
               <span className="font-medium">Characters:</span>{' '}
               {analysis.mentionedCharacters.map((id) => (
-                <Badge key={id} variant="outline" className="text-[10px] mr-1">
+                <Badge key={id} variant="outline" className="text-[10px] mr-1 h-4">
                   {id}
                 </Badge>
               ))}
             </div>
           )}
 
-          {/* Contradictions */}
           {analysis.contradictions.length > 0 && (
             <div className="space-y-1">
-              <span className="font-medium text-orange-600">Contradictions:</span>
+              <span className="font-medium text-destructive/80">Contradictions:</span>
               {analysis.contradictions.map((c, i) => (
-                <div key={i} className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded p-1.5">
+                <div key={i} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
                   <p>{c.description}</p>
                   {c.fragmentIds.length > 0 && (
-                    <p className="text-muted-foreground mt-0.5">
+                    <p className="text-muted-foreground/50 mt-0.5">
                       Related: {c.fragmentIds.join(', ')}
                     </p>
                   )}
@@ -256,37 +251,36 @@ function AnalysisItem({
             </div>
           )}
 
-          {/* Knowledge suggestions */}
           {analysis.knowledgeSuggestions.length > 0 && (
             <div className="space-y-1">
-              <span className="font-medium text-blue-600">Suggestions:</span>
+              <span className="font-medium text-primary/80">Suggestions:</span>
               {analysis.knowledgeSuggestions.map((s, i) => (
                 <div
                   key={i}
-                  className={`rounded p-1.5 flex items-start justify-between gap-1 ${
+                  className={`rounded-md p-2 flex items-start justify-between gap-1 ${
                     s.accepted
-                      ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 opacity-60'
-                      : 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800'
+                      ? 'bg-green-500/5 border border-green-500/10 opacity-60'
+                      : 'bg-primary/5 border border-primary/10'
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className="text-[10px]">{s.type ?? 'knowledge'}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-3.5">{s.type ?? 'knowledge'}</Badge>
                       <p className="font-medium">{s.name}</p>
                       {s.accepted && (
-                        <Badge variant="secondary" className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                          <Check className="size-2.5 mr-0.5" />
+                        <Badge variant="secondary" className="text-[10px] h-3.5 gap-0.5">
+                          <Check className="size-2" />
                           Added
                         </Badge>
                       )}
                     </div>
-                    <p className="text-muted-foreground">{s.description}</p>
+                    <p className="text-muted-foreground/60">{s.description}</p>
                   </div>
                   {onCreateFragment && !s.accepted && (
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-5 shrink-0"
+                      className="size-5 shrink-0 text-muted-foreground/50 hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleAcceptSuggestion(s, i)
@@ -300,14 +294,13 @@ function AnalysisItem({
             </div>
           )}
 
-          {/* Timeline events */}
           {analysis.timelineEvents.length > 0 && (
             <div className="space-y-1">
               <span className="font-medium">Timeline:</span>
               {analysis.timelineEvents.map((t, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  <Badge variant="outline" className="text-[10px]">{t.position}</Badge>
-                  <span>{t.event}</span>
+                  <Badge variant="outline" className="text-[10px] h-3.5">{t.position}</Badge>
+                  <span className="text-muted-foreground/70">{t.event}</span>
                 </div>
               ))}
             </div>

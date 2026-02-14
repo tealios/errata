@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Plus } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -35,7 +36,6 @@ export function FragmentList({
     if (!fragments) return []
     let list = [...fragments]
 
-    // Filter by search term
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(
@@ -46,7 +46,6 @@ export function FragmentList({
       )
     }
 
-    // Sort
     switch (sort) {
       case 'name':
         list.sort((a, b) => a.name.localeCompare(b.name))
@@ -67,47 +66,45 @@ export function FragmentList({
   }, [fragments, search, sort])
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground p-2">Loading...</p>
+    return <p className="text-sm text-muted-foreground p-4">Loading...</p>
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-2 border-b">
-        <span className="text-sm font-medium capitalize">{type ?? 'All'}</span>
-        <Button size="sm" variant="ghost" onClick={onCreateNew}>
-          + New
-        </Button>
-      </div>
-
       {/* Search + Sort controls */}
-      <div className="p-2 space-y-1 border-b">
+      <div className="p-3 space-y-2 border-b border-border/50">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search..."
-          className="h-7 text-xs"
+          className="h-7 text-xs bg-transparent"
         />
-        <div className="flex gap-1">
-          {(['order', 'name', 'newest', 'oldest'] as SortMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setSort(mode)}
-              className={`text-[10px] px-1.5 py-0.5 rounded ${
-                sort === mode
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
+        <div className="flex items-center justify-between">
+          <div className="flex gap-0.5">
+            {(['order', 'name', 'newest', 'oldest'] as SortMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setSort(mode)}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                  sort === mode
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew}>
+            <Plus className="size-3.5" />
+          </Button>
         </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-1 p-2">
+        <div className="p-2 space-y-0.5">
           {filtered.length === 0 && (
-            <p className="text-xs text-muted-foreground py-4 text-center">
+            <p className="text-xs text-muted-foreground/50 py-8 text-center italic">
               {search.trim() ? 'No matches' : 'No fragments yet'}
             </p>
           )}
@@ -115,24 +112,26 @@ export function FragmentList({
             <button
               key={fragment.id}
               onClick={() => onSelect(fragment)}
-              className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent ${
+              className={`w-full text-left rounded-md px-3 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
                 selectedId === fragment.id ? 'bg-accent' : ''
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] shrink-0">
+              <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[10px] font-mono text-muted-foreground/40">
                   {fragment.id}
-                </Badge>
+                </span>
                 {fragment.sticky && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    sticky
+                  <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
+                    pinned
                   </Badge>
                 )}
               </div>
-              <p className="font-medium mt-1 truncate">{fragment.name}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {fragment.description}
-              </p>
+              {fragment.description && (
+                <p className="text-xs text-muted-foreground/60 truncate mt-0.5">
+                  {fragment.description}
+                </p>
+              )}
             </button>
           ))}
         </div>

@@ -48,3 +48,18 @@ export const AssociationsSchema = z.object({
 })
 
 export type Associations = z.infer<typeof AssociationsSchema>
+
+// Prose chain entry represents a section with variations
+export const ProseChainEntrySchema = z.object({
+  proseFragments: z.array(FragmentIdSchema), // All variations/rewrites of this section
+  active: FragmentIdSchema, // Currently active variation
+})
+
+export type ProseChainEntry = z.infer<typeof ProseChainEntrySchema>
+
+// Prose chain represents the story's prose sections with versioning
+export const ProseChainSchema = z.object({
+  entries: z.array(ProseChainEntrySchema),
+})
+
+export type ProseChain = z.infer<typeof ProseChainSchema>

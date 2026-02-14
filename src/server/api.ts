@@ -22,6 +22,13 @@ import {
   getRefs,
   getBackRefs,
 } from './fragments/associations'
+import {
+  addProseSection,
+  addProseVariation,
+  findSectionIndex,
+  getFullProseChain,
+  switchActiveProse,
+} from './fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
 import { buildContextState, assembleMessages } from './llm/context-builder'
@@ -499,124 +506,183 @@ export function createApp(dataDir: string = DATA_DIR) {
         stopWhen: stepCountIs(10),
       })
 
-      // If saveResult is true, consume the text and save
+      // If saveResult is true, we need to stream AND save
       if (body.saveResult) {
-        const text = await result.text
-        const durationMs = Date.now() - startTime
-        requestLogger.info('LLM generation completed', { durationMs })
+        requestLogger.info('Streaming with save enabled')
+        
+        // Get the text stream
+        const textStream = result.textStream
+        
+        // Tee the stream so we can both stream to client and collect for saving
+        const [clientStream, saveStream] = textStream.tee()
+        
+        // Start the async save operation
+        const saveOperation = async () => {
+          try {
+            // Collect text from the save stream
+            let fullText = ''
+            const reader = saveStream.getReader()
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              fullText += value
+            }
+            
+            const durationMs = Date.now() - startTime
+            requestLogger.info('LLM generation completed', { durationMs, textLength: fullText.length })
 
-        // Extract tool calls from steps
-        const steps = await result.steps
-        const toolCalls: ToolCallLog[] = []
-        if (Array.isArray(steps)) {
-          for (const step of steps) {
-            const stepObj = step as { toolResults?: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> }
-            if (Array.isArray(stepObj.toolResults)) {
-              for (const tr of stepObj.toolResults) {
-                toolCalls.push({
-                  toolName: tr.toolName,
-                  args: tr.args ?? {},
-                  result: tr.result,
-                })
+            // Extract tool calls from steps
+            const steps = await result.steps
+            const toolCalls: ToolCallLog[] = []
+            if (Array.isArray(steps)) {
+              for (const step of steps) {
+                const stepObj = step as { toolResults?: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> }
+                if (Array.isArray(stepObj.toolResults)) {
+                  for (const tr of stepObj.toolResults) {
+                    toolCalls.push({
+                      toolName: tr.toolName,
+                      args: tr.args ?? {},
+                      result: tr.result,
+                    })
+                  }
+                }
               }
             }
+            requestLogger.info('Tool calls extracted', { toolCallCount: toolCalls.length })
+
+            // Run afterGeneration hooks
+            let genResult = await runAfterGeneration(enabledPlugins, {
+              text: fullText,
+              fragmentId: (mode === 'regenerate' || mode === 'refine') ? body.fragmentId! : null,
+              toolCalls,
+            })
+            requestLogger.info('AfterGeneration hooks completed')
+
+            const now = new Date().toISOString()
+            let savedFragmentId: string
+
+            if ((mode === 'regenerate' || mode === 'refine') && existingFragment) {
+              // Create a NEW fragment as a variation (don't overwrite)
+              const id = generateFragmentId('prose')
+              const fragment: Fragment = {
+                id,
+                type: 'prose',
+                name: existingFragment.name,
+                description: body.input.slice(0, 50),
+                content: genResult.text,
+                tags: [...existingFragment.tags],
+                refs: [...existingFragment.refs],
+                sticky: existingFragment.sticky,
+                createdAt: now,
+                updatedAt: now,
+                order: existingFragment.order,
+                meta: {
+                  ...existingFragment.meta,
+                  generatedFrom: body.input,
+                  generationMode: mode,
+                  previousFragmentId: existingFragment.id,
+                  variationOf: existingFragment.id,
+                },
+              }
+              await createFragment(dataDir, params.storyId, fragment)
+              savedFragmentId = id
+              requestLogger.info('Fragment variation created', { fragmentId: savedFragmentId, mode, originalId: existingFragment.id })
+
+              // Add to prose chain as a variation
+              const sectionIndex = await findSectionIndex(dataDir, params.storyId, existingFragment.id)
+              if (sectionIndex !== -1) {
+                await addProseVariation(dataDir, params.storyId, sectionIndex, id)
+                requestLogger.info('Added as variation to prose chain', { sectionIndex })
+              } else {
+                requestLogger.warn('Original fragment not found in prose chain, creating new section')
+                await addProseSection(dataDir, params.storyId, id)
+              }
+
+              // Run afterSave hooks
+              await runAfterSave(enabledPlugins, fragment, params.storyId)
+              requestLogger.info('AfterSave hooks completed')
+
+              // Trigger librarian analysis (fire-and-forget)
+              triggerLibrarian(dataDir, params.storyId, fragment)
+              requestLogger.info('Librarian analysis triggered')
+            } else {
+              // Create new fragment (default generate mode)
+              const id = generateFragmentId('prose')
+              const fragment: Fragment = {
+                id,
+                type: 'prose',
+                name: `Generated ${new Date().toLocaleDateString()}`,
+                description: body.input.slice(0, 50),
+                content: genResult.text,
+                tags: [],
+                refs: [],
+                sticky: false,
+                createdAt: now,
+                updatedAt: now,
+                order: 0,
+                meta: { generatedFrom: body.input },
+              }
+              await createFragment(dataDir, params.storyId, fragment)
+              savedFragmentId = id
+              requestLogger.info('New fragment created', { fragmentId: savedFragmentId })
+
+              // Add to prose chain as a new section
+              await addProseSection(dataDir, params.storyId, id)
+              requestLogger.info('Added as new section to prose chain')
+
+              // Run afterSave hooks
+              await runAfterSave(enabledPlugins, fragment, params.storyId)
+              requestLogger.info('AfterSave hooks completed')
+
+              // Trigger librarian analysis (fire-and-forget)
+              triggerLibrarian(dataDir, params.storyId, fragment)
+              requestLogger.info('Librarian analysis triggered')
+            }
+
+            // Capture finish reason and step count
+            const finishReason = await result.finishReason ?? 'unknown'
+            const stepCount = Array.isArray(steps) ? steps.length : 1
+            const stepsExceeded = stepCount >= 10 && finishReason !== 'stop'
+
+            // Persist generation log
+            const logId = `gen-${Date.now().toString(36)}`
+            const log: GenerationLog = {
+              id: logId,
+              createdAt: now,
+              input: body.input,
+              messages: messages.map((m) => ({
+                role: String(m.role),
+                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+              })),
+              toolCalls,
+              generatedText: genResult.text,
+              fragmentId: savedFragmentId,
+              model: 'deepseek-chat',
+              durationMs,
+              stepCount,
+              finishReason: String(finishReason),
+              stepsExceeded,
+            }
+            await saveGenerationLog(dataDir, params.storyId, log)
+            requestLogger.info('Generation log saved', { logId, stepCount, finishReason, stepsExceeded })
+          } catch (err) {
+            requestLogger.error('Error saving generation result', { error: err instanceof Error ? err.message : String(err) })
           }
         }
-        requestLogger.info('Tool calls extracted', { toolCallCount: toolCalls.length })
 
-        // Run afterGeneration hooks
-        let genResult = await runAfterGeneration(enabledPlugins, {
-          text,
-          fragmentId: (mode === 'regenerate' || mode === 'refine') ? body.fragmentId! : null,
-          toolCalls,
-        })
-        requestLogger.info('AfterGeneration hooks completed')
+        // Start save operation in background (fire-and-forget)
+        saveOperation()
 
-        const now = new Date().toISOString()
-        let savedFragmentId: string
-
-        if ((mode === 'regenerate' || mode === 'refine') && existingFragment) {
-          // Update existing fragment in-place
-          const updated: Fragment = {
-            ...existingFragment,
-            content: genResult.text,
-            updatedAt: now,
-            meta: {
-              ...existingFragment.meta,
-              generatedFrom: body.input,
-              generationMode: mode,
-              previousContent: existingFragment.content,
-            },
+        // Encode the string stream to bytes for the response
+        const encoder = new TextEncoder()
+        const encodedStream = clientStream.pipeThrough(new TransformStream<string, Uint8Array>({
+          transform(chunk, controller) {
+            controller.enqueue(encoder.encode(chunk))
           }
-          await updateFragment(dataDir, params.storyId, updated)
-          savedFragmentId = existingFragment.id
-          requestLogger.info('Fragment updated', { fragmentId: savedFragmentId, mode })
+        }))
 
-          // Run afterSave hooks
-          await runAfterSave(enabledPlugins, updated, params.storyId)
-          requestLogger.info('AfterSave hooks completed')
-
-          // Trigger librarian analysis (fire-and-forget)
-          triggerLibrarian(dataDir, params.storyId, updated)
-          requestLogger.info('Librarian analysis triggered')
-        } else {
-          // Create new fragment (default generate mode)
-          const id = generateFragmentId('prose')
-          const fragment: Fragment = {
-            id,
-            type: 'prose',
-            name: `Generated ${new Date().toLocaleDateString()}`,
-            description: body.input.slice(0, 50),
-            content: genResult.text,
-            tags: [],
-            refs: [],
-            sticky: false,
-            createdAt: now,
-            updatedAt: now,
-            order: 0,
-            meta: { generatedFrom: body.input },
-          }
-          await createFragment(dataDir, params.storyId, fragment)
-          savedFragmentId = id
-          requestLogger.info('New fragment created', { fragmentId: savedFragmentId })
-
-          // Run afterSave hooks
-          await runAfterSave(enabledPlugins, fragment, params.storyId)
-          requestLogger.info('AfterSave hooks completed')
-
-          // Trigger librarian analysis (fire-and-forget)
-          triggerLibrarian(dataDir, params.storyId, fragment)
-          requestLogger.info('Librarian analysis triggered')
-        }
-
-        // Capture finish reason and step count
-        const finishReason = await result.finishReason ?? 'unknown'
-        const stepCount = Array.isArray(steps) ? steps.length : 1
-        const stepsExceeded = stepCount >= 10 && finishReason !== 'stop'
-
-        // Persist generation log
-        const logId = `gen-${Date.now().toString(36)}`
-        const log: GenerationLog = {
-          id: logId,
-          createdAt: now,
-          input: body.input,
-          messages: messages.map((m) => ({
-            role: String(m.role),
-            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-          })),
-          toolCalls,
-          generatedText: genResult.text,
-          fragmentId: savedFragmentId,
-          model: 'deepseek-chat',
-          durationMs,
-          stepCount,
-          finishReason: String(finishReason),
-          stepsExceeded,
-        }
-        await saveGenerationLog(dataDir, params.storyId, log)
-        requestLogger.info('Generation log saved', { logId, stepCount, finishReason, stepsExceeded })
-
-        return new Response(genResult.text, {
+        // Return the encoded stream immediately
+        return new Response(encodedStream, {
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         })
       }
@@ -630,6 +696,70 @@ export function createApp(dataDir: string = DATA_DIR) {
         saveResult: t.Optional(t.Boolean()),
         mode: t.Optional(t.Union([t.Literal('generate'), t.Literal('regenerate'), t.Literal('refine')])),
         fragmentId: t.Optional(t.String()),
+      }),
+    })
+
+    // --- Prose Chain API ---
+    .get('/stories/:storyId/prose-chain', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const chain = await getFullProseChain(dataDir, params.storyId)
+      if (!chain) {
+        return { entries: [] }
+      }
+
+      // Load the actual fragments for each variation
+      const entriesWithFragments = await Promise.all(
+        chain.entries.map(async (entry) => {
+          const fragments = await Promise.all(
+            entry.proseFragments.map(async (id) => {
+              const fragment = await getFragment(dataDir, params.storyId, id)
+              return fragment ? {
+                id: fragment.id,
+                name: fragment.name,
+                description: fragment.description,
+                createdAt: fragment.createdAt,
+                generationMode: fragment.meta?.generationMode,
+              } : null
+            })
+          )
+          return {
+            proseFragments: fragments.filter(Boolean),
+            active: entry.active,
+          }
+        })
+      )
+
+      return { entries: entriesWithFragments }
+    })
+
+    .post('/stories/:storyId/prose-chain/:sectionIndex/switch', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const sectionIndex = parseInt(params.sectionIndex, 10)
+      if (isNaN(sectionIndex) || sectionIndex < 0) {
+        set.status = 400
+        return { error: 'Invalid section index' }
+      }
+
+      try {
+        await switchActiveProse(dataDir, params.storyId, sectionIndex, body.fragmentId)
+        return { ok: true }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to switch active prose' }
+      }
+    }, {
+      body: t.Object({
+        fragmentId: t.String(),
       }),
     })
 

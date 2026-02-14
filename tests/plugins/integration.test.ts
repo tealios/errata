@@ -47,10 +47,16 @@ function createMockStreamResult(text: string) {
     },
   })
 
+  // Create a proper ReadableStream for textStream that supports tee()
+  const textStream = new ReadableStream<string>({
+    start(controller) {
+      controller.enqueue(text)
+      controller.close()
+    },
+  })
+
   return {
-    textStream: (async function* () {
-      yield text
-    })(),
+    textStream,
     text: Promise.resolve(text),
     usage: Promise.resolve({ promptTokens: 10, completionTokens: 20, totalTokens: 30 }),
     finishReason: Promise.resolve('stop' as const),
@@ -187,8 +193,12 @@ describe('plugin integration', () => {
     expect(res.status).toBe(200)
     const text = await res.text()
 
-    // afterGeneration should have appended [postprocessed]
-    expect(text).toBe('Generated text. [postprocessed]')
+    // With streaming, client receives the raw generated text immediately
+    // (hooks run in background after streaming completes)
+    expect(text).toBe('Generated text.')
+
+    // Wait for async save and hooks to complete (background operation)
+    await new Promise((r) => setTimeout(r, 200))
 
     // All hooks should have run in order
     expect(hookCalls).toEqual([
@@ -198,7 +208,7 @@ describe('plugin integration', () => {
       'afterSave',
     ])
 
-    // Saved fragment should have the postprocessed text
+    // Saved fragment should have the postprocessed text (after hooks ran)
     const fragments = await listFragments(dataDir, storyId, 'prose')
     expect(fragments.length).toBe(1)
     expect(fragments[0].content).toBe('Generated text. [postprocessed]')

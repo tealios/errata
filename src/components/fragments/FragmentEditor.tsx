@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import { Pin, Trash2, X } from 'lucide-react'
 
 export interface FragmentPrefill {
   name: string
@@ -52,8 +52,9 @@ export function FragmentEditor({
     }
   }, [fragment, createType, prefill])
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
   }
 
   const createMutation = useMutation({
@@ -104,60 +105,67 @@ export function FragmentEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h2 className="font-display text-lg truncate">
             {mode === 'create' ? 'New Fragment' : fragment?.name ?? ''}
           </h2>
           {fragment && (
-            <>
-              <Badge variant="outline">{fragment.id}</Badge>
-              <Badge variant="secondary" className="text-[10px]">{fragment.type}</Badge>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-mono text-muted-foreground/40">{fragment.id}</span>
+              <Badge variant="secondary" className="text-[10px] h-4">{fragment.type}</Badge>
               {fragment.sticky && (
-                <Badge className="text-[10px]">sticky</Badge>
+                <Badge className="text-[10px] h-4 gap-0.5">
+                  <Pin className="size-2" />
+                  pinned
+                </Badge>
               )}
-            </>
+            </div>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {fragment && (
             <Button
               size="sm"
-              variant={fragment.sticky ? 'default' : 'outline'}
+              variant="ghost"
+              className="h-7 text-xs gap-1"
               onClick={() => stickyMutation.mutate(!fragment.sticky)}
               disabled={stickyMutation.isPending}
             >
+              <Pin className="size-3" />
               {fragment.sticky ? 'Unpin' : 'Pin'}
             </Button>
           )}
           {mode === 'view' && fragment && (
             <Button
               size="sm"
-              variant="destructive"
+              variant="ghost"
+              className="h-7 text-xs text-destructive/70 hover:text-destructive"
               onClick={() => {
                 if (confirm('Delete this fragment?')) {
                   deleteMutation.mutate()
                 }
               }}
             >
-              Delete
+              <Trash2 className="size-3" />
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            Close
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose}>
+            <X className="size-4" />
           </Button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-auto">
-        <div className="p-4 space-y-4">
+        <div className="px-6 py-5 space-y-4">
           {mode === 'create' && (
             <div>
-              <label className="text-sm font-medium mb-1 block">Type</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Type</label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm"
               >
                 <option value="prose">Prose</option>
                 <option value="character">Character</option>
@@ -168,38 +176,40 @@ export function FragmentEditor({
           )}
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Name</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={!isEditing}
+              className="bg-transparent"
               required
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-1 block">
-              Description <span className="text-muted-foreground">(max 50 chars)</span>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">
+              Description <span className="normal-case tracking-normal text-muted-foreground/50">(max 50 chars)</span>
             </label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={50}
               disabled={!isEditing}
+              className="bg-transparent"
               required
             />
           </div>
         </div>
 
-        <Separator />
+        <div className="h-px bg-border/30 mx-6" />
 
-        <div className="flex-1 p-4">
-          <label className="text-sm font-medium mb-1 block">Content</label>
+        <div className="flex-1 px-6 py-5">
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Content</label>
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={!isEditing}
-            className="min-h-[200px] h-full resize-none font-mono text-sm"
+            className="min-h-[200px] h-full resize-none font-mono text-sm bg-transparent"
             required
           />
         </div>
@@ -207,8 +217,8 @@ export function FragmentEditor({
         {/* Tags & Refs section */}
         {fragment && (
           <>
-            <Separator />
-            <div className="p-4 space-y-4">
+            <div className="h-px bg-border/30 mx-6" />
+            <div className="px-6 py-5 space-y-5">
               <TagsSection storyId={storyId} fragmentId={fragment.id} />
               <RefsSection storyId={storyId} fragmentId={fragment.id} />
             </div>
@@ -216,11 +226,11 @@ export function FragmentEditor({
         )}
 
         {isEditing && (
-          <div className="flex gap-2 p-4 pt-2 border-t">
-            <Button type="submit" disabled={isPending}>
+          <div className="flex items-center gap-2 px-6 py-4 border-t border-border/50">
+            <Button type="submit" size="sm" disabled={isPending}>
               {isPending ? 'Saving...' : mode === 'create' ? 'Create' : 'Save'}
             </Button>
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" size="sm" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
           </div>
@@ -265,7 +275,7 @@ function TagsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
 
   return (
     <div>
-      <label className="text-sm font-medium mb-1 block">Tags</label>
+      <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Tags</label>
       <div className="flex flex-wrap gap-1 mb-2">
         {data?.tags.map((tag) => (
           <Badge key={tag} variant="secondary" className="text-xs gap-1">
@@ -273,22 +283,22 @@ function TagsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
             <button
               type="button"
               onClick={() => removeMutation.mutate(tag)}
-              className="ml-1 hover:text-destructive"
+              className="ml-0.5 hover:text-destructive transition-colors"
             >
-              x
+              &times;
             </button>
           </Badge>
         ))}
         {(!data?.tags || data.tags.length === 0) && (
-          <span className="text-xs text-muted-foreground">No tags</span>
+          <span className="text-xs text-muted-foreground/40 italic">No tags</span>
         )}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
         <Input
           value={newTag}
           onChange={(e) => setNewTag(e.target.value)}
           placeholder="Add tag..."
-          className="h-7 text-xs"
+          className="h-7 text-xs bg-transparent"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
@@ -346,7 +356,7 @@ function RefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
 
   return (
     <div>
-      <label className="text-sm font-medium mb-1 block">References</label>
+      <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">References</label>
       <div className="flex flex-wrap gap-1 mb-1">
         {data?.refs.map((refId) => (
           <Badge key={refId} variant="outline" className="text-xs gap-1">
@@ -354,19 +364,19 @@ function RefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
             <button
               type="button"
               onClick={() => removeMutation.mutate(refId)}
-              className="ml-1 hover:text-destructive"
+              className="ml-0.5 hover:text-destructive transition-colors"
             >
-              x
+              &times;
             </button>
           </Badge>
         ))}
         {(!data?.refs || data.refs.length === 0) && (
-          <span className="text-xs text-muted-foreground">No refs</span>
+          <span className="text-xs text-muted-foreground/40 italic">No refs</span>
         )}
       </div>
       {data?.backRefs && data.backRefs.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1">
-          <span className="text-xs text-muted-foreground">Referenced by:</span>
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          <span className="text-xs text-muted-foreground/50">Referenced by:</span>
           {data.backRefs.map((refId) => (
             <Badge key={refId} variant="secondary" className="text-[10px]">
               {refId}
@@ -374,12 +384,12 @@ function RefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
           ))}
         </div>
       )}
-      <div className="flex gap-2 mt-2">
+      <div className="flex gap-1.5 mt-1.5">
         <Input
           value={newRefId}
           onChange={(e) => setNewRefId(e.target.value)}
           placeholder="Fragment ID (e.g. ch-a1b2)"
-          className="h-7 text-xs"
+          className="h-7 text-xs bg-transparent"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
