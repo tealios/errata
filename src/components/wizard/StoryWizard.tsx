@@ -1080,6 +1080,9 @@ function CompleteStep({
                 <span className="text-[10px] text-muted-foreground/40 ml-auto uppercase tracking-wider">{item.type}</span>
               </div>
             ))}
+            <p className="text-[11px] text-muted-foreground/35 mt-3 leading-relaxed">
+              These fragments belong to this story. You can edit, reuse, or export them from the sidebar at any time.
+            </p>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground/50 font-prose italic">

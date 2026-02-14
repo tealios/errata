@@ -22,6 +22,7 @@ interface DetailPanelProps {
   onCreateFragment: (type: string, prefill?: { name: string; description: string; content: string }) => void
   selectedFragmentId?: string
   onManageProviders: () => void
+  onLaunchWizard?: () => void
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -57,6 +58,7 @@ export function DetailPanel({
   onCreateFragment,
   selectedFragmentId,
   onManageProviders,
+  onLaunchWizard,
 }: DetailPanelProps) {
   const open = !!section
   const [mounted, setMounted] = useState(open)
@@ -120,7 +122,7 @@ export function DetailPanel({
         <div className="flex-1 overflow-hidden" data-component-id="detail-panel-content">
           {activeSection === 'story-info' && (
             <ScrollArea className="h-full">
-              <StoryInfoPanel storyId={storyId} story={story} />
+              <StoryInfoPanel storyId={storyId} story={story} onLaunchWizard={onLaunchWizard} />
             </ScrollArea>
           )}
 

@@ -133,6 +133,7 @@ function StoryEditorPage() {
         onCreateFragment={handleCreateFragment}
         selectedFragmentId={selectedFragment?.id}
         onManageProviders={() => setShowProviders(true)}
+        onLaunchWizard={() => setShowWizard(true)}
       />
 
       {/* Main Content */}

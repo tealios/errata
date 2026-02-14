@@ -43,13 +43,10 @@ export function ProseChainView({
     .map(id => fragments.find(f => f.id === id))
     .filter(Boolean) as Fragment[]
 
-  // If no chain exists yet, fall back to showing all prose fragments
-  const displayFragments = activeFragments.length > 0 ? activeFragments : fragments
-
-  // Sort by order, then createdAt
-  const sorted = [...displayFragments].sort(
-    (a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt),
-  )
+  // If chain exists, preserve chain order. Otherwise sort prose naturally.
+  const orderedFragments = activeFragments.length > 0
+    ? activeFragments
+    : [...fragments].sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
 
   // Map fragments to their section index in the chain
   const getSectionIndex = (fragmentId: string): number => {
@@ -82,7 +79,7 @@ export function ProseChainView({
     if (!isGenerating && streamedText) {
       // Check if the last fragment's content matches our streamed text
       // or if a new fragment was added while we were generating
-      const lastFragment = sorted[sorted.length - 1]
+      const lastFragment = orderedFragments[orderedFragments.length - 1]
       if (lastFragment && (lastFragment.content === streamedText || lastFragment.meta?.generatedFrom)) {
         // Give a small delay so the transition is smooth
         const timeout = setTimeout(() => {
@@ -91,12 +88,12 @@ export function ProseChainView({
         return () => clearTimeout(timeout)
       }
     }
-  }, [sorted, isGenerating, streamedText])
+  }, [orderedFragments, isGenerating, streamedText])
 
   // Track which prose block is currently visible
   useEffect(() => {
     const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (!viewport || sorted.length === 0) return
+    if (!viewport || orderedFragments.length === 0) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -113,7 +110,7 @@ export function ProseChainView({
     const blocks = viewport.querySelectorAll('[data-prose-index]')
     blocks.forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [sorted])
+  }, [orderedFragments])
 
   const scrollToIndex = useCallback((index: number) => {
     const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
@@ -126,15 +123,16 @@ export function ProseChainView({
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
         <div className="max-w-[38rem] mx-auto py-12 px-8">
-          {sorted.length > 0 ? (
-            sorted.map((fragment, idx) => (
+          {orderedFragments.length > 0 ? (
+            orderedFragments.map((fragment, idx) => (
               <ProseBlock
                 key={fragment.id}
                 storyId={storyId}
                 fragment={fragment}
+                displayIndex={idx}
                 sectionIndex={getSectionIndex(fragment.id)}
                 chainEntry={getChainEntry(fragment.id)}
-                isLast={idx === sorted.length - 1 && !isGenerating}
+                isLast={idx === orderedFragments.length - 1 && !isGenerating}
                 isFirst={idx === 0}
                 onSelect={() => onSelectFragment(fragment)}
                 onDebugLog={onDebugLog}
@@ -199,9 +197,9 @@ export function ProseChainView({
       </ScrollArea>
 
       {/* Outline toggle + panel */}
-      {sorted.length > 1 && (
+      {orderedFragments.length > 1 && (
         <ProseOutlinePanel
-          fragments={sorted}
+          fragments={orderedFragments}
           activeIndex={activeIndex}
           onJump={scrollToIndex}
         />
@@ -529,6 +527,7 @@ function InlineGenerationInput({
 function ProseBlock({
   storyId,
   fragment,
+  displayIndex,
   sectionIndex,
   chainEntry,
   isLast,
@@ -539,6 +538,7 @@ function ProseBlock({
 }: {
   storyId: string
   fragment: Fragment
+  displayIndex: number
   sectionIndex: number
   chainEntry: import('@/lib/api').ProseChainEntry | null
   isLast: boolean
@@ -686,7 +686,7 @@ function ProseBlock({
   }
 
   return (
-    <div className="group relative mb-6" data-prose-index={sectionIndex >= 0 ? sectionIndex : undefined} data-component-id={`prose-${fragment.id}-block`}>
+    <div className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}>
       {/* User prompt divider */}
       {fragment.description && (
         <div className="flex items-center gap-3 mb-2 -mt-3 -mx-4 px-4">
