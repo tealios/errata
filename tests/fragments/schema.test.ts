@@ -67,9 +67,14 @@ describe('FragmentSchema', () => {
     expect(() => FragmentSchema.parse(bad)).toThrow()
   })
 
-  it('rejects invalid type', () => {
-    const bad = { ...validFragment, type: 'invalid-type' }
+  it('rejects empty type string', () => {
+    const bad = { ...validFragment, type: '' }
     expect(() => FragmentSchema.parse(bad)).toThrow()
+  })
+
+  it('accepts plugin fragment types', () => {
+    const pluginFrag = { ...validFragment, type: 'timeline' }
+    expect(() => FragmentSchema.parse(pluginFrag)).not.toThrow()
   })
 
   it('accepts all built-in fragment types', () => {

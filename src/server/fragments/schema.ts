@@ -4,7 +4,7 @@ export const FragmentIdSchema = z.string().regex(/^[a-z]{2}-[a-z0-9]{4,8}$/)
 
 export const FRAGMENT_TYPES = ['prose', 'character', 'guideline', 'knowledge'] as const
 
-export const FragmentTypeSchema = z.enum(FRAGMENT_TYPES)
+export const FragmentTypeSchema = z.string().min(1)
 
 export type FragmentType = z.infer<typeof FragmentTypeSchema>
 

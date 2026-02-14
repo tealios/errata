@@ -39,6 +39,14 @@ export class FragmentTypeRegistry {
     return [...this.types.values()]
   }
 
+  unregister(type: string): void {
+    const def = this.types.get(type)
+    if (def) {
+      this.prefixes.delete(def.prefix)
+      this.types.delete(type)
+    }
+  }
+
   renderContext(fragment: Fragment): string {
     const def = this.types.get(fragment.type)
     if (!def) {
