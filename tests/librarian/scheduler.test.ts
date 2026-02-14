@@ -100,10 +100,12 @@ describe('librarian scheduler', () => {
     // Should not throw
     await vi.advanceTimersByTimeAsync(2000)
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[librarian] Error for story story-1:',
-      expect.any(Error),
+    // Should log error with new structured format
+    expect(consoleSpy).toHaveBeenCalled()
+    const errorCall = consoleSpy.mock.calls.find(call => 
+      call[0]?.includes && call[0].includes('Librarian analysis failed')
     )
+    expect(errorCall).toBeDefined()
     consoleSpy.mockRestore()
   })
 

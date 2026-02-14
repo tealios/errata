@@ -1,5 +1,6 @@
 import { getStory, listFragments } from '../fragments/storage'
 import { registry } from '../fragments/registry'
+import { createLogger } from '../logging'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 
 export interface ContextBuildState {
@@ -20,6 +21,7 @@ export interface ContextMessage {
 }
 
 const DEFAULT_PROSE_LIMIT = 10
+const logger = createLogger('context-builder')
 
 /**
  * Loads fragments and builds the intermediate state for context assembly.
@@ -31,16 +33,28 @@ export async function buildContextState(
   authorInput: string,
   proseLimit: number = DEFAULT_PROSE_LIMIT,
 ): Promise<ContextBuildState> {
+  const requestLogger = logger.child({ storyId })
+  requestLogger.info('Building context state...')
+
   const story = await getStory(dataDir, storyId)
   if (!story) {
+    requestLogger.error('Story not found', { storyId })
     throw new Error(`Story not found: ${storyId}`)
   }
 
   // Load all fragments by type
+  requestLogger.debug('Loading fragments by type...')
   const allProse = await listFragments(dataDir, storyId, 'prose')
   const allGuidelines = await listFragments(dataDir, storyId, 'guideline')
   const allKnowledge = await listFragments(dataDir, storyId, 'knowledge')
   const allCharacters = await listFragments(dataDir, storyId, 'character')
+
+  requestLogger.debug('Fragments loaded', {
+    proseCount: allProse.length,
+    guidelineCount: allGuidelines.length,
+    knowledgeCount: allKnowledge.length,
+    characterCount: allCharacters.length,
+  })
 
   // Sort prose by order, then createdAt
   const sortedProse = allProse.sort(
@@ -58,7 +72,7 @@ export async function buildContextState(
   const stickyCharacters = allCharacters.filter((f) => f.sticky)
   const nonStickyCharacters = allCharacters.filter((f) => !f.sticky)
 
-  return {
+  const state = {
     story,
     proseFragments: recentProse,
     stickyGuidelines,
@@ -69,6 +83,18 @@ export async function buildContextState(
     characterShortlist: nonStickyCharacters,
     authorInput,
   }
+
+  requestLogger.info('Context state built', {
+    proseFragments: recentProse.length,
+    stickyGuidelines: stickyGuidelines.length,
+    stickyKnowledge: stickyKnowledge.length,
+    stickyCharacters: stickyCharacters.length,
+    guidelineShortlist: nonStickyGuidelines.length,
+    knowledgeShortlist: nonStickyKnowledge.length,
+    characterShortlist: nonStickyCharacters.length,
+  })
+
+  return state
 }
 
 export interface AssembleOptions {
@@ -81,6 +107,9 @@ export interface AssembleOptions {
  * This is the second step — called after hook modifications.
  */
 export function assembleMessages(state: ContextBuildState, opts: AssembleOptions = {}): ContextMessage[] {
+  const requestLogger = logger.child({ storyId: state.story.id })
+  requestLogger.info('Assembling messages...')
+
   const {
     story,
     proseFragments,
@@ -189,9 +218,16 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
 
   const systemContent = systemParts.join('\n')
 
-  return [
+  const messages: ContextMessage[] = [
     { role: 'user', content: systemContent },
   ]
+
+  requestLogger.info('Messages assembled', { 
+    messageCount: messages.length, 
+    systemContentLength: systemContent.length 
+  })
+
+  return messages
 }
 
 /**

@@ -7,6 +7,9 @@ import {
   saveState,
   type LibrarianAnalysis,
 } from './storage'
+import { createLogger } from '../logging'
+
+const logger = createLogger('librarian-agent')
 
 const SYSTEM_PROMPT = `You are a librarian agent for a collaborative writing app. Your job is to analyze new prose fragments and maintain story continuity.
 
@@ -87,16 +90,30 @@ export async function runLibrarian(
   storyId: string,
   fragmentId: string,
 ): Promise<LibrarianAnalysis> {
+  const requestLogger = logger.child({ storyId })
+  requestLogger.info('Starting librarian analysis...', { fragmentId })
+
   // Load story and fragment data
   const story = await getStory(dataDir, storyId)
-  if (!story) throw new Error(`Story ${storyId} not found`)
+  if (!story) {
+    requestLogger.error('Story not found', { storyId })
+    throw new Error(`Story ${storyId} not found`)
+  }
 
   const fragment = await getFragment(dataDir, storyId, fragmentId)
-  if (!fragment) throw new Error(`Fragment ${fragmentId} not found`)
+  if (!fragment) {
+    requestLogger.error('Fragment not found', { fragmentId })
+    throw new Error(`Fragment ${fragmentId} not found`)
+  }
 
   // Load characters and knowledge
+  requestLogger.debug('Loading characters and knowledge...')
   const characters = await listFragments(dataDir, storyId, 'character')
   const knowledge = await listFragments(dataDir, storyId, 'knowledge')
+  requestLogger.debug('Data loaded', {
+    characterCount: characters.length,
+    knowledgeCount: knowledge.length,
+  })
 
   // Load current librarian state for context
   const state = await getState(dataDir, storyId)
@@ -110,14 +127,24 @@ export async function runLibrarian(
   )
 
   // Call the LLM
+  requestLogger.info('Calling LLM for analysis...')
+  const llmStartTime = Date.now()
   const result = await generateText({
     model: defaultModel,
     system: SYSTEM_PROMPT,
     prompt: userPrompt,
   })
+  const llmDurationMs = Date.now() - llmStartTime
+  requestLogger.info('LLM analysis completed', { durationMs: llmDurationMs })
 
   // Parse the response
   const parsed = parseAnalysisResponse(result.text)
+  requestLogger.debug('Analysis parsed', {
+    mentionedCharacters: parsed.mentionedCharacters.length,
+    contradictions: parsed.contradictions.length,
+    knowledgeSuggestions: parsed.knowledgeSuggestions.length,
+    timelineEvents: parsed.timelineEvents.length,
+  })
 
   // Build the analysis
   const analysisId = `la-${Date.now().toString(36)}`
@@ -130,6 +157,7 @@ export async function runLibrarian(
 
   // Apply updates: append summary
   if (analysis.summaryUpdate) {
+    requestLogger.info('Updating story summary', { summaryUpdateLength: analysis.summaryUpdate.length })
     const separator = story.summary ? ' ' : ''
     const updatedStory = {
       ...story,
@@ -140,6 +168,7 @@ export async function runLibrarian(
   }
 
   // Update librarian state
+  requestLogger.debug('Updating librarian state...')
   const updatedMentions = { ...state.recentMentions }
   for (const charId of analysis.mentionedCharacters) {
     if (!updatedMentions[charId]) {
@@ -162,6 +191,7 @@ export async function runLibrarian(
   // Save everything
   await saveAnalysis(dataDir, storyId, analysis)
   await saveState(dataDir, storyId, updatedState)
+  requestLogger.info('Analysis saved', { analysisId })
 
   return analysis
 }

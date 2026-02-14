@@ -7,7 +7,10 @@ import {
   deleteFragment,
 } from '../fragments/storage'
 import { registry } from '../fragments/registry'
+import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
+
+const logger = createLogger('llm-tools')
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -54,11 +57,16 @@ export function createFragmentTools(
       inputSchema: z.object({
         id: z.string().describe(`The ${typeDef.type} fragment ID (e.g. ${typeDef.prefix}-a1b2)`),
       }),
-      execute: async ({ id }) => {
+      execute: async ({ id }: { id: string }) => {
+        const startTime = Date.now()
+        logger.debug(`Tool: get${name}`, { storyId, fragmentId: id })
         const fragment = await getFragment(dataDir, storyId, id)
+        const durationMs = Date.now() - startTime
         if (!fragment) {
+          logger.warn(`Tool: get${name} - Fragment not found`, { storyId, fragmentId: id, durationMs })
           return { error: `Fragment not found: ${id}` }
         }
+        logger.info(`Tool: get${name} - Success`, { storyId, fragmentId: id, durationMs })
         return {
           id: fragment.id,
           type: fragment.type,

@@ -12,6 +12,7 @@ import {
   updateFragment,
   deleteFragment,
 } from './fragments/storage'
+import { createLogger } from './logging'
 import {
   addTag,
   removeTag,
@@ -53,6 +54,7 @@ import type { StoryMeta, Fragment } from './fragments/schema'
 const DATA_DIR = process.env.DATA_DIR ?? './data'
 
 export function createApp(dataDir: string = DATA_DIR) {
+  const logger = createLogger('api', { dataDir })
   const app = new Elysia({ prefix: '/api' })
     .get('/health', () => ({ status: 'ok' }))
 
@@ -407,13 +409,18 @@ export function createApp(dataDir: string = DATA_DIR) {
 
     // --- Generation ---
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId })
+      requestLogger.info('Generation request started', { mode: body.mode ?? 'generate', saveResult: body.saveResult ?? false })
+
       const story = await getStory(dataDir, params.storyId)
       if (!story) {
+        requestLogger.warn('Story not found', { storyId: params.storyId })
         set.status = 404
         return { error: 'Story not found' }
       }
 
       if (!body.input || body.input.trim() === '') {
+        requestLogger.warn('Empty input received')
         set.status = 422
         return { error: 'Input is required' }
       }
@@ -424,11 +431,13 @@ export function createApp(dataDir: string = DATA_DIR) {
       let existingFragment: Fragment | null = null
       if (mode === 'regenerate' || mode === 'refine') {
         if (!body.fragmentId) {
+          requestLogger.warn('Missing fragmentId for regenerate/refine mode')
           set.status = 422
           return { error: 'fragmentId is required for regenerate/refine modes' }
         }
         existingFragment = await getFragment(dataDir, params.storyId, body.fragmentId)
         if (!existingFragment) {
+          requestLogger.warn('Fragment not found', { fragmentId: body.fragmentId })
           set.status = 404
           return { error: 'Fragment not found' }
         }
@@ -446,15 +455,30 @@ export function createApp(dataDir: string = DATA_DIR) {
       const enabledPlugins = pluginRegistry.getEnabled(
         story.settings.enabledPlugins,
       )
+      requestLogger.info('Plugins enabled', { pluginCount: enabledPlugins.length, plugins: enabledPlugins.map(p => p.manifest.name) })
 
       // Build context with plugin hooks
+      requestLogger.info('Building context...')
       let ctxState = await buildContextState(dataDir, params.storyId, effectiveInput)
+      const contextFragments = {
+        proseCount: ctxState.proseFragments.length,
+        stickyGuidelines: ctxState.stickyGuidelines.length,
+        stickyKnowledge: ctxState.stickyKnowledge.length,
+        stickyCharacters: ctxState.stickyCharacters.length,
+        guidelineShortlist: ctxState.guidelineShortlist.length,
+        knowledgeShortlist: ctxState.knowledgeShortlist.length,
+        characterShortlist: ctxState.characterShortlist.length,
+      }
+      requestLogger.info('Context state built', contextFragments)
+
       ctxState = await runBeforeContext(enabledPlugins, ctxState)
+      requestLogger.info('BeforeContext hooks completed')
 
       // Merge fragment tools + plugin tools
       const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
       const pluginTools = collectPluginTools(enabledPlugins, dataDir, params.storyId)
       const tools = { ...fragmentTools, ...pluginTools }
+      requestLogger.info('Tools prepared', { toolCount: Object.keys(tools).length })
 
       // Extract plugin tool descriptions for context (fragment tools are listed from registry)
       const extraTools = Object.entries(pluginTools).map(([name, t]) => ({
@@ -464,7 +488,9 @@ export function createApp(dataDir: string = DATA_DIR) {
 
       let messages = assembleMessages(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
       messages = await runBeforeGeneration(enabledPlugins, messages)
+      requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 
+      requestLogger.info('Starting LLM stream...')
       const result = streamText({
         model: defaultModel,
         messages,
@@ -477,6 +503,7 @@ export function createApp(dataDir: string = DATA_DIR) {
       if (body.saveResult) {
         const text = await result.text
         const durationMs = Date.now() - startTime
+        requestLogger.info('LLM generation completed', { durationMs })
 
         // Extract tool calls from steps
         const steps = await result.steps
@@ -495,6 +522,7 @@ export function createApp(dataDir: string = DATA_DIR) {
             }
           }
         }
+        requestLogger.info('Tool calls extracted', { toolCallCount: toolCalls.length })
 
         // Run afterGeneration hooks
         let genResult = await runAfterGeneration(enabledPlugins, {
@@ -502,6 +530,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           fragmentId: (mode === 'regenerate' || mode === 'refine') ? body.fragmentId! : null,
           toolCalls,
         })
+        requestLogger.info('AfterGeneration hooks completed')
 
         const now = new Date().toISOString()
         let savedFragmentId: string
@@ -521,12 +550,15 @@ export function createApp(dataDir: string = DATA_DIR) {
           }
           await updateFragment(dataDir, params.storyId, updated)
           savedFragmentId = existingFragment.id
+          requestLogger.info('Fragment updated', { fragmentId: savedFragmentId, mode })
 
           // Run afterSave hooks
           await runAfterSave(enabledPlugins, updated, params.storyId)
+          requestLogger.info('AfterSave hooks completed')
 
           // Trigger librarian analysis (fire-and-forget)
           triggerLibrarian(dataDir, params.storyId, updated)
+          requestLogger.info('Librarian analysis triggered')
         } else {
           // Create new fragment (default generate mode)
           const id = generateFragmentId('prose')
@@ -546,12 +578,15 @@ export function createApp(dataDir: string = DATA_DIR) {
           }
           await createFragment(dataDir, params.storyId, fragment)
           savedFragmentId = id
+          requestLogger.info('New fragment created', { fragmentId: savedFragmentId })
 
           // Run afterSave hooks
           await runAfterSave(enabledPlugins, fragment, params.storyId)
+          requestLogger.info('AfterSave hooks completed')
 
           // Trigger librarian analysis (fire-and-forget)
           triggerLibrarian(dataDir, params.storyId, fragment)
+          requestLogger.info('Librarian analysis triggered')
         }
 
         // Capture finish reason and step count
@@ -579,6 +614,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           stepsExceeded,
         }
         await saveGenerationLog(dataDir, params.storyId, log)
+        requestLogger.info('Generation log saved', { logId, stepCount, finishReason, stepsExceeded })
 
         return new Response(genResult.text, {
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
@@ -586,6 +622,7 @@ export function createApp(dataDir: string = DATA_DIR) {
       }
 
       // Stream the response (no log for streaming-only requests)
+      requestLogger.info('Streaming response (no persistence)')
       return result.toTextStreamResponse()
     }, {
       body: t.Object({
