@@ -58,6 +58,9 @@ describe('generation-logs API routes', () => {
       fragmentId: null,
       model: 'deepseek-chat',
       durationMs: 500,
+      stepCount: 1,
+      finishReason: 'stop',
+      stepsExceeded: false,
       ...overrides,
     }
   }

@@ -47,6 +47,9 @@ describe('generation-logs storage', () => {
       fragmentId: null,
       model: 'deepseek-chat',
       durationMs: 1500,
+      stepCount: 1,
+      finishReason: 'stop',
+      stepsExceeded: false,
       ...overrides,
     }
   }
@@ -121,6 +124,25 @@ describe('generation-logs storage', () => {
 
     const retrieved = await getGenerationLog(dataDir, storyId, 'log-saved')
     expect(retrieved!.fragmentId).toBe('pr-x1y2')
+  })
+
+  it('stores and surfaces stepsExceeded flag', async () => {
+    const log = makeLog({
+      id: 'log-exceeded',
+      stepCount: 10,
+      finishReason: 'tool-calls',
+      stepsExceeded: true,
+    })
+    await saveGenerationLog(dataDir, storyId, log)
+
+    const retrieved = await getGenerationLog(dataDir, storyId, 'log-exceeded')
+    expect(retrieved!.stepsExceeded).toBe(true)
+    expect(retrieved!.stepCount).toBe(10)
+    expect(retrieved!.finishReason).toBe('tool-calls')
+
+    const logs = await listGenerationLogs(dataDir, storyId)
+    expect(logs[0].stepsExceeded).toBe(true)
+    expect(logs[0].stepCount).toBe(10)
   })
 
   it('list returns summary without full messages/text', async () => {

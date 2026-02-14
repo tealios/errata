@@ -18,6 +18,9 @@ export interface GenerationLog {
   fragmentId: string | null
   model: string
   durationMs: number
+  stepCount: number
+  finishReason: string
+  stepsExceeded: boolean
 }
 
 export interface GenerationLogSummary {
@@ -28,6 +31,8 @@ export interface GenerationLogSummary {
   model: string
   durationMs: number
   toolCallCount: number
+  stepCount: number
+  stepsExceeded: boolean
 }
 
 function logsDir(dataDir: string, storyId: string): string {
@@ -81,6 +86,8 @@ export async function listGenerationLogs(
       model: log.model,
       durationMs: log.durationMs,
       toolCallCount: log.toolCalls.length,
+      stepCount: log.stepCount ?? 1,
+      stepsExceeded: log.stepsExceeded ?? false,
     })
   }
 

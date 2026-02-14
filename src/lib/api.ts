@@ -59,6 +59,8 @@ export interface GenerationLogSummary {
   model: string
   durationMs: number
   toolCallCount: number
+  stepCount: number
+  stepsExceeded: boolean
 }
 
 export interface GenerationLog {
@@ -71,6 +73,9 @@ export interface GenerationLog {
   fragmentId: string | null
   model: string
   durationMs: number
+  stepCount: number
+  finishReason: string
+  stepsExceeded: boolean
 }
 
 /**

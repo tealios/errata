@@ -321,7 +321,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         messages,
         tools,
         toolChoice: 'auto',
-        stopWhen: stepCountIs(5),
+        stopWhen: stepCountIs(10),
       })
 
       // If saveResult is true, consume the text and save as a new prose fragment
@@ -365,6 +365,11 @@ export function createApp(dataDir: string = DATA_DIR) {
         }
         await createFragment(dataDir, params.storyId, fragment)
 
+        // Capture finish reason and step count
+        const finishReason = await result.finishReason ?? 'unknown'
+        const stepCount = Array.isArray(steps) ? steps.length : 1
+        const stepsExceeded = stepCount >= 10 && finishReason !== 'stop'
+
         // Persist generation log
         const logId = `gen-${Date.now().toString(36)}`
         const log: GenerationLog = {
@@ -380,6 +385,9 @@ export function createApp(dataDir: string = DATA_DIR) {
           fragmentId: id,
           model: 'deepseek-chat',
           durationMs,
+          stepCount,
+          finishReason: String(finishReason),
+          stepsExceeded,
         }
         await saveGenerationLog(dataDir, params.storyId, log)
 

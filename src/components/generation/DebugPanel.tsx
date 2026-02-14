@@ -107,11 +107,24 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
                 <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
                   <span>{selectedLog.model}</span>
                   <span>{selectedLog.durationMs}ms</span>
+                  <span>{selectedLog.stepCount ?? 1} steps</span>
+                  <span>{selectedLog.finishReason}</span>
                   {selectedLog.fragmentId && (
                     <Badge variant="outline" className="text-[9px]">{selectedLog.fragmentId}</Badge>
                   )}
+                  {selectedLog.stepsExceeded && (
+                    <Badge variant="destructive" className="text-[9px]">STEPS EXCEEDED</Badge>
+                  )}
                 </div>
               </div>
+
+              {/* Steps exceeded warning */}
+              {selectedLog.stepsExceeded && (
+                <div className="px-4 py-2 text-xs text-destructive bg-destructive/10 border-b">
+                  Generation hit the 10-step limit. The model may not have finished its tool calls.
+                  Output may be incomplete or missing context.
+                </div>
+              )}
 
               {/* Tab content */}
               <ScrollArea className="flex-1">
@@ -158,6 +171,9 @@ function LogListItem({
         <span>{new Date(log.createdAt).toLocaleString()}</span>
         {log.toolCallCount > 0 && (
           <Badge variant="secondary" className="text-[9px] px-1">{log.toolCallCount} tools</Badge>
+        )}
+        {log.stepsExceeded && (
+          <Badge variant="destructive" className="text-[9px] px-1">exceeded</Badge>
         )}
       </div>
     </button>
