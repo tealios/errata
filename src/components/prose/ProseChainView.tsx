@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
-import { RefreshCw, Sparkles, Undo2, Loader2, Send } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, Loader2, Send, Bug, ChevronsDown, ChevronLeft, ChevronRight, Bot } from 'lucide-react'
+import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
   storyId: string
@@ -25,6 +26,8 @@ export function ProseChainView({
   // State for streaming generation
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [quickSwitch] = useQuickSwitch()
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Fetch prose chain to get active fragment info
@@ -91,80 +94,205 @@ export function ProseChainView({
     }
   }, [sorted, isGenerating, streamedText])
 
-  return (
-    <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
-      <div className="max-w-[38rem] mx-auto py-12 px-8">
-        {sorted.length > 0 ? (
-          sorted.map((fragment, idx) => (
-            <ProseBlock
-              key={fragment.id}
-              storyId={storyId}
-              fragment={fragment}
-              sectionIndex={getSectionIndex(fragment.id)}
-              chainEntry={getChainEntry(fragment.id)}
-              isLast={idx === sorted.length - 1 && !isGenerating}
-              isFirst={idx === 0}
-              onSelect={() => onSelectFragment(fragment)}
-              onDebugLog={onDebugLog}
-            />
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="font-display text-xl italic text-muted-foreground/50 mb-3">
-              The page awaits.
-            </p>
-            <p className="text-sm text-muted-foreground/70">
-              Write or generate your first passage below.
-            </p>
-          </div>
-        )}
+  // Track which prose block is currently visible
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport || sorted.length === 0) return
 
-        {/* Streaming text displayed inline as part of the prose chain */}
-        {(isGenerating || streamedText) && (
-          <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {/* Match prose block styling - no border, minimal background */}
-            <div className="rounded-lg p-4 -mx-4 bg-card/30">
-              <div className="prose-content whitespace-pre-wrap">
-                {streamedText}
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const idx = Number((entry.target as HTMLElement).dataset.proseIndex)
+            if (!isNaN(idx)) setActiveIndex(idx)
+          }
+        }
+      },
+      { root: viewport, rootMargin: '-40% 0px -40% 0px', threshold: 0 },
+    )
+
+    const blocks = viewport.querySelectorAll('[data-prose-index]')
+    blocks.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [sorted])
+
+  const scrollToIndex = useCallback((index: number) => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+    const el = viewport.querySelector(`[data-prose-index="${index}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
+  }, [])
+
+  return (
+    <div className="flex flex-1 min-h-0 relative">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
+        <div className="max-w-[38rem] mx-auto py-12 px-8">
+          {sorted.length > 0 ? (
+            sorted.map((fragment, idx) => (
+              <ProseBlock
+                key={fragment.id}
+                storyId={storyId}
+                fragment={fragment}
+                sectionIndex={getSectionIndex(fragment.id)}
+                chainEntry={getChainEntry(fragment.id)}
+                isLast={idx === sorted.length - 1 && !isGenerating}
+                isFirst={idx === 0}
+                onSelect={() => onSelectFragment(fragment)}
+                onDebugLog={onDebugLog}
+                quickSwitch={quickSwitch}
+              />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <p className="font-display text-xl italic text-muted-foreground/50 mb-3">
+                The page awaits.
+              </p>
+              <p className="text-sm text-muted-foreground/70">
+                Write or generate your first passage below.
+              </p>
+            </div>
+          )}
+
+          {/* Streaming text displayed inline as part of the prose chain */}
+          {(isGenerating || streamedText) && (
+            <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* Match prose block styling - no border, minimal background */}
+              <div className="rounded-lg p-4 -mx-4 bg-card/30">
+                <div className="prose-content whitespace-pre-wrap">
+                  {streamedText}
+                  {isGenerating && (
+                    <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+                  )}
+                </div>
+
+                {/* Minimal generating indicator matching prose metadata bar style */}
                 {isGenerating && (
-                  <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+                  <div className="flex items-center gap-2 mt-3 opacity-60">
+                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground/50">
+                      generating...
+                    </span>
+                  </div>
                 )}
               </div>
-              
-              {/* Minimal generating indicator matching prose metadata bar style */}
-              {isGenerating && (
-                <div className="flex items-center gap-2 mt-3 opacity-60">
-                  <Loader2 className="size-3 animate-spin text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground/50">
-                    generating...
-                  </span>
-                </div>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        <InlineGenerationInput 
-          storyId={storyId} 
-          onDebugLog={onDebugLog}
-          isGenerating={isGenerating}
-          streamedText={streamedText}
-          onGenerationStart={() => {
-            setIsGenerating(true)
-            setStreamedText('')
-          }}
-          onGenerationStream={(text) => setStreamedText(text)}
-          onGenerationComplete={() => {
-            setIsGenerating(false)
-            // Note: streamedText is NOT cleared here - it will be cleared after
-            // the fragments query refreshes and the new fragment appears
-          }}
-          onGenerationError={() => {
-            setIsGenerating(false)
-          }}
+          <InlineGenerationInput
+            storyId={storyId}
+            onDebugLog={onDebugLog}
+            isGenerating={isGenerating}
+            streamedText={streamedText}
+            onGenerationStart={() => {
+              setIsGenerating(true)
+              setStreamedText('')
+            }}
+            onGenerationStream={(text) => setStreamedText(text)}
+            onGenerationComplete={() => {
+              setIsGenerating(false)
+              // Note: streamedText is NOT cleared here - it will be cleared after
+              // the fragments query refreshes and the new fragment appears
+            }}
+            onGenerationError={() => {
+              setIsGenerating(false)
+            }}
+          />
+        </div>
+      </ScrollArea>
+
+      {/* Section navigator */}
+      {sorted.length > 1 && (
+        <ProseNavigator
+          count={sorted.length}
+          activeIndex={activeIndex}
+          onJump={scrollToIndex}
+          onJumpToBottom={scrollToBottom}
         />
+      )}
+    </div>
+  )
+}
+
+// --- Section navigator ---
+
+interface ProseNavigatorProps {
+  count: number
+  activeIndex: number
+  onJump: (index: number) => void
+  onJumpToBottom: () => void
+}
+
+function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNavigatorProps) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
+
+  // For large counts, cap the rendered ticks and map positions proportionally
+  const maxTicks = 60
+  const condensed = count > maxTicks
+  const tickCount = condensed ? maxTicks : count
+
+  const getSourceIndex = (tickIndex: number) => {
+    if (!condensed) return tickIndex
+    return Math.round((tickIndex / (tickCount - 1)) * (count - 1))
+  }
+
+  const getTickIndex = (sourceIndex: number) => {
+    if (!condensed) return sourceIndex
+    return Math.round((sourceIndex / (count - 1)) * (tickCount - 1))
+  }
+
+  const activeTickIndex = getTickIndex(activeIndex)
+
+  return (
+    <div
+      className="absolute right-3 top-0 bottom-0 flex flex-col items-center py-6 z-10 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
+      style={{ width: 20 }}
+    >
+      {/* Track */}
+      <div ref={trackRef} className="flex-1 flex flex-col justify-between min-h-0 py-1">
+        {Array.from({ length: tickCount }, (_, i) => {
+          const sourceIdx = getSourceIndex(i)
+          const isActive = i === activeTickIndex
+          const isHovered = hovered === i
+          return (
+            <button
+              key={i}
+              className="group/tick flex items-center justify-center shrink-0"
+              style={{ height: tickCount > 30 ? 4 : 6, padding: '0 2px' }}
+              onClick={() => onJump(sourceIdx)}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              title={`Section ${sourceIdx + 1}`}
+            >
+              <div
+                className={`rounded-full transition-all duration-150 ${
+                  isActive
+                    ? 'bg-primary w-2.5 h-1.5'
+                    : isHovered
+                      ? 'bg-muted-foreground/60 w-2 h-1'
+                      : 'bg-muted-foreground/20 w-1.5 h-0.5'
+                }`}
+              />
+            </button>
+          )
+        })}
       </div>
-    </ScrollArea>
+
+      {/* Jump to bottom */}
+      <button
+        onClick={onJumpToBottom}
+        className="mt-2 p-1 rounded text-muted-foreground/30 hover:text-muted-foreground transition-colors"
+        title="Jump to bottom"
+      >
+        <ChevronsDown className="size-3.5" />
+      </button>
+    </div>
   )
 }
 
@@ -191,6 +319,23 @@ function InlineGenerationInput({
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  // Provider quick-switch queries
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
+  const { data: globalConfig } = useQuery({
+    queryKey: ['global-config'],
+    queryFn: () => api.config.getProviders(),
+  })
+  const providerMutation = useMutation({
+    mutationFn: (data: { providerId?: string | null; modelId?: string | null }) =>
+      api.settings.update(storyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+    },
+  })
 
   const handleGenerate = async () => {
     if (!input.trim() || isGenerating) return
@@ -231,11 +376,51 @@ function InlineGenerationInput({
   }
 
   return (
-    <div className="mt-8 pt-6 border-t border-border/30">
+    <div className="">
       {/* Error */}
       {error && (
         <div className="text-sm text-destructive mb-3">
           {error}
+        </div>
+      )}
+
+      {/* Provider quick-switch */}
+      {globalConfig && (
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Bot className="size-3 text-muted-foreground/40 shrink-0" />
+          <select
+            value={story?.settings.providerId ?? ''}
+            onChange={(e) => {
+              const providerId = e.target.value || null
+              providerMutation.mutate({ providerId, modelId: null })
+            }}
+            disabled={providerMutation.isPending || isGenerating}
+            className="text-[11px] text-muted-foreground/60 bg-transparent border-none outline-none cursor-pointer hover:text-muted-foreground transition-colors appearance-none pr-4 py-0.5"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
+          >
+            {(() => {
+              const providers = globalConfig.providers.filter(p => p.enabled)
+              const defaultProvider = globalConfig.defaultProviderId
+                ? providers.find(p => p.id === globalConfig.defaultProviderId)
+                : null
+              return (
+                <>
+                  <option value="">
+                    {defaultProvider
+                      ? `${defaultProvider.name} \u00b7 ${defaultProvider.defaultModel}`
+                      : `DeepSeek (env) \u00b7 deepseek-chat`}
+                  </option>
+                  {providers
+                    .filter(p => p.id !== globalConfig.defaultProviderId)
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} &middot; {p.defaultModel}
+                      </option>
+                    ))}
+                </>
+              )
+            })()}
+          </select>
         </div>
       )}
 
@@ -306,6 +491,7 @@ function ProseBlock({
   isFirst,
   onSelect,
   onDebugLog,
+  quickSwitch,
 }: {
   storyId: string
   fragment: Fragment
@@ -315,6 +501,7 @@ function ProseBlock({
   isFirst?: boolean
   onSelect: () => void
   onDebugLog?: (logId: string) => void
+  quickSwitch?: boolean
 }) {
   // isFirst is part of the interface for future use
   void isFirst
@@ -361,6 +548,28 @@ function ProseBlock({
     } else {
       setEditing(false)
     }
+  }
+
+  const switchMutation = useMutation({
+    mutationFn: (fragmentId: string) =>
+      api.proseChain.switchVariation(storyId, sectionIndex, fragmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    },
+  })
+
+  const variationCount = chainEntry?.proseFragments.length ?? 0
+  const variationIndex = chainEntry?.proseFragments.findIndex(f => f.id === chainEntry.active) ?? -1
+  const hasMultiple = variationCount > 1
+  const canPrev = hasMultiple && variationIndex > 0
+  const canNext = hasMultiple && variationIndex < variationCount - 1
+
+  const switchVariation = (dir: -1 | 1) => {
+    if (!chainEntry) return
+    const nextIdx = variationIndex + dir
+    if (nextIdx < 0 || nextIdx >= variationCount) return
+    switchMutation.mutate(chainEntry.proseFragments[nextIdx].id)
   }
 
   const handleActionComplete = () => {
@@ -424,7 +633,49 @@ function ProseBlock({
   }
 
   return (
-    <div className="group relative mb-6">
+    <div className="group relative mb-6" data-prose-index={sectionIndex >= 0 ? sectionIndex : undefined}>
+      {/* User prompt divider */}
+      {fragment.description && (
+        <div className="flex items-center gap-3 mb-2 -mt-3 -mx-4 px-4">
+          <div className="h-px flex-1 bg-border/30" />
+          <span className="text-[10px] text-muted-foreground/30 italic shrink-0">{fragment.description}</span>
+          <div className="h-px flex-1 bg-border/30" />
+        </div>
+      )}
+
+      {/* Quick switch chevrons */}
+      {quickSwitch && hasMultiple && (
+        <div className="flex items-center justify-between -mx-4 px-1 mb-1">
+          <button
+            onClick={() => switchVariation(-1)}
+            disabled={!canPrev || switchMutation.isPending}
+            className={`p-0.5 rounded transition-colors ${
+              canPrev
+                ? 'text-muted-foreground/40 hover:text-muted-foreground'
+                : 'text-muted-foreground/10 cursor-default'
+            }`}
+            title="Previous variation"
+          >
+            <ChevronLeft className="size-3.5" />
+          </button>
+          <span className="text-[9px] text-muted-foreground/30">
+            {variationIndex + 1}/{variationCount}
+          </span>
+          <button
+            onClick={() => switchVariation(1)}
+            disabled={!canNext || switchMutation.isPending}
+            className={`p-0.5 rounded transition-colors ${
+              canNext
+                ? 'text-muted-foreground/40 hover:text-muted-foreground'
+                : 'text-muted-foreground/10 cursor-default'
+            }`}
+            title="Next variation"
+          >
+            <ChevronRight className="size-3.5" />
+          </button>
+        </div>
+      )}
+
       <button
         onClick={() => {
           if (isLast) {
@@ -451,20 +702,17 @@ function ProseBlock({
           <span className="text-[10px] font-mono text-muted-foreground/50">
             {fragment.id}
           </span>
-          <span className="text-[10px] text-muted-foreground/40">
-            {fragment.description}
-          </span>
           {!!fragment.meta?.generatedFrom && (
-            <Badge
-              variant="secondary"
-              className="text-[10px] h-4 px-1.5 cursor-pointer hover:bg-primary/15 hover:text-primary transition-colors"
+            <button
+              className="text-muted-foreground/40 hover:text-primary transition-colors"
               onClick={(e) => {
                 e.stopPropagation()
                 onDebugLog?.(fragment.id)
               }}
+              title="View debug log"
             >
-              AI
-            </Badge>
+              <Bug className="size-3.5" />
+            </button>
           )}
           {/* Variation switcher - shows when multiple variations exist */}
           {chainEntry && sectionIndex >= 0 && (
@@ -542,10 +790,6 @@ function ProseBlock({
         />
       )}
 
-      {/* Subtle separator between blocks */}
-      {!isLast && (
-        <div className="h-px bg-border/30 mx-4 mt-2" />
-      )}
     </div>
   )
 }

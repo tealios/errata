@@ -45,6 +45,10 @@ export function NamesPanel(_props: PluginPanelProps) {
 
   return (
     <div className="flex flex-col h-full p-3 gap-3">
+      <p>
+        Generate character names based on selected themes and genders.
+        The tools are registered and will be automatically included in the context for relevant generations.
+      </p>
       {/* Theme selector */}
       <div>
         <label className="text-xs text-muted-foreground mb-1 block">Theme</label>

@@ -17,6 +17,8 @@ describe('FragmentTypeRegistry', () => {
     expect(types.map((t) => t.type).sort()).toEqual([
       'character',
       'guideline',
+      'icon',
+      'image',
       'knowledge',
       'prose',
     ])
@@ -86,6 +88,7 @@ describe('FragmentTypeRegistry', () => {
       tags: [],
       refs: [],
       sticky: false,
+      placement: 'user' as const,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       order: 0,

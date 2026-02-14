@@ -34,7 +34,7 @@ function makeStory(enabledPlugins: string[] = []): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins },
+    settings: { outputFormat: 'markdown', enabledPlugins, summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
   }
 }
 

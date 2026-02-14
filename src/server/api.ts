@@ -33,7 +33,17 @@ import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
 import { buildContextState, assembleMessages } from './llm/context-builder'
 import { createFragmentTools } from './llm/tools'
-import { defaultModel } from './llm/client'
+import { getModel } from './llm/client'
+import {
+  getGlobalConfigSafe,
+  addProvider,
+  updateProvider as updateProviderConfig,
+  deleteProvider as deleteProviderConfig,
+  getGlobalConfig,
+  saveGlobalConfig,
+  getProvider,
+} from './config/storage'
+import { ProviderConfigSchema } from './config/schema'
 import {
   saveGenerationLog,
   getGenerationLog,
@@ -81,7 +91,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         summary: '',
         createdAt: now,
         updatedAt: now,
-        settings: { outputFormat: 'markdown', enabledPlugins: [] },
+        settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
       }
       await createStory(dataDir, story)
       return story
@@ -115,6 +125,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         ...existing,
         name: body.name,
         description: body.description,
+        ...(body.summary !== undefined ? { summary: body.summary } : {}),
         updatedAt: new Date().toISOString(),
       }
       await updateStory(dataDir, updated)
@@ -123,6 +134,7 @@ export function createApp(dataDir: string = DATA_DIR) {
       body: t.Object({
         name: t.String(),
         description: t.String(),
+        summary: t.Optional(t.String()),
       }),
     })
 
@@ -145,6 +157,11 @@ export function createApp(dataDir: string = DATA_DIR) {
           ...(body.enabledPlugins !== undefined ? { enabledPlugins: body.enabledPlugins } : {}),
           ...(body.outputFormat !== undefined ? { outputFormat: body.outputFormat } : {}),
           ...(body.summarizationThreshold !== undefined ? { summarizationThreshold: body.summarizationThreshold } : {}),
+          ...(body.maxSteps !== undefined ? { maxSteps: body.maxSteps } : {}),
+          ...(body.providerId !== undefined ? { providerId: body.providerId } : {}),
+          ...(body.modelId !== undefined ? { modelId: body.modelId } : {}),
+          ...(body.contextOrderMode !== undefined ? { contextOrderMode: body.contextOrderMode } : {}),
+          ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
         },
         updatedAt: new Date().toISOString(),
       }
@@ -155,6 +172,11 @@ export function createApp(dataDir: string = DATA_DIR) {
         enabledPlugins: t.Optional(t.Array(t.String())),
         outputFormat: t.Optional(t.Union([t.Literal('plaintext'), t.Literal('markdown')])),
         summarizationThreshold: t.Optional(t.Number()),
+        maxSteps: t.Optional(t.Number()),
+        providerId: t.Optional(t.Union([t.String(), t.Null()])),
+        modelId: t.Optional(t.Union([t.String(), t.Null()])),
+        contextOrderMode: t.Optional(t.Union([t.Literal('simple'), t.Literal('advanced')])),
+        fragmentOrder: t.Optional(t.Array(t.String())),
       }),
     })
 
@@ -175,7 +197,8 @@ export function createApp(dataDir: string = DATA_DIR) {
         content: body.content,
         tags: [],
         refs: [],
-        sticky: false,
+        sticky: registry.getType(body.type)?.stickyByDefault ?? false,
+        placement: 'user',
         createdAt: now,
         updatedAt: now,
         order: 0,
@@ -226,6 +249,9 @@ export function createApp(dataDir: string = DATA_DIR) {
         description: body.description,
         content: body.content,
         ...(body.sticky !== undefined ? { sticky: body.sticky } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+        ...(body.placement !== undefined ? { placement: body.placement } : {}),
+        ...(body.meta !== undefined ? { meta: body.meta } : {}),
         updatedAt: new Date().toISOString(),
       }
       await updateFragment(dataDir, params.storyId, updated)
@@ -236,6 +262,9 @@ export function createApp(dataDir: string = DATA_DIR) {
         description: t.String(),
         content: t.String(),
         sticky: t.Optional(t.Boolean()),
+        order: t.Optional(t.Number()),
+        placement: t.Optional(t.Union([t.Literal('system'), t.Literal('user')])),
+        meta: t.Optional(t.Record(t.String(), t.Any())),
       }),
     })
 
@@ -332,6 +361,54 @@ export function createApp(dataDir: string = DATA_DIR) {
       return { ok: true, sticky: body.sticky }
     }, {
       body: t.Object({ sticky: t.Boolean() }),
+    })
+
+    // --- Fragment reorder (bulk) ---
+    .patch('/stories/:storyId/fragments/reorder', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      for (const item of body.items) {
+        const fragment = await getFragment(dataDir, params.storyId, item.id)
+        if (fragment) {
+          const updated: Fragment = {
+            ...fragment,
+            order: item.order,
+            updatedAt: new Date().toISOString(),
+          }
+          await updateFragment(dataDir, params.storyId, updated)
+        }
+      }
+      return { ok: true }
+    }, {
+      body: t.Object({
+        items: t.Array(t.Object({
+          id: t.String(),
+          order: t.Number(),
+        })),
+      }),
+    })
+
+    // --- Fragment placement ---
+    .patch('/stories/:storyId/fragments/:fragmentId/placement', async ({ params, body, set }) => {
+      const existing = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!existing) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      const updated: Fragment = {
+        ...existing,
+        placement: body.placement,
+        updatedAt: new Date().toISOString(),
+      }
+      await updateFragment(dataDir, params.storyId, updated)
+      return { ok: true, placement: body.placement }
+    }, {
+      body: t.Object({
+        placement: t.Union([t.Literal('system'), t.Literal('user')]),
+      }),
     })
 
     // --- Fragment types ---
@@ -506,12 +583,14 @@ export function createApp(dataDir: string = DATA_DIR) {
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 
       requestLogger.info('Starting LLM stream...')
+      const { model, modelId: resolvedModelId } = await getModel(dataDir, params.storyId)
+      requestLogger.info('Resolved model', { resolvedModelId })
       const result = streamText({
-        model: defaultModel,
+        model,
         messages,
         tools,
         toolChoice: 'auto',
-        stopWhen: stepCountIs(10),
+        stopWhen: stepCountIs(story.settings.maxSteps ?? 10),
       })
 
       // If saveResult is true, we need to stream AND save
@@ -581,6 +660,7 @@ export function createApp(dataDir: string = DATA_DIR) {
                 tags: [...existingFragment.tags],
                 refs: [...existingFragment.refs],
                 sticky: existingFragment.sticky,
+                placement: existingFragment.placement ?? 'user',
                 createdAt: now,
                 updatedAt: now,
                 order: existingFragment.order,
@@ -625,6 +705,7 @@ export function createApp(dataDir: string = DATA_DIR) {
                 tags: [],
                 refs: [],
                 sticky: false,
+                placement: 'user',
                 createdAt: now,
                 updatedAt: now,
                 order: 0,
@@ -665,7 +746,7 @@ export function createApp(dataDir: string = DATA_DIR) {
               toolCalls,
               generatedText: genResult.text,
               fragmentId: savedFragmentId,
-              model: 'deepseek-chat',
+              model: resolvedModelId,
               durationMs,
               stepCount,
               finishReason: String(finishReason),
@@ -771,11 +852,218 @@ export function createApp(dataDir: string = DATA_DIR) {
       }),
     })
 
+    // --- Config / Providers ---
+    .get('/config/providers', async () => {
+      return getGlobalConfigSafe(dataDir)
+    })
+
+    .post('/config/providers', async ({ body }) => {
+      const id = `prov-${Date.now().toString(36)}`
+      const provider = ProviderConfigSchema.parse({
+        id,
+        name: body.name,
+        preset: body.preset ?? 'custom',
+        baseURL: body.baseURL,
+        apiKey: body.apiKey,
+        defaultModel: body.defaultModel,
+        enabled: true,
+        customHeaders: body.customHeaders ?? {},
+        createdAt: new Date().toISOString(),
+      })
+      const config = await addProvider(dataDir, provider)
+      return {
+        ...config,
+        providers: config.providers.map((p) => ({
+          ...p,
+          apiKey: '••••' + p.apiKey.slice(-4),
+        })),
+      }
+    }, {
+      body: t.Object({
+        name: t.String(),
+        preset: t.Optional(t.String()),
+        baseURL: t.String(),
+        apiKey: t.String(),
+        defaultModel: t.String(),
+        customHeaders: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    })
+
+    .put('/config/providers/:providerId', async ({ params, body }) => {
+      const updates: Record<string, unknown> = {}
+      if (body.name !== undefined) updates.name = body.name
+      if (body.baseURL !== undefined) updates.baseURL = body.baseURL
+      if (body.apiKey !== undefined) updates.apiKey = body.apiKey
+      if (body.defaultModel !== undefined) updates.defaultModel = body.defaultModel
+      if (body.enabled !== undefined) updates.enabled = body.enabled
+      if (body.customHeaders !== undefined) updates.customHeaders = body.customHeaders
+      const config = await updateProviderConfig(dataDir, params.providerId, updates)
+      return {
+        ...config,
+        providers: config.providers.map((p) => ({
+          ...p,
+          apiKey: '••••' + p.apiKey.slice(-4),
+        })),
+      }
+    }, {
+      body: t.Object({
+        name: t.Optional(t.String()),
+        baseURL: t.Optional(t.String()),
+        apiKey: t.Optional(t.String()),
+        defaultModel: t.Optional(t.String()),
+        enabled: t.Optional(t.Boolean()),
+        customHeaders: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    })
+
+    .delete('/config/providers/:providerId', async ({ params }) => {
+      const config = await deleteProviderConfig(dataDir, params.providerId)
+      return {
+        ...config,
+        providers: config.providers.map((p) => ({
+          ...p,
+          apiKey: '••••' + p.apiKey.slice(-4),
+        })),
+      }
+    })
+
+    .patch('/config/default-provider', async ({ body }) => {
+      const config = await getGlobalConfig(dataDir)
+      config.defaultProviderId = body.providerId
+      await saveGlobalConfig(dataDir, config)
+      return { ok: true, defaultProviderId: body.providerId }
+    }, {
+      body: t.Object({
+        providerId: t.Union([t.String(), t.Null()]),
+      }),
+    })
+
+    .get('/config/providers/:providerId/models', async ({ params, set }) => {
+      const provider = await getProvider(dataDir, params.providerId)
+      if (!provider) {
+        set.status = 404
+        return { models: [], error: 'Provider not found' }
+      }
+      try {
+        const base = provider.baseURL.replace(/\/+$/, '')
+        const url = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`
+        const res = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${provider.apiKey}`,
+            ...(provider.customHeaders ?? {}),
+          },
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText)
+          return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
+        }
+        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
+        const models = (json.data ?? []).map((m) => ({
+          id: m.id,
+          owned_by: m.owned_by,
+        }))
+        models.sort((a, b) => a.id.localeCompare(b.id))
+        return { models }
+      } catch (err) {
+        return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
+      }
+    })
+
+    // Fetch models with arbitrary credentials (for unsaved providers, avoids CORS)
+    .post('/config/test-models', async ({ body }) => {
+      try {
+        const base = body.baseURL.replace(/\/+$/, '')
+        const url = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`
+        const res = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${body.apiKey}`,
+            ...(body.customHeaders ?? {}),
+          },
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText)
+          return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
+        }
+        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
+        const models = (json.data ?? []).map((m) => ({
+          id: m.id,
+          owned_by: m.owned_by,
+        }))
+        models.sort((a, b) => a.id.localeCompare(b.id))
+        return { models }
+      } catch (err) {
+        return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
+      }
+    }, {
+      body: t.Object({
+        baseURL: t.String(),
+        apiKey: t.String(),
+        customHeaders: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    })
+
+    // Test a provider by sending a short chat completion
+    // Can use either providerId (reads stored credentials) or inline baseURL+apiKey
+    .post('/config/test-connection', async ({ body }) => {
+      let baseURL = body.baseURL
+      let apiKey = body.apiKey
+      let customHeaders = body.customHeaders ?? {}
+
+      // If providerId is given, use stored credentials as fallback
+      if (body.providerId) {
+        const stored = await getProvider(dataDir, body.providerId)
+        if (stored) {
+          if (!baseURL) baseURL = stored.baseURL
+          if (!apiKey) apiKey = stored.apiKey
+          if (Object.keys(customHeaders).length === 0) customHeaders = stored.customHeaders ?? {}
+        }
+      }
+
+      if (!baseURL || !apiKey || !body.model) {
+        return { ok: false, error: 'Base URL, API key, and model are required' }
+      }
+
+      try {
+        const base = baseURL.replace(/\/+$/, '')
+        const url = base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            ...customHeaders,
+          },
+          body: JSON.stringify({
+            model: body.model,
+            messages: [{ role: 'user', content: 'Hello! (keep your response short)' }],
+            max_tokens: 64,
+          }),
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText)
+          return { ok: false, error: `${res.status} ${text}` }
+        }
+        const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+        const reply = json.choices?.[0]?.message?.content ?? ''
+        return { ok: true, reply }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
+      }
+    }, {
+      body: t.Object({
+        providerId: t.Optional(t.String()),
+        baseURL: t.Optional(t.String()),
+        apiKey: t.Optional(t.String()),
+        model: t.String(),
+        customHeaders: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    })
+
   // Mount plugin routes
   for (const plugin of pluginRegistry.listAll()) {
     if (plugin.routes) {
       const pluginApp = new Elysia({ prefix: `/plugins/${plugin.manifest.name}` })
-      plugin.routes(pluginApp)
+      plugin.routes(pluginApp as unknown as Elysia)
       app.use(pluginApp)
     }
   }

@@ -31,7 +31,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: 'An epic adventure begins.',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [] },
+    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
     ...overrides,
   }
 }
@@ -47,6 +47,7 @@ function makeFragment(overrides: Partial<Fragment>): Fragment {
     tags: [],
     refs: [],
     sticky: false,
+    placement: 'user' as const,
     createdAt: now,
     updatedAt: now,
     order: 0,

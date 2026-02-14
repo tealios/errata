@@ -1,5 +1,5 @@
-import { generateText } from 'ai'
-import { defaultModel } from '../llm/client'
+import { generateObject } from 'ai'
+import { getModel } from '../llm/client'
 import { getStory, updateStory, listFragments, getFragment } from '../fragments/storage'
 import { getActiveProseIds } from '../fragments/prose-chain'
 import {
@@ -9,29 +9,37 @@ import {
   type LibrarianAnalysis,
 } from './storage'
 import { createLogger } from '../logging'
+import { z } from 'zod/v4'
 
 const logger = createLogger('librarian-agent')
 
 const SYSTEM_PROMPT = `You are a librarian agent for a collaborative writing app. Your job is to analyze new prose fragments and maintain story continuity.
-
-Given the story context (summary, characters, knowledge) and a newly written prose fragment, produce a JSON analysis with these fields:
-
-{
-  "summaryUpdate": "A 1-2 sentence addition to the running story summary describing what happened in this new prose.",
-  "mentionedCharacters": ["ch-xxxx"],
-  "contradictions": [{"description": "what contradicts what", "fragmentIds": ["pr-xxxx", "kn-xxxx"]}],
-  "knowledgeSuggestions": [{"type": "character|knowledge", "name": "short name", "description": "max 50 chars", "content": "details worth remembering"}],
-  "timelineEvents": [{"event": "what happened", "position": "before|during|after"}]
-}
 
 Rules:
 - mentionedCharacters: only include character IDs from the provided list that are actually referenced in the new prose (by name or clear reference).
 - contradictions: flag when the new prose contradicts established facts in the summary, character descriptions, or knowledge. Only flag clear contradictions, not ambiguities.
 - knowledgeSuggestions: suggest new fragments for important details introduced in the new prose that aren't already captured. Set type to "character" for new characters or "knowledge" for world-building details, locations, items, or facts.
 - timelineEvents: note significant events. "position" is relative to the previous prose: "before" if it's a flashback, "during" if concurrent, "after" if it follows sequentially.
-- If there are no contradictions, suggestions, or timeline events, use empty arrays.
+- If there are no contradictions, suggestions, or timeline events, use empty arrays.`
 
-Respond with ONLY valid JSON, no markdown fences or extra text.`
+const LibrarianAnalysisSchema = z.object({
+  summaryUpdate: z.string(),
+  mentionedCharacters: z.array(z.string()),
+  contradictions: z.array(z.object({
+    description: z.string(),
+    fragmentIds: z.array(z.string()),
+  })),
+  knowledgeSuggestions: z.array(z.object({
+    type: z.union([z.literal('character'), z.literal('knowledge')]),
+    name: z.string(),
+    description: z.string(),
+    content: z.string(),
+  })),
+  timelineEvents: z.array(z.object({
+    event: z.string(),
+    position: z.union([z.literal('before'), z.literal('during'), z.literal('after')]),
+  })),
+})
 
 function buildUserPrompt(
   summary: string,
@@ -66,24 +74,6 @@ function buildUserPrompt(
   parts.push(newProse.content)
 
   return parts.join('\n')
-}
-
-function parseAnalysisResponse(raw: string): Omit<LibrarianAnalysis, 'id' | 'createdAt' | 'fragmentId'> {
-  // Strip markdown fences if the LLM included them
-  let cleaned = raw.trim()
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-  }
-
-  const parsed = JSON.parse(cleaned)
-
-  return {
-    summaryUpdate: typeof parsed.summaryUpdate === 'string' ? parsed.summaryUpdate : '',
-    mentionedCharacters: Array.isArray(parsed.mentionedCharacters) ? parsed.mentionedCharacters : [],
-    contradictions: Array.isArray(parsed.contradictions) ? parsed.contradictions : [],
-    knowledgeSuggestions: Array.isArray(parsed.knowledgeSuggestions) ? parsed.knowledgeSuggestions : [],
-    timelineEvents: Array.isArray(parsed.timelineEvents) ? parsed.timelineEvents : [],
-  }
 }
 
 export async function runLibrarian(
@@ -141,19 +131,34 @@ export async function runLibrarian(
     { id: fragment.id, content: fragment.content },
   )
 
+  // Resolve model for this story (with request config such as custom headers/user-agent)
+  const { model, modelId, providerId, config } = await getModel(dataDir, storyId)
+
   // Call the LLM
   requestLogger.info('Calling LLM for analysis...')
   const llmStartTime = Date.now()
-  const result = await generateText({
-    model: defaultModel,
+  const result = await generateObject({
+    model,
     system: SYSTEM_PROMPT,
     prompt: userPrompt,
+    schema: LibrarianAnalysisSchema,
+    headers: {
+      ...config.headers,
+      'User-Agent': config.headers['User-Agent'] ?? 'errata-librarian/1.0',
+    },
   })
   const llmDurationMs = Date.now() - llmStartTime
-  requestLogger.info('LLM analysis completed', { durationMs: llmDurationMs })
+  requestLogger.info('LLM analysis completed', {
+    durationMs: llmDurationMs,
+    providerId,
+    modelId,
+    providerName: config.providerName,
+    baseURL: config.baseURL,
+    headers: Object.keys(config.headers),
+  })
 
-  // Parse the response
-  const parsed = parseAnalysisResponse(result.text)
+  // Structured output (validated by schema)
+  const parsed = result.object
   requestLogger.debug('Analysis parsed', {
     mentionedCharacters: parsed.mentionedCharacters.length,
     contradictions: parsed.contradictions.length,

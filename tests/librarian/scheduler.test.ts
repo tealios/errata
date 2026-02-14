@@ -22,6 +22,7 @@ function makeFragment(id: string): Fragment {
     tags: [],
     refs: [],
     sticky: false,
+    placement: 'user' as const,
     createdAt: now,
     updatedAt: now,
     order: 0,

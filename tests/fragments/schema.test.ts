@@ -32,6 +32,7 @@ describe('FragmentSchema', () => {
     tags: ['chapter-1'],
     refs: ['ch-x9y8'],
     sticky: false,
+    placement: 'user',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     order: 0,
@@ -78,7 +79,7 @@ describe('FragmentSchema', () => {
   })
 
   it('accepts all built-in fragment types', () => {
-    for (const type of ['prose', 'character', 'guideline', 'knowledge']) {
+    for (const type of ['prose', 'character', 'guideline', 'knowledge', 'image', 'icon']) {
       const frag = { ...validFragment, type }
       expect(() => FragmentSchema.parse(frag)).not.toThrow()
     }

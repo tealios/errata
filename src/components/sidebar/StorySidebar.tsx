@@ -20,10 +20,12 @@ import {
   Users,
   BookOpen,
   Database,
+  Image,
   Settings,
   ChevronRight,
   Sparkles,
   Activity,
+  ArrowUpDown,
 } from 'lucide-react'
 
 export type SidebarSection =
@@ -31,6 +33,8 @@ export type SidebarSection =
   | 'characters'
   | 'guidelines'
   | 'knowledge'
+  | 'media'
+  | 'context-order'
   | 'settings'
   | 'agent-activity'
   | `plugin-${string}`
@@ -45,9 +49,10 @@ interface StorySidebarProps {
 }
 
 const FRAGMENT_SECTIONS = [
-  { id: 'characters' as const, label: 'Characters', icon: Users },
   { id: 'guidelines' as const, label: 'Guidelines', icon: BookOpen },
+  { id: 'characters' as const, label: 'Characters', icon: Users },
   { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
+  { id: 'media' as const, label: 'Media', icon: Image },
 ]
 
 export function StorySidebar({
@@ -122,6 +127,20 @@ export function StorySidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {story?.settings.contextOrderMode === 'advanced' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeSection === 'context-order'}
+                    onClick={() => handleToggle('context-order')}
+                    tooltip="Context Order"
+                  >
+                    <ArrowUpDown className="size-4" />
+                    <span>Context Order</span>
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

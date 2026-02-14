@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
+import { parseVisualRefs, readImageUrl, type BoundaryBox } from '@/lib/fragment-visuals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, X } from 'lucide-react'
+import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, ChevronDown } from 'lucide-react'
 
 export interface FragmentPrefill {
   name: string
@@ -37,6 +38,7 @@ export function FragmentEditor({
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
   const [type, setType] = useState(createType ?? 'prose')
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (fragment) {
@@ -91,6 +93,14 @@ export function FragmentEditor({
     },
   })
 
+  const placementMutation = useMutation({
+    mutationFn: (placement: 'system' | 'user') =>
+      api.fragments.setPlacement(storyId, fragment!.id, placement),
+    onSuccess: () => {
+      invalidate()
+    },
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (mode === 'create') {
@@ -102,6 +112,40 @@ export function FragmentEditor({
 
   const isEditing = mode === 'edit' || mode === 'create'
   const isPending = createMutation.isPending || updateMutation.isPending
+  const isMediaType = type === 'image' || type === 'icon'
+
+  const handleImageUpload = async (file: File) => {
+    try {
+      setUploadError(null)
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(new Error('Failed to read image file'))
+        reader.readAsDataURL(file)
+      })
+      setContent(dataUrl)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not upload image')
+    }
+  }
+
+  const mediaPreviewUrl = isMediaType
+    ? readImageUrl({
+      id: fragment?.id ?? 'preview',
+      type,
+      name,
+      description,
+      content,
+      tags: fragment?.tags ?? [],
+      refs: fragment?.refs ?? [],
+      sticky: fragment?.sticky ?? false,
+      placement: fragment?.placement ?? 'user',
+      createdAt: fragment?.createdAt ?? '',
+      updatedAt: fragment?.updatedAt ?? '',
+      order: fragment?.order ?? 0,
+      meta: fragment?.meta ?? {},
+    })
+    : null
 
   return (
     <div className="flex flex-col h-full">
@@ -135,6 +179,19 @@ export function FragmentEditor({
             >
               <Pin className="size-3" />
               {fragment.sticky ? 'Unpin' : 'Pin'}
+            </Button>
+          )}
+          {fragment && fragment.sticky && fragment.type !== 'prose' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs gap-1"
+              onClick={() => placementMutation.mutate(fragment.placement === 'system' ? 'user' : 'system')}
+              disabled={placementMutation.isPending}
+              title={`Context placement: ${fragment.placement === 'system' ? 'system message' : 'user message'}`}
+            >
+              {fragment.placement === 'system' ? <Monitor className="size-3" /> : <User className="size-3" />}
+              {fragment.placement === 'system' ? 'System' : 'User'}
             </Button>
           )}
           {mode === 'view' && fragment && (
@@ -171,6 +228,8 @@ export function FragmentEditor({
                 <option value="character">Character</option>
                 <option value="guideline">Guideline</option>
                 <option value="knowledge">Knowledge</option>
+                <option value="image">Image</option>
+                <option value="icon">Icon</option>
               </select>
             </div>
           )}
@@ -204,14 +263,102 @@ export function FragmentEditor({
         <div className="h-px bg-border/30 mx-6" />
 
         <div className="flex-1 px-6 py-5">
-          <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Content</label>
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            disabled={!isEditing}
-            className="min-h-[200px] h-full resize-none font-mono text-sm bg-transparent"
-            required
-          />
+          {isMediaType ? (
+            <>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">
+                {type === 'icon' ? 'Icon' : 'Image'}
+              </label>
+              {mediaPreviewUrl ? (
+                <div className="space-y-2">
+                  <div className="rounded-lg border border-border/40 overflow-hidden bg-muted/20">
+                    <img
+                      src={mediaPreviewUrl}
+                      alt={name || 'Preview'}
+                      className="w-full h-auto object-contain max-h-64"
+                    />
+                  </div>
+                  {isEditing && (
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border/40 text-xs text-muted-foreground hover:bg-accent/50 cursor-pointer transition-colors">
+                        <Upload className="size-3" />
+                        Replace
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) void handleImageUpload(file)
+                          }}
+                        />
+                      </label>
+                      <span className="text-[10px] text-muted-foreground/40">or paste a URL below</span>
+                    </div>
+                  )}
+                  {isEditing && (
+                    <Input
+                      value={content.startsWith('data:') ? '' : content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="https://example.com/image.png"
+                      className="h-7 text-xs bg-transparent font-mono"
+                    />
+                  )}
+                </div>
+              ) : (
+                <label
+                  className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/50 py-12 transition-colors ${
+                    isEditing ? 'hover:border-primary/40 hover:bg-accent/30 cursor-pointer' : ''
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const file = e.dataTransfer.files[0]
+                    if (file && file.type.startsWith('image/')) void handleImageUpload(file)
+                  }}
+                >
+                  <ImagePlus className="size-8 text-muted-foreground/30" />
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground/60">
+                      {isEditing ? 'Drop an image here or click to upload' : 'No image set'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/40 mt-1">PNG, JPG, SVG, or paste a URL</p>
+                  </div>
+                  {isEditing && (
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleImageUpload(file)
+                      }}
+                    />
+                  )}
+                </label>
+              )}
+              {!mediaPreviewUrl && isEditing && (
+                <Input
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="https://example.com/image.png"
+                  className="mt-2 h-7 text-xs bg-transparent font-mono"
+                />
+              )}
+              {uploadError && <p className="text-[11px] text-destructive mt-1">{uploadError}</p>}
+            </>
+          ) : (
+            <>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Content</label>
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                disabled={!isEditing}
+                className="min-h-[200px] h-full resize-none font-mono text-sm bg-transparent"
+                required
+              />
+            </>
+          )}
         </div>
 
         {/* Tags & Refs section */}
@@ -221,6 +368,9 @@ export function FragmentEditor({
             <div className="px-6 py-5 space-y-5">
               <TagsSection storyId={storyId} fragmentId={fragment.id} />
               <RefsSection storyId={storyId} fragmentId={fragment.id} />
+              {fragment.type !== 'image' && fragment.type !== 'icon' && (
+                <VisualRefsSection storyId={storyId} fragmentId={fragment.id} />
+              )}
             </div>
           </>
         )}
@@ -236,6 +386,333 @@ export function FragmentEditor({
           </div>
         )}
       </form>
+    </div>
+  )
+}
+
+function toNumberInRange(value: string, fallback: number, min: number, max: number) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, parsed))
+}
+
+function VisualRefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: string }) {
+  const queryClient = useQueryClient()
+  const [showPicker, setShowPicker] = useState(false)
+  const [showBoundary, setShowBoundary] = useState(false)
+  const [pendingMedia, setPendingMedia] = useState<{ id: string; kind: 'icon' | 'image' } | null>(null)
+  const [bx, setBx] = useState('0')
+  const [by, setBy] = useState('0')
+  const [bw, setBw] = useState('1')
+  const [bh, setBh] = useState('1')
+
+  const { data: currentFragment } = useQuery({
+    queryKey: ['fragment', storyId, fragmentId],
+    queryFn: () => api.fragments.get(storyId, fragmentId),
+  })
+
+  const { data: imageFragments } = useQuery({
+    queryKey: ['fragments', storyId, 'image'],
+    queryFn: () => api.fragments.list(storyId, 'image'),
+  })
+
+  const { data: iconFragments } = useQuery({
+    queryKey: ['fragments', storyId, 'icon'],
+    queryFn: () => api.fragments.list(storyId, 'icon'),
+  })
+
+  const media = [...(iconFragments ?? []), ...(imageFragments ?? [])]
+  const visualRefs = parseVisualRefs(currentFragment?.meta)
+
+  // Build a lookup so we can show thumbnails for linked refs
+  const mediaById = new Map(media.map((m) => [m.id, m]))
+
+  const saveMutation = useMutation({
+    mutationFn: (nextRefs: Array<{ fragmentId: string; kind: 'image' | 'icon'; boundary?: BoundaryBox }>) => {
+      if (!currentFragment) throw new Error('Fragment not loaded')
+      return api.fragments.update(storyId, fragmentId, {
+        name: currentFragment.name,
+        description: currentFragment.description,
+        content: currentFragment.content,
+        sticky: currentFragment.sticky,
+        order: currentFragment.order,
+        placement: currentFragment.placement,
+        meta: {
+          ...currentFragment.meta,
+          visualRefs: nextRefs,
+        },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      setPendingMedia(null)
+      setShowPicker(false)
+      setShowBoundary(false)
+    },
+  })
+
+  const [uploading, setUploading] = useState(false)
+
+  // Upload a file, create an image fragment, and immediately link it
+  const handleUploadAndLink = async (file: File) => {
+    if (!currentFragment) return
+    setUploading(true)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(new Error('Failed to read file'))
+        reader.readAsDataURL(file)
+      })
+      // Create image fragment
+      const created = await api.fragments.create(storyId, {
+        type: 'image',
+        name: file.name.replace(/\.[^.]+$/, ''),
+        description: file.name.slice(0, 50),
+        content: dataUrl,
+      })
+      // Link it to the current fragment
+      const nextRefs = [
+        ...visualRefs,
+        { fragmentId: created.id, kind: 'image' as const },
+      ]
+      await api.fragments.update(storyId, fragmentId, {
+        name: currentFragment.name,
+        description: currentFragment.description,
+        content: currentFragment.content,
+        sticky: currentFragment.sticky,
+        order: currentFragment.order,
+        placement: currentFragment.placement,
+        meta: { ...currentFragment.meta, visualRefs: nextRefs },
+      })
+      queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      setPendingMedia(null)
+      setShowPicker(false)
+    } catch {
+      // Errors are silently ignored; the UI state stays as-is
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleLink = (mediaId: string, kind: 'icon' | 'image') => {
+    const boundary = showBoundary ? {
+      x: toNumberInRange(bx, 0, 0, 1),
+      y: toNumberInRange(by, 0, 0, 1),
+      width: toNumberInRange(bw, 1, 0.01, 1),
+      height: toNumberInRange(bh, 1, 0.01, 1),
+    } : undefined
+    const nextRefs = [
+      ...visualRefs.filter((r) => !(r.fragmentId === mediaId && r.kind === kind)),
+      { fragmentId: mediaId, kind, boundary },
+    ]
+    saveMutation.mutate(nextRefs)
+  }
+
+  const handleRemove = (targetId: string, targetKind: 'icon' | 'image') => {
+    const nextRefs = visualRefs.filter((r) => !(r.fragmentId === targetId && r.kind === targetKind))
+    saveMutation.mutate(nextRefs)
+  }
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground mb-2 block uppercase tracking-wider">Visual</label>
+
+      {/* Currently linked visuals */}
+      {visualRefs.length > 0 && (
+        <div className="space-y-1.5 mb-3">
+          {visualRefs.map((ref) => {
+            const m = mediaById.get(ref.fragmentId)
+            const url = m ? readImageUrl(m) : null
+            return (
+              <div key={`${ref.kind}:${ref.fragmentId}`} className="flex items-center gap-2 rounded-md border border-border/40 p-1.5 group">
+                {url ? (
+                  <img src={url} alt="" className="size-8 rounded object-cover bg-muted/30 shrink-0" />
+                ) : (
+                  <div className="size-8 rounded bg-muted/30 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{m?.name ?? ref.fragmentId}</p>
+                  <p className="text-[10px] text-muted-foreground/50">{ref.kind}</p>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-destructive transition-all"
+                  onClick={() => handleRemove(ref.fragmentId, ref.kind)}
+                  disabled={saveMutation.isPending}
+                  title="Unlink"
+                >
+                  <Unlink className="size-3" />
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {visualRefs.length === 0 && !showPicker && (
+        <p className="text-xs text-muted-foreground/40 italic mb-2">No image or icon linked</p>
+      )}
+
+      {/* Add button / picker toggle */}
+      {!showPicker ? (
+        <div className="flex gap-1.5">
+          {media.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => setShowPicker(true)}
+            >
+              <Link2 className="size-3" />
+              Link existing
+            </Button>
+          )}
+          <label className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-md border text-xs cursor-pointer transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'border-border/40 hover:bg-accent/50'}`}>
+            <Upload className="size-3" />
+            {uploading ? 'Uploading...' : 'Upload & link'}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleUploadAndLink(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Thumbnail grid picker */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {media.map((m) => {
+              const url = readImageUrl(m)
+              const isSelected = pendingMedia?.id === m.id
+              const alreadyLinked = visualRefs.some((r) => r.fragmentId === m.id)
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setPendingMedia(isSelected ? null : { id: m.id, kind: m.type as 'icon' | 'image' })}
+                  className={`relative rounded-md border overflow-hidden aspect-square transition-all ${
+                    isSelected
+                      ? 'border-primary ring-1 ring-primary/30'
+                      : alreadyLinked
+                        ? 'border-border/40 opacity-40'
+                        : 'border-border/40 hover:border-primary/40'
+                  }`}
+                  title={`${m.name} (${m.type})`}
+                  disabled={alreadyLinked}
+                >
+                  {url ? (
+                    <img src={url} alt={m.name} className="size-full object-cover bg-muted/20" />
+                  ) : (
+                    <div className="size-full bg-muted/30 flex items-center justify-center">
+                      <ImagePlus className="size-4 text-muted-foreground/30" />
+                    </div>
+                  )}
+                  {alreadyLinked && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+                      <Link2 className="size-3.5 text-muted-foreground/60" />
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+            {/* Upload tile */}
+            <label className={`rounded-md border-2 border-dashed border-border/40 aspect-square flex flex-col items-center justify-center gap-0.5 transition-colors ${uploading ? 'opacity-50' : 'hover:border-primary/40 hover:bg-accent/30 cursor-pointer'}`}>
+              <Upload className="size-4 text-muted-foreground/40" />
+              <span className="text-[9px] text-muted-foreground/40">{uploading ? 'Uploading' : 'Upload'}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleUploadAndLink(file)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+
+          {/* Selected media actions */}
+          {pendingMedia && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-muted-foreground flex-1">
+                  {mediaById.get(pendingMedia.id)?.name ?? pendingMedia.id}
+                  <span className="text-muted-foreground/40 ml-1">as {pendingMedia.kind}</span>
+                </p>
+              </div>
+
+              {/* Boundary (collapsed by default) */}
+              <button
+                type="button"
+                onClick={() => setShowBoundary(!showBoundary)}
+                className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-0.5 transition-colors"
+              >
+                <ChevronDown className={`size-3 transition-transform ${showBoundary ? '' : '-rotate-90'}`} />
+                Crop region
+              </button>
+              {showBoundary && (
+                <div className="flex gap-1.5">
+                  <Input value={bx} onChange={(e) => setBx(e.target.value)} placeholder="x" className="h-6 text-[11px] bg-transparent" />
+                  <Input value={by} onChange={(e) => setBy(e.target.value)} placeholder="y" className="h-6 text-[11px] bg-transparent" />
+                  <Input value={bw} onChange={(e) => setBw(e.target.value)} placeholder="w" className="h-6 text-[11px] bg-transparent" />
+                  <Input value={bh} onChange={(e) => setBh(e.target.value)} placeholder="h" className="h-6 text-[11px] bg-transparent" />
+                </div>
+              )}
+
+              <div className="flex gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => handleLink(pendingMedia.id, pendingMedia.kind)}
+                  disabled={saveMutation.isPending}
+                >
+                  <Link2 className="size-3" />
+                  {saveMutation.isPending ? 'Linking...' : 'Link'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => { setShowPicker(false); setPendingMedia(null); setShowBoundary(false) }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!pendingMedia && (
+            <div className="flex justify-between items-center">
+              <p className="text-[11px] text-muted-foreground/40">Click an image to select it</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[11px]"
+                onClick={() => setShowPicker(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -3,6 +3,8 @@ export const PREFIXES: Record<string, string> = {
   character: 'ch',
   guideline: 'gl',
   knowledge: 'kn',
+  image: 'im',
+  icon: 'ic',
 }
 
 export function generateFragmentId(type: string): string {

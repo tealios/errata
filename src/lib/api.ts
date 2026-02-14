@@ -27,6 +27,12 @@ export interface StoryMeta {
   settings: {
     outputFormat: 'plaintext' | 'markdown'
     enabledPlugins: string[]
+    summarizationThreshold?: number
+    maxSteps?: number
+    providerId?: string | null
+    modelId?: string | null
+    contextOrderMode?: 'simple' | 'advanced'
+    fragmentOrder?: string[]
   }
 }
 
@@ -39,6 +45,7 @@ export interface Fragment {
   tags: string[]
   refs: string[]
   sticky: boolean
+  placement: 'system' | 'user'
   createdAt: string
   updatedAt: string
   order: number
@@ -99,6 +106,23 @@ export interface LibrarianState {
   lastAnalyzedFragmentId: string | null
   recentMentions: Record<string, string[]>
   timeline: Array<{ event: string; fragmentId: string }>
+}
+
+export interface ProviderConfigSafe {
+  id: string
+  name: string
+  preset: string
+  baseURL: string
+  apiKey: string // masked
+  defaultModel: string
+  enabled: boolean
+  customHeaders?: Record<string, string>
+  createdAt: string
+}
+
+export interface GlobalConfigSafe {
+  providers: ProviderConfigSafe[]
+  defaultProviderId: string | null
 }
 
 export interface ProseChainEntry {
@@ -176,18 +200,39 @@ export const api = {
     list: () => apiFetch<PluginManifestInfo[]>('/plugins'),
   },
   settings: {
-    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number }) =>
+    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }) =>
       apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+  },
+  config: {
+    getProviders: () =>
+      apiFetch<GlobalConfigSafe>('/config/providers'),
+    addProvider: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string; customHeaders?: Record<string, string> }) =>
+      apiFetch<GlobalConfigSafe>('/config/providers', { method: 'POST', body: JSON.stringify(data) }),
+    updateProvider: (providerId: string, data: { name?: string; baseURL?: string; apiKey?: string; defaultModel?: string; enabled?: boolean; customHeaders?: Record<string, string> }) =>
+      apiFetch<GlobalConfigSafe>(`/config/providers/${providerId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteProvider: (providerId: string) =>
+      apiFetch<GlobalConfigSafe>(`/config/providers/${providerId}`, { method: 'DELETE' }),
+    setDefaultProvider: (providerId: string | null) =>
+      apiFetch<{ ok: boolean; defaultProviderId: string | null }>('/config/default-provider', {
+        method: 'PATCH',
+        body: JSON.stringify({ providerId }),
+      }),
+    listModels: (providerId: string) =>
+      apiFetch<{ models: Array<{ id: string; owned_by?: string }>; error?: string }>(`/config/providers/${providerId}/models`),
+    testModels: (data: { baseURL: string; apiKey: string; customHeaders?: Record<string, string> }) =>
+      apiFetch<{ models: Array<{ id: string; owned_by?: string }>; error?: string }>('/config/test-models', { method: 'POST', body: JSON.stringify(data) }),
+    testConnection: (data: { providerId?: string; baseURL?: string; apiKey?: string; model: string; customHeaders?: Record<string, string> }) =>
+      apiFetch<{ ok: boolean; reply?: string; error?: string }>('/config/test-connection', { method: 'POST', body: JSON.stringify(data) }),
   },
   stories: {
     list: () => apiFetch<StoryMeta[]>('/stories'),
     get: (id: string) => apiFetch<StoryMeta>(`/stories/${id}`),
     create: (data: { name: string; description: string }) =>
       apiFetch<StoryMeta>('/stories', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { name: string; description: string }) =>
+    update: (id: string, data: { name: string; description: string; summary?: string }) =>
       apiFetch<StoryMeta>(`/stories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) =>
       apiFetch<{ ok: boolean }>(`/stories/${id}`, { method: 'DELETE' }),
@@ -199,7 +244,7 @@ export const api = {
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`),
     create: (storyId: string, data: { type: string; name: string; description: string; content: string }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments`, { method: 'POST', body: JSON.stringify(data) }),
-    update: (storyId: string, fragmentId: string, data: { name: string; description: string; content: string; sticky?: boolean }) =>
+    update: (storyId: string, fragmentId: string, data: { name: string; description: string; content: string; sticky?: boolean; order?: number; placement?: 'system' | 'user'; meta?: Record<string, unknown> }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'PUT', body: JSON.stringify(data) }),
     edit: (storyId: string, fragmentId: string, data: { oldText: string; newText: string }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -237,6 +282,18 @@ export const api = {
     // Revert
     revert: (storyId: string, fragmentId: string) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}/revert`, { method: 'POST' }),
+    // Reorder (bulk)
+    reorder: (storyId: string, items: Array<{ id: string; order: number }>) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/reorder`, {
+        method: 'PATCH',
+        body: JSON.stringify({ items }),
+      }),
+    // Placement
+    setPlacement: (storyId: string, fragmentId: string, placement: 'system' | 'user') =>
+      apiFetch<{ ok: boolean; placement: string }>(`/stories/${storyId}/fragments/${fragmentId}/placement`, {
+        method: 'PATCH',
+        body: JSON.stringify({ placement }),
+      }),
   },
   generation: {
     /** Stream prose generation (returns ReadableStream of text chunks) */

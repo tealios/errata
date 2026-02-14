@@ -34,7 +34,7 @@ const makeStory = (overrides: Partial<StoryMeta> = {}): StoryMeta => ({
   summary: '',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-  settings: { outputFormat: 'markdown', enabledPlugins: [] },
+  settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
   ...overrides,
 })
 
@@ -47,6 +47,7 @@ const makeFragment = (overrides: Partial<Fragment> = {}): Fragment => ({
   tags: [],
   refs: [],
   sticky: false,
+  placement: 'user' as const,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   order: 0,

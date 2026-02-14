@@ -3,9 +3,9 @@ import { createApp } from './api'
 import type { WritingPlugin } from './plugins/types'
 
 // Discover plugins at build time using Vite's import.meta.glob.
-// Adding a new plugin only requires creating plugins/<name>/plugin.ts — no edits here.
+// Adding a new plugin only requires creating plugins/<name>/entry.server.ts — no edits here.
 const pluginModules = import.meta.glob<{ default: WritingPlugin }>(
-  '../../plugins/*/plugin.ts',
+  '../../plugins/*/entry.server.ts',
   { eager: true },
 )
 

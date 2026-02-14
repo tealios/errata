@@ -7,6 +7,8 @@ describe('generateFragmentId', () => {
     expect(generateFragmentId('character')).toMatch(/^ch-[a-z0-9]{6}$/)
     expect(generateFragmentId('guideline')).toMatch(/^gl-[a-z0-9]{6}$/)
     expect(generateFragmentId('knowledge')).toMatch(/^kn-[a-z0-9]{6}$/)
+    expect(generateFragmentId('image')).toMatch(/^im-[a-z0-9]{6}$/)
+    expect(generateFragmentId('icon')).toMatch(/^ic-[a-z0-9]{6}$/)
   })
 
   it('generates unique IDs', () => {
@@ -30,5 +32,7 @@ describe('PREFIXES', () => {
     expect(PREFIXES.character).toBe('ch')
     expect(PREFIXES.guideline).toBe('gl')
     expect(PREFIXES.knowledge).toBe('kn')
+    expect(PREFIXES.image).toBe('im')
+    expect(PREFIXES.icon).toBe('ic')
   })
 })
