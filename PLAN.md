@@ -134,9 +134,9 @@ errata/
 │   │   │   └── routes.ts             # Generation endpoints (streaming)
 │   │   │
 │   │   ├── librarian/
-│   │   │   ├── agent.ts              # Background librarian agent logic
-│   │   │   ├── tasks.ts              # Librarian task definitions
-│   │   │   └── scheduler.ts          # Scheduling / trigger logic
+│   │   │   ├── storage.ts            # Types + filesystem storage for analyses and state
+│   │   │   ├── agent.ts              # Background librarian agent logic (runLibrarian)
+│   │   │   └── scheduler.ts          # Debounced fire-and-forget trigger
 │   │   │
 │   │   └── plugins/
 │   │       ├── loader.ts             # Plugin discovery & loading
@@ -156,6 +156,12 @@ errata/
 │   │   │   ├── FragmentCard.tsx       # Card component for fragment
 │   │   │   ├── FragmentEditor.tsx     # Edit modal/panel for a fragment
 │   │   │   └── FragmentBadge.tsx      # Tag/type badge
+│   │   ├── sidebar/
+│   │   │   ├── StorySidebar.tsx       # Sidebar with section navigation
+│   │   │   ├── DetailPanel.tsx        # Detail panel rendering per section
+│   │   │   ├── StoryInfoPanel.tsx     # Story info display
+│   │   │   ├── SettingsPanel.tsx      # Story settings
+│   │   │   └── LibrarianPanel.tsx     # Agent activity: analyses, suggestions, timeline
 │   │   └── wizard/
 │   │       ├── WizardShell.tsx        # Multi-step wizard container
 │   │       ├── StepGuidelines.tsx     # Guideline creation step
@@ -183,7 +189,14 @@ errata/
 │   │   ├── tools.test.ts             # LLM tool definition tests
 │   │   └── generation.test.ts        # Generation pipeline tests
 │   ├── librarian/
-│   │   └── agent.test.ts             # Librarian analysis tests
+│   │   ├── storage.test.ts           # Librarian storage layer tests
+│   │   ├── agent.test.ts             # Librarian agent logic tests (mocked LLM)
+│   │   └── scheduler.test.ts         # Scheduler/debounce tests
+│   ├── api/
+│   │   ├── routes.test.ts            # Core API route tests
+│   │   ├── associations-routes.test.ts  # Tag/ref route tests
+│   │   ├── generation-logs-routes.test.ts  # Generation log route tests
+│   │   └── librarian-routes.test.ts  # Librarian API route tests
 │   ├── plugins/
 │   │   ├── loader.test.ts            # Plugin discovery tests
 │   │   └── hooks.test.ts             # Pipeline hook tests
@@ -201,7 +214,13 @@ errata/
 │           │   ├── ch-x9y8.json      # Character fragment
 │           │   ├── gl-m3n4.json      # Guideline fragment
 │           │   └── kn-p5q6.json      # Knowledge fragment
-│           └── associations.json     # Fragment associations & tags
+│           ├── associations.json     # Fragment associations & tags
+│           ├── generation-logs/
+│           │   └── <logId>.json      # Generation debug logs
+│           └── librarian/
+│               ├── state.json        # Current librarian state (mentions, timeline)
+│               └── analyses/
+│                   └── <analysisId>.json  # Individual analysis results
 │
 └── plugins/                          # Plugin directory
     └── names/
@@ -576,14 +595,14 @@ buildContext(storyId, input)       -- assemble fragment context
 beforeGeneration hooks             -- plugins modify messages
     |
     v
-streamText({                       -- Vercel AI SDK
+streamText({                       -- Vercel AI SDK v6
   model: defaultModel,
   messages,
   tools: {
     ...createFragmentTools(storyId),
     ...pluginTools,
   },
-  maxSteps: 10,                    -- allow multi-step tool use
+  stopWhen: stepCountIs(10),       -- allow multi-step tool use
 })
     |
     v
@@ -616,40 +635,89 @@ The librarian is a background process that triggers after new prose is saved. It
 4. **Suggest knowledge updates**: If new world-building details appear in prose, suggest new knowledge fragments.
 5. **Maintain timeline**: Track temporal references and maintain a chronological event index.
 
-### Implementation (`server/librarian/agent.ts`)
+### Storage Types (`server/librarian/storage.ts`)
 
 ```typescript
-export async function runLibrarian(storyId: string, newFragmentId: string): Promise<void> {
-  const fragment = await loadFragment(storyId, newFragmentId);
-  const story = await loadStoryMeta(storyId);
-  const characters = await listFragments(storyId, 'character');
+interface LibrarianAnalysis {
+  id: string                           // e.g. "la-abc123"
+  createdAt: string
+  fragmentId: string                   // The prose fragment that triggered this analysis
+  summaryUpdate: string                // Text appended to story.summary
+  mentionedCharacters: string[]        // Character fragment IDs detected
+  contradictions: Array<{
+    description: string
+    fragmentIds: string[]              // Conflicting fragment IDs
+  }>
+  knowledgeSuggestions: Array<{
+    name: string
+    description: string                // Max 50 chars
+    content: string
+  }>
+  timelineEvents: Array<{
+    event: string
+    position: 'before' | 'during' | 'after'  // Relative to previous prose
+  }>
+}
 
-  // Use the LLM to analyze the new prose
-  const { text } = await generateText({
-    model: defaultModel,
-    system: `You are a librarian agent for a story. Analyze the new prose and:
-1. Provide a brief summary update to append to the story summary.
-2. List any character names mentioned (match against known characters).
-3. Flag any contradictions with established facts.
-4. Suggest any new knowledge fragments if world-building details are introduced.
-5. Note any temporal markers for the timeline.
-Return your analysis as JSON.`,
-    prompt: `Story summary so far: ${story.summary}\n\nKnown characters: ${characters.map(c => c.name).join(', ')}\n\nNew prose:\n${fragment.content}`,
-  });
-
-  // Parse and apply updates
-  const analysis = JSON.parse(text);
-  await applySummaryUpdate(storyId, analysis.summaryUpdate);
-  await updateCharacterMentions(storyId, analysis.mentionedCharacters);
-  // ... etc
+interface LibrarianState {
+  lastAnalyzedFragmentId: string | null
+  recentMentions: Record<string, string[]>  // characterId -> [fragmentId where mentioned]
+  timeline: Array<{ event: string; fragmentId: string }>
 }
 ```
 
-### Scheduling
+Storage functions: `saveAnalysis`, `getAnalysis`, `listAnalyses`, `getState`, `saveState`. Follows the same filesystem pattern as `generation-logs.ts`.
 
-- Triggered asynchronously after each prose save (fire-and-forget via `afterSave` in the generation pipeline).
-- Debounced: if multiple prose fragments are saved in quick succession, batch the librarian run.
-- Results stored in `data/stories/<storyId>/librarian/` as JSON files.
+### Agent Logic (`server/librarian/agent.ts`)
+
+```typescript
+export async function runLibrarian(dataDir: string, storyId: string, fragmentId: string): Promise<LibrarianAnalysis>
+```
+
+1. Loads story meta, the new fragment, existing characters, existing knowledge
+2. Loads current librarian state (for running summary context)
+3. Calls `generateText()` with a structured prompt asking for JSON output
+4. Parses the JSON response (handles markdown fences)
+5. Appends `summaryUpdate` to `story.summary` via `updateStory()`
+6. Updates `recentMentions` and `timeline` in librarian state
+7. Saves the analysis result + updated state
+8. Returns the analysis
+
+### Scheduling (`server/librarian/scheduler.ts`)
+
+```typescript
+const DEBOUNCE_MS = 2000
+
+function triggerLibrarian(dataDir: string, storyId: string, fragment: Fragment): void
+```
+
+- Triggered from `api.ts` after prose save (fire-and-forget, after `afterSave` hooks)
+- Debounced per-story: rapid successive saves only trigger one analysis
+- Errors are caught and logged to console, never bubble to the user
+- Helper functions `clearPending()` and `getPendingCount()` for testing
+
+### Librarian API Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stories/:storyId/librarian/status` | Get librarian state (last analyzed, mentions, timeline) |
+| GET | `/api/stories/:storyId/librarian/analyses` | List analysis summaries (newest first) |
+| GET | `/api/stories/:storyId/librarian/analyses/:id` | Get full analysis detail |
+
+### Frontend (`components/sidebar/LibrarianPanel.tsx`)
+
+Rendered in the DetailPanel when "Agent Activity" sidebar section is selected. Displays:
+- Current status (Idle indicator + last analyzed fragment)
+- Badge counts for total contradictions and suggestions
+- Character mentions index (character ID → mention count)
+- Timeline (last 10 events with fragment IDs)
+- Expandable analysis list — each analysis shows:
+  - Summary update text
+  - Mentioned characters as badges
+  - Contradictions highlighted in orange/warning style
+  - Knowledge suggestions with "Create Fragment" button (pre-fills FragmentEditor)
+  - Timeline events with position badges (before/during/after)
+- Auto-refreshes every 5 seconds via React Query `refetchInterval`
 
 ---
 
@@ -733,9 +801,16 @@ All API routes are defined in Elysia and mounted at `/api/*`.
 | Method | Path                               | Description                                |
 |--------|------------------------------------|--------------------------------------------|
 | POST   | `/api/stories/:sid/generate`       | Generate prose (streaming SSE response)     |
-| GET    | `/api/stories/:sid/librarian/status` | Librarian status for the story            |
 | GET    | `/api/stories/:sid/generation-logs` | List recent generation debug logs          |
 | GET    | `/api/stories/:sid/generation-logs/:logId` | Get a specific generation debug log  |
+
+### Librarian Routes (`/api/librarian`)
+
+| Method | Path                                          | Description                              |
+|--------|-----------------------------------------------|------------------------------------------|
+| GET    | `/api/stories/:sid/librarian/status`          | Get librarian state (mentions, timeline) |
+| GET    | `/api/stories/:sid/librarian/analyses`        | List analysis summaries (newest first)   |
+| GET    | `/api/stories/:sid/librarian/analyses/:id`    | Get full analysis detail                 |
 
 ### Plugin Routes
 
@@ -850,14 +925,19 @@ A toggleable debug panel that shows exactly what was sent to the LLM and what to
 > Goal: Automated continuity management
 > Approach: **Tests first** — use fixture prose and mock LLM for deterministic analysis.
 
-- [ ] **Test** → Librarian agent core logic (given fixture prose, expect structured analysis)
-- [ ] **Test** → Summary maintenance (verify summary updates append correctly)
-- [ ] **Test** → Character mention detection (given known characters + prose, expect matches)
-- [ ] **Test** → Contradiction detection (given conflicting facts, expect flags)
-- [ ] **Test** → Knowledge fragment suggestions (given new world details, expect suggestions)
-- [ ] **Test** → Timeline tracking (given temporal markers, expect ordered events)
-- [ ] **Test** → Scheduling: trigger after prose save, debounce (verify timing)
-- [ ] Librarian status UI (show recent analyses, suggestions)
+- [x] **Test** → Librarian storage layer (save/load analysis, list, state persistence)
+- [x] **Test** → Librarian agent core logic (given fixture prose, expect structured analysis)
+- [x] **Test** → Summary maintenance (verify summary updates append correctly)
+- [x] **Test** → Character mention detection (given known characters + prose, expect matches)
+- [x] **Test** → Contradiction detection (given conflicting facts, expect flags)
+- [x] **Test** → Knowledge fragment suggestions (given new world details, expect suggestions)
+- [x] **Test** → Timeline tracking (given temporal markers, expect ordered events)
+- [x] **Test** → Scheduling: trigger after prose save, debounce (verify timing)
+- [x] **Test** → Librarian API routes (status, analyses list, analysis detail, 404)
+- [x] Librarian status UI (LibrarianPanel with analyses, suggestions, contradictions)
+- [x] Wire librarian trigger into generation pipeline (fire-and-forget after afterSave)
+- [x] Frontend API client methods (api.librarian.getStatus, listAnalyses, getAnalysis)
+- [x] Sidebar integration (Agent Activity section clickable, opens LibrarianPanel)
 
 ### Phase 6: Hardening
 > Goal: Production readiness

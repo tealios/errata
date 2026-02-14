@@ -23,8 +23,8 @@ import {
 } from './fragments/associations'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
-import { buildContext } from './llm/context-builder'
-import { createFragmentTools, createReadOnlyTools } from './llm/tools'
+import { buildContextState, assembleMessages } from './llm/context-builder'
+import { createFragmentTools } from './llm/tools'
 import { defaultModel } from './llm/client'
 import {
   saveGenerationLog,
@@ -33,13 +33,32 @@ import {
   type GenerationLog,
   type ToolCallLog,
 } from './llm/generation-logs'
+import { pluginRegistry } from './plugins/registry'
+import {
+  runBeforeContext,
+  runBeforeGeneration,
+  runAfterGeneration,
+  runAfterSave,
+} from './plugins/hooks'
+import { collectPluginTools } from './plugins/tools'
+import { triggerLibrarian } from './librarian/scheduler'
+import {
+  getState as getLibrarianState,
+  listAnalyses as listLibrarianAnalyses,
+  getAnalysis as getLibrarianAnalysis,
+} from './librarian/storage'
 import type { StoryMeta, Fragment } from './fragments/schema'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
 
 export function createApp(dataDir: string = DATA_DIR) {
-  return new Elysia({ prefix: '/api' })
+  const app = new Elysia({ prefix: '/api' })
     .get('/health', () => ({ status: 'ok' }))
+
+    // --- Plugins ---
+    .get('/plugins', () => {
+      return pluginRegistry.listAll().map((p) => p.manifest)
+    })
 
     // --- Story CRUD ---
     .post('/stories', async ({ body }) => {
@@ -100,6 +119,31 @@ export function createApp(dataDir: string = DATA_DIR) {
     .delete('/stories/:storyId', async ({ params }) => {
       await deleteStory(dataDir, params.storyId)
       return { ok: true }
+    })
+
+    // --- Story Settings ---
+    .patch('/stories/:storyId/settings', async ({ params, body, set }) => {
+      const existing = await getStory(dataDir, params.storyId)
+      if (!existing) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      const updated: StoryMeta = {
+        ...existing,
+        settings: {
+          ...existing.settings,
+          ...(body.enabledPlugins !== undefined ? { enabledPlugins: body.enabledPlugins } : {}),
+          ...(body.outputFormat !== undefined ? { outputFormat: body.outputFormat } : {}),
+        },
+        updatedAt: new Date().toISOString(),
+      }
+      await updateStory(dataDir, updated)
+      return updated
+    }, {
+      body: t.Object({
+        enabledPlugins: t.Optional(t.Array(t.String())),
+        outputFormat: t.Optional(t.Union([t.Literal('plaintext'), t.Literal('markdown')])),
+      }),
     })
 
     // --- Fragment CRUD ---
@@ -299,6 +343,24 @@ export function createApp(dataDir: string = DATA_DIR) {
       return log
     })
 
+    // --- Librarian ---
+    .get('/stories/:storyId/librarian/status', async ({ params }) => {
+      return getLibrarianState(dataDir, params.storyId)
+    })
+
+    .get('/stories/:storyId/librarian/analyses', async ({ params }) => {
+      return listLibrarianAnalyses(dataDir, params.storyId)
+    })
+
+    .get('/stories/:storyId/librarian/analyses/:analysisId', async ({ params, set }) => {
+      const analysis = await getLibrarianAnalysis(dataDir, params.storyId, params.analysisId)
+      if (!analysis) {
+        set.status = 404
+        return { error: 'Analysis not found' }
+      }
+      return analysis
+    })
+
     // --- Generation ---
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -313,8 +375,29 @@ export function createApp(dataDir: string = DATA_DIR) {
       }
 
       const startTime = Date.now()
-      const messages = await buildContext(dataDir, params.storyId, body.input)
-      const tools = createReadOnlyTools(dataDir, params.storyId)
+
+      // Get enabled plugins
+      const enabledPlugins = pluginRegistry.getEnabled(
+        story.settings.enabledPlugins,
+      )
+
+      // Build context with plugin hooks
+      let ctxState = await buildContextState(dataDir, params.storyId, body.input)
+      ctxState = await runBeforeContext(enabledPlugins, ctxState)
+
+      // Merge fragment tools + plugin tools
+      const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
+      const pluginTools = collectPluginTools(enabledPlugins, dataDir, params.storyId)
+      const tools = { ...fragmentTools, ...pluginTools }
+
+      // Extract plugin tool descriptions for context (fragment tools are listed from registry)
+      const extraTools = Object.entries(pluginTools).map(([name, t]) => ({
+        name,
+        description: (t as { description?: string }).description ?? '',
+      }))
+
+      let messages = assembleMessages(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
+      messages = await runBeforeGeneration(enabledPlugins, messages)
 
       const result = streamText({
         model: defaultModel,
@@ -347,6 +430,13 @@ export function createApp(dataDir: string = DATA_DIR) {
           }
         }
 
+        // Run afterGeneration hooks
+        let genResult = await runAfterGeneration(enabledPlugins, {
+          text,
+          fragmentId: null,
+          toolCalls,
+        })
+
         const now = new Date().toISOString()
         const id = generateFragmentId('prose')
         const fragment: Fragment = {
@@ -354,7 +444,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           type: 'prose',
           name: `Generated ${new Date().toLocaleDateString()}`,
           description: body.input.slice(0, 50),
-          content: text,
+          content: genResult.text,
           tags: [],
           refs: [],
           sticky: false,
@@ -364,6 +454,12 @@ export function createApp(dataDir: string = DATA_DIR) {
           meta: { generatedFrom: body.input },
         }
         await createFragment(dataDir, params.storyId, fragment)
+
+        // Run afterSave hooks
+        await runAfterSave(enabledPlugins, fragment, params.storyId)
+
+        // Trigger librarian analysis (fire-and-forget)
+        triggerLibrarian(dataDir, params.storyId, fragment)
 
         // Capture finish reason and step count
         const finishReason = await result.finishReason ?? 'unknown'
@@ -381,7 +477,7 @@ export function createApp(dataDir: string = DATA_DIR) {
             content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
           })),
           toolCalls,
-          generatedText: text,
+          generatedText: genResult.text,
           fragmentId: id,
           model: 'deepseek-chat',
           durationMs,
@@ -391,7 +487,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         }
         await saveGenerationLog(dataDir, params.storyId, log)
 
-        return new Response(text, {
+        return new Response(genResult.text, {
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         })
       }
@@ -404,6 +500,17 @@ export function createApp(dataDir: string = DATA_DIR) {
         saveResult: t.Optional(t.Boolean()),
       }),
     })
+
+  // Mount plugin routes
+  for (const plugin of pluginRegistry.listAll()) {
+    if (plugin.routes) {
+      const pluginApp = new Elysia({ prefix: `/plugins/${plugin.manifest.name}` })
+      plugin.routes(pluginApp)
+      app.use(pluginApp)
+    }
+  }
+
+  return app
 }
 
 export const app = createApp()
