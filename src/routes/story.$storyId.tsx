@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { api, type Fragment } from '@/lib/api'
+import type { FragmentPrefill } from '@/components/fragments/FragmentEditor'
 import { Button } from '@/components/ui/button'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
@@ -23,6 +24,7 @@ function StoryEditorPage() {
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
   const [createType, setCreateType] = useState<string>('prose')
+  const [createPrefill, setCreatePrefill] = useState<FragmentPrefill | null>(null)
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
 
@@ -68,14 +70,16 @@ function StoryEditorPage() {
     setEditorMode('edit')
   }
 
-  const handleCreateFragment = (type: string) => {
+  const handleCreateFragment = (type: string, prefill?: FragmentPrefill) => {
     setSelectedFragment(null)
     setCreateType(type)
+    setCreatePrefill(prefill ?? null)
     setEditorMode('create')
   }
 
   const handleEditorClose = () => {
     setSelectedFragment(null)
+    setCreatePrefill(null)
     setEditorMode('view')
   }
 
@@ -145,6 +149,7 @@ function StoryEditorPage() {
             fragment={selectedFragment}
             mode={editorMode}
             createType={createType}
+            prefill={createPrefill}
             onClose={handleEditorClose}
             onSaved={handleEditorClose}
           />

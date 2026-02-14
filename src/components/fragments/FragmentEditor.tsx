@@ -7,11 +7,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 
+export interface FragmentPrefill {
+  name: string
+  description: string
+  content: string
+}
+
 interface FragmentEditorProps {
   storyId: string
   fragment: Fragment | null
   mode: 'view' | 'edit' | 'create'
   createType?: string
+  prefill?: FragmentPrefill | null
   onClose: () => void
   onSaved: () => void
 }
@@ -21,6 +28,7 @@ export function FragmentEditor({
   fragment,
   mode,
   createType,
+  prefill,
   onClose,
   onSaved,
 }: FragmentEditorProps) {
@@ -37,12 +45,12 @@ export function FragmentEditor({
       setContent(fragment.content)
       setType(fragment.type)
     } else {
-      setName('')
-      setDescription('')
-      setContent('')
+      setName(prefill?.name ?? '')
+      setDescription(prefill?.description ?? '')
+      setContent(prefill?.content ?? '')
       setType(createType ?? 'prose')
     }
-  }, [fragment, createType])
+  }, [fragment, createType, prefill])
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })

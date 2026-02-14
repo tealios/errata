@@ -15,7 +15,7 @@ interface DetailPanelProps {
   section: SidebarSection
   onClose: () => void
   onSelectFragment: (fragment: Fragment) => void
-  onCreateFragment: (type: string) => void
+  onCreateFragment: (type: string, prefill?: { name: string; description: string; content: string }) => void
   selectedFragmentId?: string
 }
 
@@ -79,11 +79,7 @@ export function DetailPanel({
           <LibrarianPanel
             storyId={storyId}
             onCreateFragment={(type, prefill) => {
-              if (prefill) {
-                onCreateFragment(type)
-              } else {
-                onCreateFragment(type)
-              }
+              onCreateFragment(type, prefill)
             }}
           />
         )}
