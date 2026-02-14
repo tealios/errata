@@ -26,21 +26,19 @@ export function ProseChainView({
   )
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <ScrollArea className="flex-1 min-h-0">
+    <ScrollArea className="flex-1 min-h-0">
+      <div className="max-w-prose mx-auto py-6 px-6 space-y-1">
         {sorted.length > 0 ? (
-          <div className="max-w-prose mx-auto py-6 px-6 space-y-1">
-            {sorted.map((fragment, idx) => (
-              <ProseBlock
-                key={fragment.id}
-                storyId={storyId}
-                fragment={fragment}
-                isLast={idx === sorted.length - 1}
-                onSelect={() => onSelectFragment(fragment)}
-                onDebugLog={onDebugLog}
-              />
-            ))}
-          </div>
+          sorted.map((fragment, idx) => (
+            <ProseBlock
+              key={fragment.id}
+              storyId={storyId}
+              fragment={fragment}
+              isLast={idx === sorted.length - 1}
+              onSelect={() => onSelectFragment(fragment)}
+              onDebugLog={onDebugLog}
+            />
+          ))
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-muted-foreground mb-4">No prose fragments yet.</p>
@@ -49,10 +47,10 @@ export function ProseChainView({
             </p>
           </div>
         )}
-      </ScrollArea>
 
-      <InlineGenerationInput storyId={storyId} onDebugLog={onDebugLog} />
-    </div>
+        <InlineGenerationInput storyId={storyId} onDebugLog={onDebugLog} />
+      </div>
+    </ScrollArea>
   )
 }
 

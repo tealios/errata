@@ -65,7 +65,7 @@ export function InlineGenerationInput({ storyId, onDebugLog }: InlineGenerationI
   }, [])
 
   return (
-    <div className="border-t bg-background shrink-0">
+    <div className="border-t bg-background mt-4">
       {/* Streaming preview */}
       {streamedText && (
         <div ref={streamRef} className="max-h-[200px] overflow-auto px-6 pt-4">
