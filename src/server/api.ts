@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia'
-import { streamText } from 'ai'
+import { streamText, stepCountIs } from 'ai'
 import {
   createStory,
   getStory,
@@ -321,6 +321,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         messages,
         tools,
         toolChoice: 'auto',
+        stopWhen: stepCountIs(5),
       })
 
       // If saveResult is true, consume the text and save as a new prose fragment
