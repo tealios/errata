@@ -28,6 +28,7 @@ import {
   ArrowUpDown,
   Archive,
 } from 'lucide-react'
+import { componentId } from '@/lib/dom-ids'
 
 export type SidebarSection =
   | 'story-info'
@@ -54,7 +55,6 @@ const FRAGMENT_SECTIONS = [
   { id: 'guidelines' as const, label: 'Guidelines', icon: BookOpen },
   { id: 'characters' as const, label: 'Characters', icon: Users },
   { id: 'knowledge' as const, label: 'Knowledge', icon: Database },
-  { id: 'media' as const, label: 'Media', icon: Image },
 ]
 
 export function StorySidebar({
@@ -68,13 +68,13 @@ export function StorySidebar({
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" data-component-id="story-sidebar">
       <SidebarHeader>
-        <div className="flex items-center justify-between px-2 py-1.5">
+        <div className="flex items-center justify-between px-2 py-1.5" data-component-id="story-sidebar-header">
           <span className="font-display text-base italic truncate group-data-[collapsible=icon]:hidden">
             {story?.name ?? 'Errata'}
           </span>
-          <SidebarTrigger />
+          <SidebarTrigger data-component-id="sidebar-collapse-trigger" />
         </div>
       </SidebarHeader>
 
@@ -84,7 +84,7 @@ export function StorySidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Home">
+                <SidebarMenuButton asChild tooltip="Home" data-component-id="sidebar-home-link">
                   <Link to="/">
                     <Home className="size-4" />
                     <span>Home</span>
@@ -96,6 +96,7 @@ export function StorySidebar({
                   isActive={activeSection === 'story-info'}
                   onClick={() => handleToggle('story-info')}
                   tooltip="Story Info"
+                  data-component-id="sidebar-section-story-info"
                 >
                   <Info className="size-4" />
                   <span>Story Info</span>
@@ -121,6 +122,7 @@ export function StorySidebar({
                     isActive={activeSection === section.id}
                     onClick={() => handleToggle(section.id)}
                     tooltip={section.label}
+                    data-component-id={componentId('sidebar-section', section.id)}
                   >
                     <section.icon className="size-4" />
                     <span>{section.label}</span>
@@ -128,13 +130,22 @@ export function StorySidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+            Management
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+              <SidebarMenu>
               {story?.settings.contextOrderMode === 'advanced' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={activeSection === 'context-order'}
                     onClick={() => handleToggle('context-order')}
                     tooltip="Context Order"
+                    data-component-id="sidebar-section-context-order"
                   >
                     <ArrowUpDown className="size-4" />
                     <span>Context Order</span>
@@ -143,11 +154,25 @@ export function StorySidebar({
                 </SidebarMenuItem>
               )}
 
+                <SidebarMenuItem key={"media"}>
+                  <SidebarMenuButton
+                    isActive={activeSection === 'media'}
+                    onClick={() => handleToggle('media')}
+                    tooltip="Media"
+                    data-component-id="sidebar-section-media"
+                  >
+                    <Image className="size-4" />
+                    <span>Media</span>
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={activeSection === 'archive'}
                   onClick={() => handleToggle('archive')}
                   tooltip="Archive"
+                  data-component-id="sidebar-section-archive"
                 >
                   <Archive className="size-4" />
                   <span>Archive</span>
@@ -174,6 +199,7 @@ export function StorySidebar({
                         isActive={activeSection === `plugin-${plugin.name}`}
                         onClick={() => handleToggle(`plugin-${plugin.name}`)}
                         tooltip={plugin.title}
+                        data-component-id={componentId('sidebar-plugin', plugin.name)}
                       >
                         <Sparkles className="size-4" />
                         <span>{plugin.title}</span>
@@ -201,6 +227,7 @@ export function StorySidebar({
                   isActive={activeSection === 'agent-activity'}
                   onClick={() => handleToggle('agent-activity')}
                   tooltip="Agent Activity"
+                  data-component-id="sidebar-section-agent-activity"
                 >
                   <Activity className="size-4" />
                   <span>Librarian</span>
@@ -219,6 +246,7 @@ export function StorySidebar({
               isActive={activeSection === 'settings'}
               onClick={() => handleToggle('settings')}
               tooltip="Settings"
+              data-component-id="sidebar-section-settings"
             >
               <Settings className="size-4" />
               <span>Settings</span>

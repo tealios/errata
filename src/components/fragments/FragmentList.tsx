@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
+import { componentId, fragmentComponentId } from '@/lib/dom-ids'
 import { resolveFragmentVisual, generateBubbles } from '@/lib/fragment-visuals'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ interface FragmentListProps {
   storyId: string
   type?: string
   allowedTypes?: string[]
+  listIdBase?: string
   onSelect: (fragment: Fragment) => void
   onCreateNew: () => void
   selectedId?: string
@@ -23,6 +25,7 @@ export function FragmentList({
   storyId,
   type,
   allowedTypes,
+  listIdBase,
   onSelect,
   onCreateNew,
   selectedId,
@@ -151,14 +154,15 @@ export function FragmentList({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-component-id={listIdBase ?? componentId(type ?? 'fragment', 'sidebar-list')}>
       {/* Search + Sort controls */}
-      <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border/50">
+      <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border/50" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-controls')}>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search..."
           className="h-7 text-xs bg-transparent"
+          data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-search')}
         />
         <div className="flex items-center justify-between">
           <div className="flex gap-0.5">
@@ -166,6 +170,7 @@ export function FragmentList({
               <button
                 key={mode}
                 onClick={() => setSort(mode)}
+                data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'sort', mode)}
                 className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
                   sort === mode
                     ? 'bg-accent text-accent-foreground'
@@ -176,7 +181,7 @@ export function FragmentList({
               </button>
             ))}
           </div>
-          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew}>
+          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'create-button')}>
             <Plus className="size-3.5" />
           </Button>
         </div>
@@ -190,8 +195,8 @@ export function FragmentList({
         </p>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
+      <ScrollArea className="flex-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-scroll')}>
+        <div className="p-2 space-y-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-items')}>
           {filtered.length === 0 && (
             <p className="text-xs text-muted-foreground/50 py-8 text-center italic">
               {search.trim() ? 'No matches' : 'No fragments yet'}
@@ -200,6 +205,7 @@ export function FragmentList({
           {filtered.map((fragment, index) => (
             <div
               key={fragment.id}
+              data-component-id={fragmentComponentId(fragment, 'list-item')}
               draggable={canDrag}
               onDragStart={() => handleDragStart(index)}
               onDragEnter={() => handleDragEnter(index)}
@@ -212,7 +218,7 @@ export function FragmentList({
               {/* Drag handle */}
               {canDrag && (
                 <div className="shrink-0 pt-0.5 cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-70 transition-opacity">
-                  <GripVertical className="size-3.5 text-muted-foreground" />
+                  <GripVertical className="size-3.5 text-muted-foreground" data-component-id={fragmentComponentId(fragment, 'drag-handle')} />
                 </div>
               )}
 
@@ -266,6 +272,7 @@ export function FragmentList({
               <button
                 onClick={() => onSelect(fragment)}
                 className="flex-1 text-left min-w-0"
+                data-component-id={fragmentComponentId(fragment, 'select')}
               >
                 <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
                 <div className="flex items-center gap-1.5 mt-1">
@@ -299,6 +306,7 @@ export function FragmentList({
               <Button
                 size="icon"
                 variant="ghost"
+                data-component-id={fragmentComponentId(fragment, 'pin-toggle')}
                 className={`size-6 shrink-0 transition-opacity ${
                   fragment.sticky
                     ? 'opacity-100 text-primary'

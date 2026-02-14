@@ -37,14 +37,14 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
   })
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-component-id="debug-panel-root">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50" data-component-id="debug-panel-header">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg">Debug</h2>
           <span className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Generation Logs</span>
         </div>
-        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose}>
+        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose} data-component-id="debug-close">
           <X className="size-4" />
         </Button>
       </div>
@@ -52,7 +52,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
       <div className="flex flex-1 overflow-hidden">
         {/* Log list sidebar */}
         {!directLookup && (
-          <div className="w-56 border-r border-border/50 flex flex-col">
+          <div className="w-56 border-r border-border/50 flex flex-col" data-component-id="debug-log-list">
             <div className="px-3 py-2.5 border-b border-border/50">
               <span className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">Recent</span>
             </div>
@@ -84,6 +84,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
+                    data-component-id={`debug-tab-${tab}`}
                     className={`text-xs px-2.5 py-1 rounded-md capitalize transition-colors ${
                       activeTab === tab
                         ? 'bg-accent text-accent-foreground font-medium'
@@ -156,6 +157,7 @@ function LogListItem({
   return (
     <button
       onClick={onClick}
+      data-component-id={`debug-log-${log.id}-item`}
       className={`w-full text-left rounded-md px-2.5 py-2 text-xs transition-colors duration-100 hover:bg-accent/50 ${
         selected ? 'bg-accent' : ''
       }`}

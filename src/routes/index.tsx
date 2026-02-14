@@ -69,16 +69,16 @@ function StoryListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-component-id="stories-page">
       {/* Header */}
-      <header className="border-b border-border/50">
+      <header className="border-b border-border/50" data-component-id="stories-header">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-8 py-6">
           <div>
             <h1 className="font-display text-3xl italic tracking-tight">Errata</h1>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5" variant={'ghost'}>
+              <Button size="sm" className="gap-1.5" variant={'ghost'} data-component-id="story-create-open">
                 <Plus className="size-3.5" />
                 New Story
               </Button>
@@ -88,6 +88,7 @@ function StoryListPage() {
                 <DialogTitle className="font-display text-xl">Create a new story</DialogTitle>
               </DialogHeader>
               <form
+                data-component-id="story-create-form"
                 onSubmit={(e) => {
                   e.preventDefault()
                   createMutation.mutate({ name, description })
@@ -97,6 +98,7 @@ function StoryListPage() {
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Title</label>
                   <Input
+                    data-component-id="story-create-title-input"
                     placeholder="Untitled Story"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -107,6 +109,7 @@ function StoryListPage() {
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Description</label>
                   <Textarea
+                    data-component-id="story-create-description-input"
                     placeholder="A brief description of your story..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -115,7 +118,7 @@ function StoryListPage() {
                   />
                 </div>
                 <div className="flex justify-end">
-                  <Button type="submit" disabled={createMutation.isPending}>
+                  <Button type="submit" disabled={createMutation.isPending} data-component-id="story-create-submit">
                     {createMutation.isPending ? 'Creating...' : 'Create'}
                   </Button>
                 </div>
@@ -146,7 +149,7 @@ function StoryListPage() {
           </div>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-2" data-component-id="story-list">
           {stories?.map((story) => (
             <Link
               key={story.id}
@@ -154,7 +157,7 @@ function StoryListPage() {
               params={{ storyId: story.id }}
               className="group block"
             >
-              <div className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150">
+              <div className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150" data-component-id={`story-${story.id}-card`}>
                 <div className="min-w-0 flex-1">
                   <h2 className="font-display text-lg leading-tight group-hover:text-primary transition-colors">
                     {story.name}
@@ -173,6 +176,7 @@ function StoryListPage() {
                   </p>
                 </div>
                 <Button
+                  data-component-id={`story-${story.id}-delete-button`}
                   variant="ghost"
                   size="icon"
                   className="size-8 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 ml-4"
@@ -194,6 +198,7 @@ function StoryListPage() {
 
       {/* Re-run onboarding */}
       <button
+        data-component-id="onboarding-launch-button"
         onClick={() => setManualWizard(true)}
         className="fixed bottom-4 left-4 flex items-center gap-1.5 text-[11px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
       >

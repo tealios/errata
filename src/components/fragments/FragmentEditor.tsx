@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
+import { componentId, fragmentComponentId } from '@/lib/dom-ids'
 import { parseVisualRefs, readImageUrl, type BoundaryBox } from '@/lib/fragment-visuals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -178,9 +179,9 @@ export function FragmentEditor({
     : null
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-component-id="fragment-editor-root">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50" data-component-id={componentId('fragment-editor', mode)}>
         <div className="flex items-center gap-2.5 min-w-0">
           <h2 className="font-display text-lg truncate">
             {mode === 'create' ? 'New Fragment' : fragment?.name ?? ''}
@@ -206,6 +207,7 @@ export function FragmentEditor({
               className="h-7 text-xs gap-1"
               onClick={() => stickyMutation.mutate(!fragment.sticky)}
               disabled={stickyMutation.isPending}
+              data-component-id={fragmentComponentId(fragment, 'sticky-toggle')}
             >
               <Pin className="size-3" />
               {fragment.sticky ? 'Unpin' : 'Pin'}
@@ -219,6 +221,7 @@ export function FragmentEditor({
               onClick={() => placementMutation.mutate(fragment.placement === 'system' ? 'user' : 'system')}
               disabled={placementMutation.isPending}
               title={`Context placement: ${fragment.placement === 'system' ? 'system message' : 'user message'}`}
+              data-component-id={fragmentComponentId(fragment, 'placement-toggle')}
             >
               {fragment.placement === 'system' ? <Monitor className="size-3" /> : <User className="size-3" />}
               {fragment.placement === 'system' ? 'System' : 'User'}
@@ -267,7 +270,7 @@ export function FragmentEditor({
               </Button>
             </>
           )}
-          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose}>
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose} data-component-id="fragment-editor-close">
             <X className="size-4" />
           </Button>
         </div>
@@ -282,6 +285,7 @@ export function FragmentEditor({
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm"
+                data-component-id="fragment-editor-type-select"
               >
                 <option value="prose">Prose</option>
                 <option value="character">Character</option>

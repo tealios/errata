@@ -11,6 +11,7 @@ import { ArchivePanel } from './ArchivePanel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { X } from 'lucide-react'
+import { componentId } from '@/lib/dom-ids'
 
 interface DetailPanelProps {
   storyId: string
@@ -39,6 +40,12 @@ const SECTION_TO_TYPE: Record<string, string> = {
   characters: 'character',
   guidelines: 'guideline',
   knowledge: 'knowledge',
+}
+
+const SECTION_LIST_IDS: Record<string, string> = {
+  characters: 'character-sidebar-list',
+  guidelines: 'guideline-sidebar-list',
+  knowledge: 'knowledge-sidebar-list',
 }
 
 export function DetailPanel({
@@ -98,18 +105,19 @@ export function DetailPanel({
       onTransitionEnd={handleTransitionEnd}
       className="border-r border-border/50 flex flex-col bg-background shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-out"
       style={{ width: visible ? panelWidth : 0, opacity: visible ? 1 : 0 }}
+      data-component-id="detail-panel-root"
     >
-      <div className="flex flex-col h-full" style={{ width: panelWidth, minWidth: panelWidth }}>
+      <div className="flex flex-col h-full" style={{ width: panelWidth, minWidth: panelWidth }} data-component-id={componentId('detail-panel-section', activeSection)}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50" data-component-id="detail-panel-header">
           <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{title}</h3>
-          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onClose}>
+          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onClose} data-component-id="detail-panel-close">
             <X className="size-3.5" />
           </Button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" data-component-id="detail-panel-content">
           {activeSection === 'story-info' && (
             <ScrollArea className="h-full">
               <StoryInfoPanel storyId={storyId} story={story} />
@@ -143,6 +151,7 @@ export function DetailPanel({
             <FragmentList
               storyId={storyId}
               type={SECTION_TO_TYPE[activeSection]}
+              listIdBase={SECTION_LIST_IDS[activeSection] ?? componentId(activeSection, 'sidebar-list')}
               onSelect={onSelectFragment}
               onCreateNew={() => onCreateFragment(SECTION_TO_TYPE[activeSection])}
               selectedId={selectedFragmentId}
@@ -153,6 +162,7 @@ export function DetailPanel({
             <FragmentList
               storyId={storyId}
               allowedTypes={['image', 'icon']}
+              listIdBase="media-sidebar-list"
               onSelect={onSelectFragment}
               onCreateNew={() => onCreateFragment('image')}
               selectedId={selectedFragmentId}
@@ -163,7 +173,9 @@ export function DetailPanel({
             const PanelComponent = getPluginPanel(pluginName)
             return PanelComponent ? (
               <ScrollArea className="h-full">
-                <PanelComponent storyId={storyId} />
+                <div data-component-id={componentId('plugin', pluginName, 'panel-root')}>
+                  <PanelComponent storyId={storyId} />
+                </div>
               </ScrollArea>
             ) : (
               <p className="p-4 text-sm text-muted-foreground">Plugin panel not found</p>

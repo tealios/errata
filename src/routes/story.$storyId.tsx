@@ -13,6 +13,7 @@ import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
 import { getPluginPanel } from '@/lib/plugin-panels'
+import { componentId } from '@/lib/dom-ids'
 import '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
@@ -113,7 +114,7 @@ function StoryEditorPage() {
   const isEditingFragment = editorMode !== 'view' || selectedFragment
 
   return (
-    <SidebarProvider className="!min-h-svh !max-h-svh overflow-hidden">
+    <SidebarProvider className="!min-h-svh !max-h-svh overflow-hidden" data-component-id="story-editor-root">
       <StorySidebar
         storyId={storyId}
         story={story}
@@ -135,7 +136,7 @@ function StoryEditorPage() {
       />
 
       {/* Main Content */}
-      <SidebarInset className="overflow-hidden min-h-0 relative">
+      <SidebarInset className="overflow-hidden min-h-0 relative" data-component-id="main-prose-pane">
         {/* Prose view — always mounted to preserve scroll position */}
         <ProseChainView
           storyId={storyId}
@@ -146,12 +147,12 @@ function StoryEditorPage() {
 
         {/* Overlay panels render on top */}
         {showWizard && (
-          <div className="absolute inset-0 z-10 bg-background">
+          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-story-wizard">
             <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
           </div>
         )}
         {debugLogId && (
-          <div className="absolute inset-0 z-10 bg-background">
+          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-debug-panel">
             <DebugPanel
               storyId={storyId}
               fragmentId={debugLogId === '__browse__' ? undefined : debugLogId}
@@ -160,12 +161,12 @@ function StoryEditorPage() {
           </div>
         )}
         {showProviders && (
-          <div className="absolute inset-0 z-10 bg-background">
+          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-provider-panel">
             <ProviderPanel onClose={() => setShowProviders(false)} />
           </div>
         )}
         {isEditingFragment && (
-          <div className="absolute inset-0 z-10 bg-background">
+          <div className="absolute inset-0 z-10 bg-background" data-component-id={componentId('overlay-fragment-editor', editorMode)}>
             <FragmentEditor
               storyId={storyId}
               fragment={selectedFragment}
