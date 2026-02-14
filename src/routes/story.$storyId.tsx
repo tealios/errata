@@ -134,7 +134,7 @@ function StoryEditorPage() {
       )}
 
       {/* Main Content */}
-      <SidebarInset className="overflow-hidden">
+      <SidebarInset className="overflow-hidden min-h-0">
         {showWizard ? (
           <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
         ) : debugLogId ? (
