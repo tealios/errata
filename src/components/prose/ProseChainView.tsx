@@ -719,7 +719,9 @@ function ProseBlock({
         </div>
       )}
 
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => {
           if (isLast) {
             setEditContent(fragment.content)
@@ -728,7 +730,18 @@ function ProseBlock({
             onSelect()
           }
         }}
-        className="text-left w-full rounded-lg p-4 -mx-4 transition-colors duration-150 hover:bg-card/40"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            if (isLast) {
+              setEditContent(fragment.content)
+              setEditing(true)
+            } else {
+              onSelect()
+            }
+          }
+        }}
+        className="text-left w-full rounded-lg p-4 -mx-4 transition-colors duration-150 hover:bg-card/40 cursor-pointer"
         data-component-id={`prose-${fragment.id}-select`}
       >
         <div className="prose-content whitespace-pre-wrap">
@@ -818,7 +831,7 @@ function ProseBlock({
             )}
           </div>
         </div>
-      </button>
+      </div>
 
       {showUndo && (
         <div className="flex items-center gap-2 mt-1 px-4">
