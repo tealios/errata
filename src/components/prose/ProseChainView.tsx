@@ -13,6 +13,7 @@ interface ProseChainViewProps {
   onSelectFragment: (fragment: Fragment) => void
   onGenerate: () => void
   onCreateNew: () => void
+  onDebugLog?: (logId: string) => void
 }
 
 export function ProseChainView({
@@ -21,6 +22,7 @@ export function ProseChainView({
   onSelectFragment,
   onGenerate,
   onCreateNew,
+  onDebugLog,
 }: ProseChainViewProps) {
   const sorted = [...fragments].sort(
     (a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt),
@@ -49,6 +51,7 @@ export function ProseChainView({
                 fragment={fragment}
                 isLast={idx === sorted.length - 1}
                 onSelect={() => onSelectFragment(fragment)}
+                onDebugLog={onDebugLog}
               />
             ))}
           </div>
@@ -73,11 +76,13 @@ function ProseBlock({
   fragment,
   isLast,
   onSelect,
+  onDebugLog,
 }: {
   storyId: string
   fragment: Fragment
   isLast: boolean
   onSelect: () => void
+  onDebugLog?: (logId: string) => void
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -180,7 +185,14 @@ function ProseBlock({
             </span>
           )}
           {fragment.meta?.generatedFrom && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge
+              variant="secondary"
+              className="text-[10px] cursor-pointer hover:bg-primary/20"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDebugLog?.(fragment.id)
+              }}
+            >
               AI
             </Badge>
           )}

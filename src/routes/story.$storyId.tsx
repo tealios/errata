@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { FragmentList } from '@/components/fragments/FragmentList'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
 import { GenerationPanel } from '@/components/generation/GenerationPanel'
+import { DebugPanel } from '@/components/generation/DebugPanel'
 import { ProseChainView } from '@/components/prose/ProseChainView'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
 
@@ -29,6 +30,7 @@ function StoryEditorPage() {
   const [createType, setCreateType] = useState<string>('prose')
   const [showGenerate, setShowGenerate] = useState(false)
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
+  const [debugLogId, setDebugLogId] = useState<string | null>(null)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -129,7 +131,13 @@ function StoryEditorPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {showWizard ? (
+        {debugLogId ? (
+          <DebugPanel
+            storyId={storyId}
+            fragmentId={debugLogId}
+            onClose={() => setDebugLogId(null)}
+          />
+        ) : showWizard ? (
           <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
         ) : isEditingFragment ? (
           <FragmentEditor
@@ -149,6 +157,7 @@ function StoryEditorPage() {
             onSelectFragment={handleSelectFragment}
             onGenerate={() => setShowGenerate(true)}
             onCreateNew={() => handleCreateNew('prose')}
+            onDebugLog={(logId) => setDebugLogId(logId)}
           />
         )}
       </div>
