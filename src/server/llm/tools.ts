@@ -9,34 +9,55 @@ import {
 import { registry } from '../fragments/registry'
 import type { Fragment } from '../fragments/schema'
 
-/**
- * Creates read-only LLM tools for context lookup during prose generation.
- * These tools let the LLM look up fragments but not modify them.
- */
-export function createReadOnlyTools(dataDir: string, storyId: string) {
-  const allTools = createFragmentTools(dataDir, storyId)
-  return {
-    fragmentGet: allTools.fragmentGet,
-    fragmentList: allTools.fragmentList,
-    fragmentTypesList: allTools.fragmentTypesList,
-  }
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function pluralize(name: string): string {
+  const massNouns = ['prose', 'knowledge']
+  if (massNouns.includes(name.toLowerCase())) return name
+  return name + 's'
+}
+
+export interface FragmentToolsOptions {
+  readOnly?: boolean
 }
 
 /**
  * Creates LLM tool definitions for fragment operations.
- * These tools let the LLM look up and modify fragments during generation.
+ *
+ * Generates type-specific aliased read tools per registered fragment type:
+ *   getCharacter(id), listCharacters(), getProse(id), listProse(), etc.
+ *
+ * Write tools (updateFragment, editFragment, deleteFragment) are generic
+ * and only included when readOnly is false.
+ *
+ * @param readOnly - If true (default), only read tools are included. Safer for generation.
  */
-export function createFragmentTools(dataDir: string, storyId: string) {
-  return {
-    fragmentGet: tool({
-      description: 'Get the full content of a fragment by its ID',
+export function createFragmentTools(
+  dataDir: string,
+  storyId: string,
+  opts: FragmentToolsOptions = {},
+) {
+  const { readOnly = true } = opts
+
+  const tools: Record<string, ReturnType<typeof tool>> = {}
+  const types = registry.listTypes()
+
+  for (const typeDef of types) {
+    const name = capitalize(typeDef.type) // "Character"
+    const plural = pluralize(name) // "Characters" or "Prose"
+
+    // get{Type}(id) — always included
+    tools[`get${name}`] = tool({
+      description: `Get the full content of a ${typeDef.type} fragment by its ID`,
       inputSchema: z.object({
-        fragmentId: z.string().describe('The fragment ID (e.g. ch-a1b2)'),
+        id: z.string().describe(`The ${typeDef.type} fragment ID (e.g. ${typeDef.prefix}-a1b2)`),
       }),
-      execute: async ({ fragmentId }) => {
-        const fragment = await getFragment(dataDir, storyId, fragmentId)
+      execute: async ({ id }) => {
+        const fragment = await getFragment(dataDir, storyId, id)
         if (!fragment) {
-          return { error: `Fragment not found: ${fragmentId}` }
+          return { error: `Fragment not found: ${id}` }
         }
         return {
           id: fragment.id,
@@ -49,9 +70,43 @@ export function createFragmentTools(dataDir: string, storyId: string) {
           sticky: fragment.sticky,
         }
       },
-    }),
+    })
 
-    fragmentSet: tool({
+    // list{Types}() — always included, no params needed
+    tools[`list${plural}`] = tool({
+      description: `List all ${typeDef.type} fragments (returns id, name, description)`,
+      inputSchema: z.object({}),
+      execute: async () => {
+        const fragments = await listFragments(dataDir, storyId, typeDef.type)
+        return {
+          fragments: fragments.map((f) => ({
+            id: f.id,
+            name: f.name,
+            description: f.description,
+          })),
+        }
+      },
+    })
+  }
+
+  // Always include listFragmentTypes
+  tools.listFragmentTypes = tool({
+    description: 'List all available fragment types',
+    inputSchema: z.object({}),
+    execute: async () => {
+      return {
+        types: registry.listTypes().map((t) => ({
+          type: t.type,
+          prefix: t.prefix,
+          stickyByDefault: t.stickyByDefault,
+        })),
+      }
+    },
+  })
+
+  // Write tools only when not readOnly
+  if (!readOnly) {
+    tools.updateFragment = tool({
       description: 'Overwrite a fragment with entirely new content',
       inputSchema: z.object({
         fragmentId: z.string().describe('The fragment ID'),
@@ -72,9 +127,9 @@ export function createFragmentTools(dataDir: string, storyId: string) {
         await updateFragment(dataDir, storyId, updated)
         return { ok: true, id: fragmentId }
       },
-    }),
+    })
 
-    fragmentEdit: tool({
+    tools.editFragment = tool({
       description:
         'Edit a fragment by replacing a specific text span (for large prose/knowledge)',
       inputSchema: z.object({
@@ -98,9 +153,9 @@ export function createFragmentTools(dataDir: string, storyId: string) {
         await updateFragment(dataDir, storyId, updated)
         return { ok: true, id: fragmentId }
       },
-    }),
+    })
 
-    fragmentDelete: tool({
+    tools.deleteFragment = tool({
       description: 'Delete a fragment',
       inputSchema: z.object({
         fragmentId: z.string().describe('The fragment ID to delete'),
@@ -109,40 +164,8 @@ export function createFragmentTools(dataDir: string, storyId: string) {
         await deleteFragment(dataDir, storyId, fragmentId)
         return { ok: true, id: fragmentId }
       },
-    }),
-
-    fragmentList: tool({
-      description:
-        'List all fragments of a given type (returns id, name, description only)',
-      inputSchema: z.object({
-        type: z
-          .string()
-          .describe('Fragment type: prose, character, guideline, knowledge'),
-      }),
-      execute: async ({ type }) => {
-        const fragments = await listFragments(dataDir, storyId, type)
-        return {
-          fragments: fragments.map((f) => ({
-            id: f.id,
-            name: f.name,
-            description: f.description,
-          })),
-        }
-      },
-    }),
-
-    fragmentTypesList: tool({
-      description: 'List all available fragment types',
-      inputSchema: z.object({}),
-      execute: async () => {
-        return {
-          types: registry.listTypes().map((t) => ({
-            type: t.type,
-            prefix: t.prefix,
-            stickyByDefault: t.stickyByDefault,
-          })),
-        }
-      },
-    }),
+    })
   }
+
+  return tools
 }
