@@ -3,11 +3,10 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
-import { RefreshCw, Sparkles, Undo2, Loader2, Send, Bug, ChevronsDown, ChevronLeft, ChevronRight, Bot, Trash2 } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronsDown, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
@@ -130,8 +129,8 @@ export function ProseChainView({
   }, [])
 
   return (
-    <div className="flex flex-1 min-h-0 relative">
-      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
+    <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
         <div className="max-w-[38rem] mx-auto py-12 px-8">
           {sorted.length > 0 ? (
             sorted.map((fragment, idx) => (
@@ -149,7 +148,7 @@ export function ProseChainView({
               />
             ))
           ) : (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="flex flex-col items-center justify-center py-24 text-center" data-component-id="prose-empty-state">
               <p className="font-display text-xl italic text-muted-foreground/50 mb-3">
                 The page awaits.
               </p>
@@ -161,7 +160,7 @@ export function ProseChainView({
 
           {/* Streaming text displayed inline as part of the prose chain */}
           {(isGenerating || streamedText) && (
-            <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300" data-component-id="prose-streaming-block">
               {/* Match prose block styling - no border, minimal background */}
               <div className="rounded-lg p-4 -mx-4 bg-card/30">
                 <div className="prose-content whitespace-pre-wrap">
@@ -186,7 +185,6 @@ export function ProseChainView({
 
           <InlineGenerationInput
             storyId={storyId}
-            onDebugLog={onDebugLog}
             isGenerating={isGenerating}
             streamedText={streamedText}
             onGenerationStart={() => {
@@ -251,6 +249,7 @@ function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNav
 
   return (
     <div
+      data-component-id="prose-navigator"
       className="absolute right-3 top-0 bottom-0 flex flex-col items-center py-6 z-10 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
       style={{ width: 20 }}
     >
@@ -263,6 +262,7 @@ function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNav
           return (
             <button
               key={i}
+              data-component-id={`prose-navigator-jump-${sourceIdx}`}
               className="group/tick flex items-center justify-center shrink-0"
               style={{ height: tickCount > 30 ? 4 : 6, padding: '0 2px' }}
               onClick={() => onJump(sourceIdx)}
@@ -287,6 +287,7 @@ function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNav
       {/* Jump to bottom */}
       <button
         onClick={onJumpToBottom}
+        data-component-id="prose-navigator-jump-bottom"
         className="mt-2 p-1 rounded text-muted-foreground/30 hover:text-muted-foreground transition-colors"
         title="Jump to bottom"
       >
@@ -298,7 +299,6 @@ function ProseNavigator({ count, activeIndex, onJump, onJumpToBottom }: ProseNav
 
 interface InlineGenerationInputProps {
   storyId: string
-  onDebugLog?: (logId: string) => void
   isGenerating: boolean
   streamedText: string
   onGenerationStart: () => void
@@ -309,7 +309,6 @@ interface InlineGenerationInputProps {
 
 function InlineGenerationInput({
   storyId,
-  onDebugLog,
   isGenerating,
   onGenerationStart,
   onGenerationStream,
@@ -319,6 +318,8 @@ function InlineGenerationInput({
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isFocused, setIsFocused] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Provider quick-switch queries
   const { data: story } = useQuery({
@@ -336,6 +337,14 @@ function InlineGenerationInput({
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
     },
   })
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+  }, [input])
 
   const handleGenerate = async () => {
     if (!input.trim() || isGenerating) return
@@ -359,7 +368,7 @@ function InlineGenerationInput({
       // Invalidate queries to refresh the prose view
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
-      
+
       // Clear input after successful generation
       setInput('')
       onGenerationComplete()
@@ -370,67 +379,52 @@ function InlineGenerationInput({
   }
 
   const handleStop = () => {
-    // Note: Currently the stream doesn't support aborting mid-generation
-    // The stop button will just hide the UI
     onGenerationError()
   }
 
+  // Resolve current model label
+  const modelLabel = (() => {
+    if (!globalConfig) return null
+    const providers = globalConfig.providers.filter(p => p.enabled)
+    if (story?.settings.providerId) {
+      const p = providers.find(p => p.id === story.settings.providerId)
+      if (p) return p.defaultModel
+    }
+    const defaultP = globalConfig.defaultProviderId
+      ? providers.find(p => p.id === globalConfig.defaultProviderId)
+      : null
+    return defaultP?.defaultModel ?? 'deepseek-chat'
+  })()
+
   return (
-    <div className="">
+    <div className="relative mt-2" data-component-id="inline-generation-root">
       {/* Error */}
       {error && (
-        <div className="text-sm text-destructive mb-3">
+        <div className="text-sm text-destructive mb-3 font-sans">
           {error}
         </div>
       )}
 
-      {/* Provider quick-switch */}
-      {globalConfig && (
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Bot className="size-3 text-muted-foreground/40 shrink-0" />
-          <select
-            value={story?.settings.providerId ?? ''}
-            onChange={(e) => {
-              const providerId = e.target.value || null
-              providerMutation.mutate({ providerId, modelId: null })
-            }}
-            disabled={providerMutation.isPending || isGenerating}
-            className="text-[11px] text-muted-foreground/60 bg-transparent border-none outline-none cursor-pointer hover:text-muted-foreground transition-colors appearance-none pr-4 py-0.5"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center' }}
-          >
-            {(() => {
-              const providers = globalConfig.providers.filter(p => p.enabled)
-              const defaultProvider = globalConfig.defaultProviderId
-                ? providers.find(p => p.id === globalConfig.defaultProviderId)
-                : null
-              return (
-                <>
-                  <option value="">
-                    {defaultProvider
-                      ? `${defaultProvider.name} \u00b7 ${defaultProvider.defaultModel}`
-                      : `DeepSeek (env) \u00b7 deepseek-chat`}
-                  </option>
-                  {providers
-                    .filter(p => p.id !== globalConfig.defaultProviderId)
-                    .map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} &middot; {p.defaultModel}
-                      </option>
-                    ))}
-                </>
-              )
-            })()}
-          </select>
-        </div>
-      )}
-
-      {/* Input area */}
-      <div>
-        <Textarea
+      {/* Unified input container */}
+      <div
+        className={`relative rounded-xl border transition-all duration-300 ${
+          isFocused
+            ? 'border-primary/25 shadow-[0_0_0_1px_var(--primary)/8%,0_2px_12px_-2px_var(--primary)/6%] bg-card/60'
+            : 'border-border/30 bg-card/20 hover:border-border/50 hover:bg-card/30'
+        }`}
+      >
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          data-component-id="inline-generation-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           placeholder="What happens next..."
-          className="min-h-[56px] max-h-[160px] resize-none text-sm bg-transparent border-border/40 focus:border-primary/30 placeholder:text-muted-foreground/40 placeholder:italic"
+          rows={1}
+          className="w-full resize-none bg-transparent border-none outline-none px-4 pt-3.5 pb-2 font-prose text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/30 placeholder:italic disabled:opacity-40"
+          style={{ minHeight: '44px', maxHeight: '200px' }}
           disabled={isGenerating}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -439,43 +433,81 @@ function InlineGenerationInput({
             }
           }}
         />
-        <div className="flex items-center justify-between mt-2.5">
-          <div className="flex gap-1.5">
+
+        {/* Bottom toolbar */}
+        <div className="flex items-center justify-between px-3 pb-2.5 pt-0.5">
+          {/* Left: Write button + shortcut hint */}
+          <div className="flex items-center gap-2.5">
             {isGenerating ? (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={handleStop}
+                data-component-id="inline-generation-stop"
               >
-                <span className="size-2 bg-destructive rounded-sm" />
+                <span className="size-1.5 bg-destructive rounded-[2px]" />
                 Stop
               </Button>
             ) : (
               <Button
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 rounded-lg font-medium"
                 onClick={handleGenerate}
                 disabled={!input.trim()}
+                data-component-id="inline-generation-submit"
               >
-                <Send className="size-3" />
-                Generate
+                <PenLine className="size-3" />
+                Write
               </Button>
             )}
-          </div>
-          <div className="flex items-center gap-3">
-            {onDebugLog && (
-              <button
-                onClick={() => onDebugLog('')}
-                className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-              >
-                Debug
-              </button>
+            {!isGenerating && (
+              <span className="text-[10px] text-muted-foreground/30 font-sans select-none">
+                Ctrl+Enter
+              </span>
             )}
-            <span className="text-[10px] text-muted-foreground/40">
-              Ctrl+Enter to generate
-            </span>
           </div>
+
+          {/* Right: Model selector */}
+          {globalConfig && (
+            <div className="relative group/model">
+              <select
+                data-component-id="inline-generation-provider-select"
+                value={story?.settings.providerId ?? ''}
+                onChange={(e) => {
+                  const providerId = e.target.value || null
+                  providerMutation.mutate({ providerId, modelId: null })
+                }}
+                disabled={providerMutation.isPending || isGenerating}
+                className="text-[10px] text-muted-foreground/40 bg-muted/40 hover:bg-muted/70 border border-border/20 hover:border-border/40 rounded-md outline-none cursor-pointer transition-all duration-200 appearance-none pl-2 pr-5 py-1 font-mono max-w-[180px] truncate disabled:opacity-30 disabled:cursor-default focus:ring-1 focus:ring-primary/20 focus:border-primary/30"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                title={modelLabel ?? undefined}
+              >
+                {(() => {
+                  const providers = globalConfig.providers.filter(p => p.enabled)
+                  const defaultProvider = globalConfig.defaultProviderId
+                    ? providers.find(p => p.id === globalConfig.defaultProviderId)
+                    : null
+                  return (
+                    <>
+                      <option value="">
+                        {defaultProvider
+                          ? `${defaultProvider.defaultModel}`
+                          : `deepseek-chat`}
+                      </option>
+                      {providers
+                        .filter(p => p.id !== globalConfig.defaultProviderId)
+                        .map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.defaultModel}
+                          </option>
+                        ))}
+                    </>
+                  )
+                })()}
+              </select>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -642,7 +674,7 @@ function ProseBlock({
   }
 
   return (
-    <div className="group relative mb-6" data-prose-index={sectionIndex >= 0 ? sectionIndex : undefined}>
+    <div className="group relative mb-6" data-prose-index={sectionIndex >= 0 ? sectionIndex : undefined} data-component-id={`prose-${fragment.id}-block`}>
       {/* User prompt divider */}
       {fragment.description && (
         <div className="flex items-center gap-3 mb-2 -mt-3 -mx-4 px-4">
@@ -658,6 +690,7 @@ function ProseBlock({
           <button
             onClick={() => switchVariation(-1)}
             disabled={!canPrev || switchMutation.isPending}
+            data-component-id={`prose-${fragment.id}-variation-prev`}
             className={`p-0.5 rounded transition-colors ${
               canPrev
                 ? 'text-muted-foreground/40 hover:text-muted-foreground'
@@ -673,6 +706,7 @@ function ProseBlock({
           <button
             onClick={() => switchVariation(1)}
             disabled={!canNext || switchMutation.isPending}
+            data-component-id={`prose-${fragment.id}-variation-next`}
             className={`p-0.5 rounded transition-colors ${
               canNext
                 ? 'text-muted-foreground/40 hover:text-muted-foreground'
@@ -695,6 +729,7 @@ function ProseBlock({
           }
         }}
         className="text-left w-full rounded-lg p-4 -mx-4 transition-colors duration-150 hover:bg-card/40"
+        data-component-id={`prose-${fragment.id}-select`}
       >
         <div className="prose-content whitespace-pre-wrap">
           {(isStreamingAction || streamedActionText)
@@ -737,6 +772,7 @@ function ProseBlock({
               variant="ghost"
               className="size-6 text-muted-foreground/50 hover:text-foreground"
               title="Regenerate"
+              data-component-id={`prose-${fragment.id}-regenerate`}
               onClick={(e) => {
                 e.stopPropagation()
                 setActionMode('regenerate')
@@ -749,6 +785,7 @@ function ProseBlock({
               variant="ghost"
               className="size-6 text-muted-foreground/50 hover:text-foreground"
               title="Refine"
+              data-component-id={`prose-${fragment.id}-refine`}
               onClick={(e) => {
                 e.stopPropagation()
                 setActionMode('refine')
@@ -763,6 +800,7 @@ function ProseBlock({
                 className="size-6 text-muted-foreground/50 hover:text-destructive"
                 title="Remove passage"
                 disabled={deleteMutation.isPending}
+                data-component-id={`prose-${fragment.id}-remove`}
                 onClick={(e) => {
                   e.stopPropagation()
                   if (window.confirm('Remove this passage? It will be archived and can be restored later.')) {
@@ -790,6 +828,7 @@ function ProseBlock({
             className="h-6 text-xs gap-1"
             onClick={() => revertMutation.mutate()}
             disabled={revertMutation.isPending}
+            data-component-id={`prose-${fragment.id}-undo`}
           >
             <Undo2 className="size-3" />
             {revertMutation.isPending ? 'Reverting...' : 'Undo'}
