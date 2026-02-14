@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { api } from '@/lib/api'
+import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
@@ -151,47 +151,15 @@ function StoryListPage() {
 
         <div className="space-y-2" data-component-id="story-list">
           {stories?.map((story) => (
-            <Link
+            <StoryCard
               key={story.id}
-              to="/story/$storyId"
-              params={{ storyId: story.id }}
-              className="group block"
-            >
-              <div className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150" data-component-id={`story-${story.id}-card`}>
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-lg leading-tight group-hover:text-primary transition-colors">
-                    {story.name}
-                  </h2>
-                  {story.description && (
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                      {story.description}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground/60 mt-2">
-                    {new Date(story.updatedAt).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-                <Button
-                  data-component-id={`story-${story.id}-delete-button`}
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 ml-4"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (confirm(`Delete "${story.name}"?`)) {
-                      deleteMutation.mutate(story.id)
-                    }
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            </Link>
+              story={story}
+              onDelete={() => {
+                if (confirm(`Delete "${story.name}"?`)) {
+                  deleteMutation.mutate(story.id)
+                }
+              }}
+            />
           ))}
         </div>
       </main>
@@ -206,5 +174,108 @@ function StoryListPage() {
         Setup wizard
       </button>
     </div>
+  )
+}
+
+// ── Story Card ──────────────────────────────────────────
+
+function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void }) {
+  const { data: fragments } = useQuery({
+    queryKey: ['fragments', story.id],
+    queryFn: () => api.fragments.list(story.id),
+    staleTime: 30_000,
+  })
+
+  const { data: proseChain } = useQuery({
+    queryKey: ['proseChain', story.id],
+    queryFn: () => api.proseChain.get(story.id),
+    staleTime: 30_000,
+  })
+
+  // Compute stats from fragments
+  const stats = fragments ? {
+    prose: proseChain?.entries.length ?? 0,
+    characters: fragments.filter(f => f.type === 'character').length,
+    knowledge: fragments.filter(f => f.type === 'knowledge').length,
+    guidelines: fragments.filter(f => f.type === 'guideline').length,
+  } : null
+
+  const hasStats = stats && (stats.prose + stats.characters + stats.knowledge + stats.guidelines) > 0
+
+  return (
+    <Link
+      to="/story/$storyId"
+      params={{ storyId: story.id }}
+      className="group block"
+    >
+      <div
+        className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150"
+        data-component-id={`story-${story.id}-card`}
+      >
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg leading-tight group-hover:text-primary transition-colors">
+            {story.name}
+          </h2>
+          {story.description && (
+            <p className="text-sm text-muted-foreground/70 mt-1 line-clamp-2 font-prose">
+              {story.description}
+            </p>
+          )}
+
+          {/* Stats row */}
+          <div className="flex items-center gap-4 mt-2.5">
+            {hasStats ? (
+              <>
+                {stats.prose > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/45" title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
+                    <BookOpen className="size-3" />
+                    {stats.prose}
+                  </span>
+                )}
+                {stats.characters > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/45" title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
+                    <Users className="size-3" />
+                    {stats.characters}
+                  </span>
+                )}
+                {stats.knowledge > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/45" title={`${stats.knowledge} knowledge`}>
+                    <Globe className="size-3" />
+                    {stats.knowledge}
+                  </span>
+                )}
+                {stats.guidelines > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/45" title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
+                    <Scroll className="size-3" />
+                    {stats.guidelines}
+                  </span>
+                )}
+                <span className="text-muted-foreground/20">·</span>
+              </>
+            ) : null}
+            <span className="text-[11px] text-muted-foreground/35">
+              {new Date(story.updatedAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
+          </div>
+        </div>
+        <Button
+          data-component-id={`story-${story.id}-delete-button`}
+          variant="ghost"
+          size="icon"
+          className="size-8 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 ml-4"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDelete()
+          }}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+    </Link>
   )
 }
