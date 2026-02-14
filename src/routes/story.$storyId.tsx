@@ -4,11 +4,10 @@ import { useState } from 'react'
 import { api, type Fragment } from '@/lib/api'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { FragmentList } from '@/components/fragments/FragmentList'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
 import { GenerationPanel } from '@/components/generation/GenerationPanel'
+import { ProseChainView } from '@/components/prose/ProseChainView'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -45,9 +44,9 @@ function StoryEditorPage() {
     setShowGenerate(false)
   }
 
-  const handleCreateNew = () => {
+  const handleCreateNew = (type?: string) => {
     setSelectedFragment(null)
-    setCreateType(activeTab)
+    setCreateType(type ?? activeTab)
     setEditorMode('create')
     setShowGenerate(false)
   }
@@ -104,7 +103,7 @@ function StoryEditorPage() {
                 storyId={storyId}
                 type={tab.value}
                 onSelect={handleSelectFragment}
-                onCreateNew={handleCreateNew}
+                onCreateNew={() => handleCreateNew(tab.value)}
                 selectedId={selectedFragment?.id}
               />
             </TabsContent>
@@ -126,68 +125,14 @@ function StoryEditorPage() {
         ) : showGenerate ? (
           <GenerationPanel storyId={storyId} onBack={() => setShowGenerate(false)} />
         ) : (
-          /* Prose reading view with generate button */
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">Story</h2>
-              <Button
-                size="sm"
-                onClick={() => setShowGenerate(true)}
-              >
-                Generate
-              </Button>
-            </div>
-            <ScrollArea className="flex-1 p-6">
-              {proseFragments && proseFragments.length > 0 ? (
-                <div className="max-w-prose mx-auto space-y-6">
-                  {proseFragments
-                    .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
-                    .map((fragment) => (
-                      <div
-                        key={fragment.id}
-                        className="group relative"
-                      >
-                        <button
-                          onClick={() => handleSelectFragment(fragment)}
-                          className="text-left w-full hover:bg-accent/50 rounded-md p-3 -m-3 transition-colors"
-                        >
-                          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-                            {fragment.content}
-                          </div>
-                          <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[10px] text-muted-foreground">{fragment.id}</span>
-                            <span className="text-[10px] text-muted-foreground">{fragment.description}</span>
-                          </div>
-                        </button>
-                        <Separator className="mt-4" />
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <p className="text-muted-foreground mb-4">No prose fragments yet.</p>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => {
-                        setActiveTab('prose')
-                        handleCreateNew()
-                      }}
-                    >
-                      Write manually
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowGenerate(true)}
-                    >
-                      Generate with AI
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </ScrollArea>
-          </div>
+          <ProseChainView
+            storyId={storyId}
+            fragments={proseFragments ?? []}
+            onSelectFragment={handleSelectFragment}
+            onGenerate={() => setShowGenerate(true)}
+            onCreateNew={() => handleCreateNew('prose')}
+          />
         )}
-
       </div>
     </div>
   )
