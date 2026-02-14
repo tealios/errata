@@ -1,34 +1,28 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api, type Fragment } from '@/lib/api'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { FragmentList } from '@/components/fragments/FragmentList'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
-import { GenerationPanel } from '@/components/generation/GenerationPanel'
 import { DebugPanel } from '@/components/generation/DebugPanel'
 import { ProseChainView } from '@/components/prose/ProseChainView'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
+import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
+import { DetailPanel } from '@/components/sidebar/DetailPanel'
+import { getPluginPanel } from '@/lib/plugin-panels'
+import '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
 })
 
-const FRAGMENT_TABS = [
-  { value: 'prose', label: 'Prose' },
-  { value: 'character', label: 'Characters' },
-  { value: 'guideline', label: 'Guidelines' },
-  { value: 'knowledge', label: 'Knowledge' },
-] as const
-
 function StoryEditorPage() {
   const { storyId } = Route.useParams()
-  const [activeTab, setActiveTab] = useState<string>('prose')
+  const [activeSection, setActiveSection] = useState<SidebarSection>(null)
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
   const [createType, setCreateType] = useState<string>('prose')
-  const [showGenerate, setShowGenerate] = useState(false)
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
 
@@ -47,6 +41,19 @@ function StoryEditorPage() {
     queryFn: () => api.fragments.list(storyId),
   })
 
+  const { data: plugins } = useQuery({
+    queryKey: ['plugins'],
+    queryFn: () => api.plugins.list(),
+  })
+
+  const enabledPanelPlugins = useMemo(() => {
+    if (!plugins || !story) return []
+    const enabled = story.settings.enabledPlugins
+    return plugins
+      .filter((p) => p.panel && enabled.includes(p.name) && getPluginPanel(p.name))
+      .map((p) => ({ name: p.name, title: p.panel!.title }))
+  }, [plugins, story])
+
   // Auto-show wizard when story has no fragments
   if (showWizard === null && allFragments !== undefined) {
     if (allFragments.length === 0) {
@@ -59,17 +66,21 @@ function StoryEditorPage() {
   const handleSelectFragment = (fragment: Fragment) => {
     setSelectedFragment(fragment)
     setEditorMode('edit')
-    setShowGenerate(false)
   }
 
-  const handleCreateNew = (type?: string) => {
+  const handleCreateFragment = (type: string) => {
     setSelectedFragment(null)
-    setCreateType(type ?? activeTab)
+    setCreateType(type)
     setEditorMode('create')
-    setShowGenerate(false)
   }
 
   const handleEditorClose = () => {
+    setSelectedFragment(null)
+    setEditorMode('view')
+  }
+
+  const handleDebugLog = (logId: string) => {
+    setDebugLogId(logId || '__browse__')
     setSelectedFragment(null)
     setEditorMode('view')
   }
@@ -96,49 +107,38 @@ function StoryEditorPage() {
   const isEditingFragment = editorMode !== 'view' || selectedFragment
 
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <div className="w-72 border-r flex flex-col bg-muted/30">
-        <div className="p-4 border-b">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; Stories
-          </Link>
-          <h2 className="text-lg font-semibold mt-1 truncate">{story.name}</h2>
-          <p className="text-xs text-muted-foreground truncate">{story.description}</p>
-        </div>
+    <SidebarProvider>
+      <StorySidebar
+        storyId={storyId}
+        story={story}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+        enabledPanelPlugins={enabledPanelPlugins}
+      />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
-          <TabsList className="mx-2 mt-2 grid grid-cols-4">
-            {FRAGMENT_TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="text-xs px-1">
-                {tab.label.slice(0, 4)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {FRAGMENT_TABS.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value} className="flex-1 overflow-hidden m-0">
-              <FragmentList
-                storyId={storyId}
-                type={tab.value}
-                onSelect={handleSelectFragment}
-                onCreateNew={() => handleCreateNew(tab.value)}
-                selectedId={selectedFragment?.id}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
+      {/* Detail Panel - conditionally rendered */}
+      {activeSection && (
+        <DetailPanel
+          storyId={storyId}
+          story={story}
+          section={activeSection}
+          onClose={() => setActiveSection(null)}
+          onSelectFragment={handleSelectFragment}
+          onCreateFragment={handleCreateFragment}
+          selectedFragmentId={selectedFragment?.id}
+        />
+      )}
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {debugLogId ? (
+      {/* Main Content */}
+      <SidebarInset className="overflow-hidden">
+        {showWizard ? (
+          <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
+        ) : debugLogId ? (
           <DebugPanel
             storyId={storyId}
-            fragmentId={debugLogId}
+            fragmentId={debugLogId === '__browse__' ? undefined : debugLogId}
             onClose={() => setDebugLogId(null)}
           />
-        ) : showWizard ? (
-          <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
         ) : isEditingFragment ? (
           <FragmentEditor
             storyId={storyId}
@@ -148,19 +148,15 @@ function StoryEditorPage() {
             onClose={handleEditorClose}
             onSaved={handleEditorClose}
           />
-        ) : showGenerate ? (
-          <GenerationPanel storyId={storyId} onBack={() => setShowGenerate(false)} />
         ) : (
           <ProseChainView
             storyId={storyId}
             fragments={proseFragments ?? []}
             onSelectFragment={handleSelectFragment}
-            onGenerate={() => setShowGenerate(true)}
-            onCreateNew={() => handleCreateNew('prose')}
-            onDebugLog={(logId) => setDebugLogId(logId)}
+            onDebugLog={handleDebugLog}
           />
         )}
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
