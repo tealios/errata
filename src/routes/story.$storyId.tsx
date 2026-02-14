@@ -111,7 +111,7 @@ function StoryEditorPage() {
   const isEditingFragment = editorMode !== 'view' || selectedFragment
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="!min-h-svh !max-h-svh overflow-hidden">
       <StorySidebar
         storyId={storyId}
         story={story}
