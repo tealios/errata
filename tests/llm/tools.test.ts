@@ -56,18 +56,73 @@ describe('LLM tools', () => {
     await cleanup()
   })
 
-  it('creates all expected tools', () => {
-    const tools = createFragmentTools(dataDir, storyId)
-    expect(tools).toHaveProperty('fragmentGet')
-    expect(tools).toHaveProperty('fragmentSet')
-    expect(tools).toHaveProperty('fragmentEdit')
-    expect(tools).toHaveProperty('fragmentDelete')
-    expect(tools).toHaveProperty('fragmentList')
-    expect(tools).toHaveProperty('fragmentTypesList')
+  describe('read-only tools (default)', () => {
+    it('creates type-specific read tools for all built-in types', () => {
+      const tools = createFragmentTools(dataDir, storyId)
+      // Per-type get tools
+      expect(tools).toHaveProperty('getProse')
+      expect(tools).toHaveProperty('getCharacter')
+      expect(tools).toHaveProperty('getGuideline')
+      expect(tools).toHaveProperty('getKnowledge')
+      // Per-type list tools
+      expect(tools).toHaveProperty('listProse')
+      expect(tools).toHaveProperty('listCharacters')
+      expect(tools).toHaveProperty('listGuidelines')
+      expect(tools).toHaveProperty('listKnowledge')
+      // Always present
+      expect(tools).toHaveProperty('listFragmentTypes')
+    })
+
+    it('does not include write tools by default', () => {
+      const tools = createFragmentTools(dataDir, storyId)
+      expect(tools).not.toHaveProperty('updateFragment')
+      expect(tools).not.toHaveProperty('editFragment')
+      expect(tools).not.toHaveProperty('deleteFragment')
+    })
+
+    it('does not include write tools when readOnly: true', () => {
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: true })
+      expect(tools).not.toHaveProperty('updateFragment')
+      expect(tools).not.toHaveProperty('editFragment')
+      expect(tools).not.toHaveProperty('deleteFragment')
+    })
   })
 
-  describe('fragmentGet', () => {
-    it('retrieves a fragment by ID', async () => {
+  describe('read-write tools', () => {
+    it('includes both read and write tools when readOnly: false', () => {
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      // Read tools still present
+      expect(tools).toHaveProperty('getCharacter')
+      expect(tools).toHaveProperty('listCharacters')
+      expect(tools).toHaveProperty('listFragmentTypes')
+      // Write tools present
+      expect(tools).toHaveProperty('updateFragment')
+      expect(tools).toHaveProperty('editFragment')
+      expect(tools).toHaveProperty('deleteFragment')
+    })
+  })
+
+  describe('getCharacter / getProse (type-specific get)', () => {
+    it('retrieves a character fragment by ID', async () => {
+      const frag = makeFragment({
+        id: 'ch-0001',
+        type: 'character',
+        name: 'Hero',
+        content: 'A brave warrior',
+      })
+      await createFragment(dataDir, storyId, frag)
+
+      const tools = createFragmentTools(dataDir, storyId)
+      const result = await tools.getCharacter.execute(
+        { id: 'ch-0001' },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.content).toBe('A brave warrior')
+      expect(result.name).toBe('Hero')
+    })
+
+    it('retrieves a prose fragment by ID', async () => {
       const frag = makeFragment({
         id: 'pr-0001',
         content: 'Hello world',
@@ -75,8 +130,8 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentGet.execute(
-        { fragmentId: 'pr-0001' },
+      const result = await tools.getProse.execute(
+        { id: 'pr-0001' },
         { toolCallId: 'tc-1', messages: [] },
       )
 
@@ -86,8 +141,8 @@ describe('LLM tools', () => {
 
     it('returns error for non-existent fragment', async () => {
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentGet.execute(
-        { fragmentId: 'pr-9999' },
+      const result = await tools.getCharacter.execute(
+        { id: 'ch-9999' },
         { toolCallId: 'tc-1', messages: [] },
       )
 
@@ -95,98 +150,8 @@ describe('LLM tools', () => {
     })
   })
 
-  describe('fragmentSet', () => {
-    it('overwrites a fragment content', async () => {
-      const frag = makeFragment({
-        id: 'pr-0001',
-        content: 'Old content',
-        description: 'Old desc',
-      })
-      await createFragment(dataDir, storyId, frag)
-
-      const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentSet.execute(
-        {
-          fragmentId: 'pr-0001',
-          newContent: 'New content',
-          newDescription: 'New desc',
-        },
-        { toolCallId: 'tc-1', messages: [] },
-      )
-
-      expect(result.ok).toBe(true)
-
-      const updated = await getFragment(dataDir, storyId, 'pr-0001')
-      expect(updated!.content).toBe('New content')
-      expect(updated!.description).toBe('New desc')
-    })
-  })
-
-  describe('fragmentEdit', () => {
-    it('replaces text within a fragment', async () => {
-      const frag = makeFragment({
-        id: 'pr-0001',
-        content: 'The cat sat on the mat.',
-      })
-      await createFragment(dataDir, storyId, frag)
-
-      const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentEdit.execute(
-        {
-          fragmentId: 'pr-0001',
-          oldText: 'cat',
-          newText: 'dog',
-        },
-        { toolCallId: 'tc-1', messages: [] },
-      )
-
-      expect(result.ok).toBe(true)
-
-      const updated = await getFragment(dataDir, storyId, 'pr-0001')
-      expect(updated!.content).toBe('The dog sat on the mat.')
-    })
-
-    it('returns error when oldText not found', async () => {
-      const frag = makeFragment({
-        id: 'pr-0001',
-        content: 'The cat sat.',
-      })
-      await createFragment(dataDir, storyId, frag)
-
-      const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentEdit.execute(
-        {
-          fragmentId: 'pr-0001',
-          oldText: 'elephant',
-          newText: 'dog',
-        },
-        { toolCallId: 'tc-1', messages: [] },
-      )
-
-      expect(result.error).toBeDefined()
-    })
-  })
-
-  describe('fragmentDelete', () => {
-    it('deletes a fragment from storage', async () => {
-      const frag = makeFragment({ id: 'pr-0001' })
-      await createFragment(dataDir, storyId, frag)
-
-      const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentDelete.execute(
-        { fragmentId: 'pr-0001' },
-        { toolCallId: 'tc-1', messages: [] },
-      )
-
-      expect(result.ok).toBe(true)
-
-      const deleted = await getFragment(dataDir, storyId, 'pr-0001')
-      expect(deleted).toBeNull()
-    })
-  })
-
-  describe('fragmentList', () => {
-    it('lists fragments by type with shortlist fields', async () => {
+  describe('listCharacters / listProse (type-specific list)', () => {
+    it('lists only fragments of the matching type', async () => {
       const prose1 = makeFragment({
         id: 'pr-0001',
         type: 'prose',
@@ -210,24 +175,120 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, char)
 
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentList.execute(
-        { type: 'prose' },
+
+      const proseResult = await tools.listProse.execute(
+        {},
         { toolCallId: 'tc-1', messages: [] },
       )
+      expect(proseResult.fragments).toHaveLength(2)
+      expect(proseResult.fragments[0]).toHaveProperty('id')
+      expect(proseResult.fragments[0]).toHaveProperty('name')
+      expect(proseResult.fragments[0]).toHaveProperty('description')
+      expect(proseResult.fragments[0]).not.toHaveProperty('content')
 
-      expect(result.fragments).toHaveLength(2)
-      expect(result.fragments[0]).toHaveProperty('id')
-      expect(result.fragments[0]).toHaveProperty('name')
-      expect(result.fragments[0]).toHaveProperty('description')
-      // Should NOT include full content in shortlist
-      expect(result.fragments[0]).not.toHaveProperty('content')
+      const charResult = await tools.listCharacters.execute(
+        {},
+        { toolCallId: 'tc-1', messages: [] },
+      )
+      expect(charResult.fragments).toHaveLength(1)
+      expect(charResult.fragments[0].name).toBe('Hero')
     })
   })
 
-  describe('fragmentTypesList', () => {
+  describe('updateFragment (write)', () => {
+    it('overwrites a fragment content', async () => {
+      const frag = makeFragment({
+        id: 'pr-0001',
+        content: 'Old content',
+        description: 'Old desc',
+      })
+      await createFragment(dataDir, storyId, frag)
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      const result = await tools.updateFragment.execute(
+        {
+          fragmentId: 'pr-0001',
+          newContent: 'New content',
+          newDescription: 'New desc',
+        },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.ok).toBe(true)
+
+      const updated = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(updated!.content).toBe('New content')
+      expect(updated!.description).toBe('New desc')
+    })
+  })
+
+  describe('editFragment (write)', () => {
+    it('replaces text within a fragment', async () => {
+      const frag = makeFragment({
+        id: 'pr-0001',
+        content: 'The cat sat on the mat.',
+      })
+      await createFragment(dataDir, storyId, frag)
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      const result = await tools.editFragment.execute(
+        {
+          fragmentId: 'pr-0001',
+          oldText: 'cat',
+          newText: 'dog',
+        },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.ok).toBe(true)
+
+      const updated = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(updated!.content).toBe('The dog sat on the mat.')
+    })
+
+    it('returns error when oldText not found', async () => {
+      const frag = makeFragment({
+        id: 'pr-0001',
+        content: 'The cat sat.',
+      })
+      await createFragment(dataDir, storyId, frag)
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      const result = await tools.editFragment.execute(
+        {
+          fragmentId: 'pr-0001',
+          oldText: 'elephant',
+          newText: 'dog',
+        },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.error).toBeDefined()
+    })
+  })
+
+  describe('deleteFragment (write)', () => {
+    it('deletes a fragment from storage', async () => {
+      const frag = makeFragment({ id: 'pr-0001' })
+      await createFragment(dataDir, storyId, frag)
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      const result = await tools.deleteFragment.execute(
+        { fragmentId: 'pr-0001' },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.ok).toBe(true)
+
+      const deleted = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(deleted).toBeNull()
+    })
+  })
+
+  describe('listFragmentTypes', () => {
     it('returns all registered fragment types', async () => {
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.fragmentTypesList.execute(
+      const result = await tools.listFragmentTypes.execute(
         {},
         { toolCallId: 'tc-1', messages: [] },
       )
