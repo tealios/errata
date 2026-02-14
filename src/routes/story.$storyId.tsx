@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
 import { DebugPanel } from '@/components/generation/DebugPanel'
+import { ProviderPanel } from '@/components/settings/ProviderManager'
 import { ProseChainView } from '@/components/prose/ProseChainView'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
@@ -27,6 +28,7 @@ function StoryEditorPage() {
   const [createPrefill, setCreatePrefill] = useState<FragmentPrefill | null>(null)
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
+  const [showProviders, setShowProviders] = useState(false)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -120,46 +122,60 @@ function StoryEditorPage() {
         enabledPanelPlugins={enabledPanelPlugins}
       />
 
-      {/* Detail Panel - conditionally rendered */}
-      {activeSection && (
-        <DetailPanel
-          storyId={storyId}
-          story={story}
-          section={activeSection}
-          onClose={() => setActiveSection(null)}
-          onSelectFragment={handleSelectFragment}
-          onCreateFragment={handleCreateFragment}
-          selectedFragmentId={selectedFragment?.id}
-        />
-      )}
+      {/* Detail Panel */}
+      <DetailPanel
+        storyId={storyId}
+        story={story}
+        section={activeSection}
+        onClose={() => setActiveSection(null)}
+        onSelectFragment={handleSelectFragment}
+        onCreateFragment={handleCreateFragment}
+        selectedFragmentId={selectedFragment?.id}
+        onManageProviders={() => setShowProviders(true)}
+      />
 
       {/* Main Content */}
-      <SidebarInset className="overflow-hidden min-h-0">
-        {showWizard ? (
-          <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
-        ) : debugLogId ? (
-          <DebugPanel
-            storyId={storyId}
-            fragmentId={debugLogId === '__browse__' ? undefined : debugLogId}
-            onClose={() => setDebugLogId(null)}
-          />
-        ) : isEditingFragment ? (
-          <FragmentEditor
-            storyId={storyId}
-            fragment={selectedFragment}
-            mode={editorMode}
-            createType={createType}
-            prefill={createPrefill}
-            onClose={handleEditorClose}
-            onSaved={handleEditorClose}
-          />
-        ) : (
-          <ProseChainView
-            storyId={storyId}
-            fragments={proseFragments ?? []}
-            onSelectFragment={handleSelectFragment}
-            onDebugLog={handleDebugLog}
-          />
+      <SidebarInset className="overflow-hidden min-h-0 relative">
+        {/* Prose view — always mounted to preserve scroll position */}
+        <ProseChainView
+          storyId={storyId}
+          fragments={proseFragments ?? []}
+          onSelectFragment={handleSelectFragment}
+          onDebugLog={handleDebugLog}
+        />
+
+        {/* Overlay panels render on top */}
+        {showWizard && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
+          </div>
+        )}
+        {debugLogId && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <DebugPanel
+              storyId={storyId}
+              fragmentId={debugLogId === '__browse__' ? undefined : debugLogId}
+              onClose={() => setDebugLogId(null)}
+            />
+          </div>
+        )}
+        {showProviders && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <ProviderPanel onClose={() => setShowProviders(false)} />
+          </div>
+        )}
+        {isEditingFragment && (
+          <div className="absolute inset-0 z-10 bg-background">
+            <FragmentEditor
+              storyId={storyId}
+              fragment={selectedFragment}
+              mode={editorMode}
+              createType={createType}
+              prefill={createPrefill}
+              onClose={handleEditorClose}
+              onSaved={handleEditorClose}
+            />
+          </div>
         )}
       </SidebarInset>
     </SidebarProvider>

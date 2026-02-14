@@ -17,7 +17,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [] },
+    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
   }
 }
 
@@ -32,6 +32,7 @@ function makeFragment(overrides: Partial<Fragment>): Fragment {
     tags: [],
     refs: [],
     sticky: false,
+    placement: 'user' as const,
     createdAt: now,
     updatedAt: now,
     order: 0,
@@ -64,11 +65,15 @@ describe('LLM tools', () => {
       expect(tools).toHaveProperty('getCharacter')
       expect(tools).toHaveProperty('getGuideline')
       expect(tools).toHaveProperty('getKnowledge')
+      expect(tools).toHaveProperty('getImage')
+      expect(tools).toHaveProperty('getIcon')
       // Per-type list tools
       expect(tools).toHaveProperty('listProse')
       expect(tools).toHaveProperty('listCharacters')
       expect(tools).toHaveProperty('listGuidelines')
       expect(tools).toHaveProperty('listKnowledge')
+      expect(tools).toHaveProperty('listImages')
+      expect(tools).toHaveProperty('listIcons')
       // Always present
       expect(tools).toHaveProperty('listFragmentTypes')
     })
@@ -301,6 +306,8 @@ describe('LLM tools', () => {
       expect(typeNames).toContain('character')
       expect(typeNames).toContain('guideline')
       expect(typeNames).toContain('knowledge')
+      expect(typeNames).toContain('image')
+      expect(typeNames).toContain('icon')
     })
   })
 })

@@ -230,6 +230,8 @@ describe('Fragment types route', () => {
     expect(data.map((t: { type: string }) => t.type).sort()).toEqual([
       'character',
       'guideline',
+      'icon',
+      'image',
       'knowledge',
       'prose',
     ])

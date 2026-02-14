@@ -89,6 +89,24 @@ export class FragmentTypeRegistry {
         `### ${f.name}\n${f.content}`,
       shortlistFields: ['id', 'name', 'description'],
     })
+
+    this.register({
+      type: 'image',
+      prefix: 'im',
+      stickyByDefault: false,
+      contextRenderer: (f) =>
+        `[image:${f.id}] ${f.name} - ${f.description}`,
+      shortlistFields: ['id', 'name', 'description'],
+    })
+
+    this.register({
+      type: 'icon',
+      prefix: 'ic',
+      stickyByDefault: false,
+      contextRenderer: (f) =>
+        `[icon:${f.id}] ${f.name} - ${f.description}`,
+      shortlistFields: ['id', 'name', 'description'],
+    })
   }
 }
 

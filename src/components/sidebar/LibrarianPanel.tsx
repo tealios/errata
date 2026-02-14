@@ -27,6 +27,13 @@ interface LibrarianPanelProps {
 export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  const { data: characters } = useQuery({
+    queryKey: ['fragments', storyId, 'character'],
+    queryFn: () => api.fragments.list(storyId, 'character'),
+  })
+
+  const charName = (id: string) => characters?.find((c) => c.id === id)?.name ?? id
+
   const { data: status } = useQuery({
     queryKey: ['librarian-status', storyId],
     queryFn: () => api.librarian.getStatus(storyId),
@@ -98,7 +105,7 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
               <div className="space-y-1">
                 {Object.entries(status.recentMentions).map(([charId, fragmentIds]) => (
                   <div key={charId} className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-muted-foreground/60">{charId}</span>
+                    <span className="text-muted-foreground/60">{charName(charId)}</span>
                     <Badge variant="outline" className="text-[10px] h-4">
                       {fragmentIds.length}
                     </Badge>
@@ -147,6 +154,7 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
                 analysis={expandedId === summary.id ? expandedAnalysis ?? null : null}
                 onToggle={() => setExpandedId(expandedId === summary.id ? null : summary.id)}
                 onCreateFragment={onCreateFragment}
+                charName={charName}
               />
             ))}
           </div>
@@ -163,6 +171,7 @@ function AnalysisItem({
   analysis,
   onToggle,
   onCreateFragment,
+  charName,
 }: {
   storyId: string
   summary: LibrarianAnalysisSummary
@@ -170,6 +179,7 @@ function AnalysisItem({
   analysis: LibrarianAnalysis | null
   onToggle: () => void
   onCreateFragment?: (type: string, prefill?: { name: string; description: string; content: string }) => void
+  charName: (id: string) => string
 }) {
   const queryClient = useQueryClient()
   const date = new Date(summary.createdAt)
@@ -229,7 +239,7 @@ function AnalysisItem({
               <span className="font-medium">Characters:</span>{' '}
               {analysis.mentionedCharacters.map((id) => (
                 <Badge key={id} variant="outline" className="text-[10px] mr-1 h-4">
-                  {id}
+                  {charName(id)}
                 </Badge>
               ))}
             </div>

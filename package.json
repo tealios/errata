@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.20",
+    "@ai-sdk/openai-compatible": "^2.0.30",
     "@ai-sdk/react": "^3.0.88",
     "@elysiajs/eden": "^1.4.8",
     "@sinclair/typebox": "^0.34.48",

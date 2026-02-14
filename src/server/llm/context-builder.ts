@@ -102,11 +102,12 @@ export async function buildContextState(
   const recentProse = sortedProse.slice(-proseLimit)
 
   // Split guidelines, knowledge, and characters into sticky (full) vs shortlist
-  const stickyGuidelines = allGuidelines.filter((f) => f.sticky)
+  const sortByOrder = (a: Fragment, b: Fragment) => a.order - b.order || a.createdAt.localeCompare(b.createdAt)
+  const stickyGuidelines = allGuidelines.filter((f) => f.sticky).sort(sortByOrder)
   const nonStickyGuidelines = allGuidelines.filter((f) => !f.sticky)
-  const stickyKnowledge = allKnowledge.filter((f) => f.sticky)
+  const stickyKnowledge = allKnowledge.filter((f) => f.sticky).sort(sortByOrder)
   const nonStickyKnowledge = allKnowledge.filter((f) => !f.sticky)
-  const stickyCharacters = allCharacters.filter((f) => f.sticky)
+  const stickyCharacters = allCharacters.filter((f) => f.sticky).sort(sortByOrder)
   const nonStickyCharacters = allCharacters.filter((f) => !f.sticky)
 
   const state = {
@@ -140,6 +141,50 @@ export interface AssembleOptions {
 }
 
 /**
+ * Renders sticky fragments grouped by type into content parts.
+ */
+function renderTypeGrouped(fragments: Fragment[], label: string): string[] {
+  if (fragments.length === 0) return []
+  const parts: string[] = [`\n## ${label}`]
+  for (const f of fragments) {
+    parts.push(registry.renderContext(f))
+  }
+  return parts
+}
+
+/**
+ * Renders sticky fragments in a custom order under a single heading.
+ */
+function renderAdvancedOrder(fragments: Fragment[], fragmentOrder: string[]): string[] {
+  if (fragments.length === 0) return []
+
+  // Build a map for quick lookup
+  const fragMap = new Map(fragments.map(f => [f.id, f]))
+
+  // Ordered fragments come first, then any not in the order list
+  const ordered: Fragment[] = []
+  const seen = new Set<string>()
+  for (const id of fragmentOrder) {
+    const f = fragMap.get(id)
+    if (f) {
+      ordered.push(f)
+      seen.add(id)
+    }
+  }
+  for (const f of fragments) {
+    if (!seen.has(f.id)) {
+      ordered.push(f)
+    }
+  }
+
+  const parts: string[] = ['\n## Context']
+  for (const f of ordered) {
+    parts.push(registry.renderContext(f))
+  }
+  return parts
+}
+
+/**
  * Assembles the final LLM message array from the context state.
  * This is the second step — called after hook modifications.
  */
@@ -159,72 +204,15 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     authorInput,
   } = state
 
-  const systemParts: string[] = []
+  const contextOrderMode = story.settings.contextOrderMode ?? 'simple'
+  const fragmentOrder = story.settings.fragmentOrder ?? []
 
-  // Story info
-  systemParts.push(`## Story: ${story.name}`)
-  systemParts.push(`${story.description}`)
-  if (story.summary) {
-    systemParts.push(`\n## Story Summary So Far\n${story.summary}`)
-  }
+  // Partition sticky fragments by placement
+  const allSticky = [...stickyGuidelines, ...stickyKnowledge, ...stickyCharacters]
+  const systemPlaced = allSticky.filter(f => (f.placement ?? 'user') === 'system')
+  const userPlaced = allSticky.filter(f => (f.placement ?? 'user') === 'user')
 
-  // Prose chain
-  if (proseFragments.length > 0) {
-    systemParts.push('\n## Recent Prose')
-    for (const p of proseFragments) {
-      systemParts.push(registry.renderContext(p))
-    }
-  }
-
-  // Sticky guidelines (full content)
-  if (stickyGuidelines.length > 0) {
-    systemParts.push('\n## Guidelines')
-    for (const g of stickyGuidelines) {
-      systemParts.push(registry.renderContext(g))
-    }
-  }
-
-  // Sticky knowledge (full content)
-  if (stickyKnowledge.length > 0) {
-    systemParts.push('\n## Knowledge')
-    for (const k of stickyKnowledge) {
-      systemParts.push(registry.renderContext(k))
-    }
-  }
-
-  // Sticky characters (full content)
-  if (stickyCharacters.length > 0) {
-    systemParts.push('\n## Characters')
-    for (const c of stickyCharacters) {
-      systemParts.push(registry.renderContext(c))
-    }
-  }
-
-  // Shortlists for non-sticky guidelines
-  if (guidelineShortlist.length > 0) {
-    systemParts.push('\n## Available Guidelines (use getGuideline(id) to retrieve)')
-    for (const g of guidelineShortlist) {
-      systemParts.push(`- ${g.id}: ${g.name} — ${g.description}`)
-    }
-  }
-
-  // Shortlists for non-sticky knowledge
-  if (knowledgeShortlist.length > 0) {
-    systemParts.push('\n## Available Knowledge (use getKnowledge(id) to retrieve)')
-    for (const k of knowledgeShortlist) {
-      systemParts.push(`- ${k.id}: ${k.name} — ${k.description}`)
-    }
-  }
-
-  // Shortlists for non-sticky characters
-  if (characterShortlist.length > 0) {
-    systemParts.push('\n## Available Characters (use getCharacter(id) to retrieve)')
-    for (const c of characterShortlist) {
-      systemParts.push(`- ${c.id}: ${c.name} — ${c.description}`)
-    }
-  }
-
-  // Instructions + tool availability note
+  // Build tool lines
   const toolLines: string[] = []
   const types = registry.listTypes()
   for (const t of types) {
@@ -240,28 +228,106 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     }
   }
 
-  systemParts.push(
+  const instructionsBlock =
     '\n## Instructions\n' +
-      'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.\n' +
-      'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.\n' +
-      'Only use tools to look up context you need before writing.\n' +
-      '\n## Available Tools\n' +
-      'You have access to the following tools:\n' +
-      toolLines.join('\n') +
-      '\n\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
-      'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.',
-      '\nThe author wants the following to happen next: ' + authorInput
-  )
+    'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.\n' +
+    'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.\n' +
+    'Only use tools to look up context you need before writing.\n' +
+    '\n## Available Tools\n' +
+    'You have access to the following tools:\n' +
+    toolLines.join('\n') +
+    '\n\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
+    'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.'
 
-  const systemContent = systemParts.join('\n')
+  // Shortlists (always go in user message)
+  const shortlistParts: string[] = []
+  if (guidelineShortlist.length > 0) {
+    shortlistParts.push('\n## Available Guidelines (use getGuideline(id) to retrieve)')
+    for (const g of guidelineShortlist) {
+      shortlistParts.push(`- ${g.id}: ${g.name} — ${g.description}`)
+    }
+  }
+  if (knowledgeShortlist.length > 0) {
+    shortlistParts.push('\n## Available Knowledge (use getKnowledge(id) to retrieve)')
+    for (const k of knowledgeShortlist) {
+      shortlistParts.push(`- ${k.id}: ${k.name} — ${k.description}`)
+    }
+  }
+  if (characterShortlist.length > 0) {
+    shortlistParts.push('\n## Available Characters (use getCharacter(id) to retrieve)')
+    for (const c of characterShortlist) {
+      shortlistParts.push(`- ${c.id}: ${c.name} — ${c.description}`)
+    }
+  }
 
-  const messages: ContextMessage[] = [
-    { role: 'user', content: systemContent },
-  ]
+  // Build system message content (if any fragments target system placement)
+  let systemMessageContent = ''
+  if (systemPlaced.length > 0) {
+    const sysParts: string[] = []
+    if (contextOrderMode === 'advanced') {
+      sysParts.push(...renderAdvancedOrder(systemPlaced, fragmentOrder))
+    } else {
+      // Simple mode: group by type
+      const sysGuidelines = systemPlaced.filter(f => f.type === 'guideline')
+      const sysKnowledge = systemPlaced.filter(f => f.type === 'knowledge')
+      const sysCharacters = systemPlaced.filter(f => f.type === 'character')
+      sysParts.push(...renderTypeGrouped(sysGuidelines, 'Guidelines'))
+      sysParts.push(...renderTypeGrouped(sysKnowledge, 'Knowledge'))
+      sysParts.push(...renderTypeGrouped(sysCharacters, 'Characters'))
+    }
+    systemMessageContent = sysParts.join('\n')
+  }
 
-  requestLogger.info('Messages assembled', { 
-    messageCount: messages.length, 
-    systemContentLength: systemContent.length 
+  // Build user message content
+  const userParts: string[] = []
+
+  // Story info
+  userParts.push(`## Story: ${story.name}`)
+  userParts.push(`${story.description}`)
+  if (story.summary) {
+    userParts.push(`\n## Story Summary So Far\n${story.summary}`)
+  }
+
+  // Prose chain
+  if (proseFragments.length > 0) {
+    userParts.push('\n## Recent Prose')
+    for (const p of proseFragments) {
+      userParts.push(registry.renderContext(p))
+    }
+  }
+
+  // User-placed sticky fragments
+  if (contextOrderMode === 'advanced') {
+    userParts.push(...renderAdvancedOrder(userPlaced, fragmentOrder))
+  } else {
+    // Simple mode: group by type
+    const userGuidelines = userPlaced.filter(f => f.type === 'guideline')
+    const userKnowledge = userPlaced.filter(f => f.type === 'knowledge')
+    const userCharacters = userPlaced.filter(f => f.type === 'character')
+    userParts.push(...renderTypeGrouped(userGuidelines, 'Guidelines'))
+    userParts.push(...renderTypeGrouped(userKnowledge, 'Knowledge'))
+    userParts.push(...renderTypeGrouped(userCharacters, 'Characters'))
+  }
+
+  // Shortlists
+  userParts.push(...shortlistParts)
+
+  // Instructions + author input
+  userParts.push(instructionsBlock)
+  userParts.push('\nThe author wants the following to happen next: ' + authorInput)
+
+  const userContent = userParts.join('\n')
+
+  const messages: ContextMessage[] = []
+  if (systemMessageContent) {
+    messages.push({ role: 'system', content: systemMessageContent })
+  }
+  messages.push({ role: 'user', content: userContent })
+
+  requestLogger.info('Messages assembled', {
+    messageCount: messages.length,
+    hasSystemMessage: !!systemMessageContent,
+    userContentLength: userContent.length,
   })
 
   return messages

@@ -51,11 +51,10 @@ function StoryListPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between px-8 py-6">
           <div>
             <h1 className="font-display text-3xl italic tracking-tight">Errata</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Your stories, refined.</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5">
+              <Button size="sm" className="gap-1.5" variant={'ghost'}>
                 <Plus className="size-3.5" />
                 New Story
               </Button>

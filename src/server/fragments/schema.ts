@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 
 export const FragmentIdSchema = z.string().regex(/^[a-z]{2,4}-[a-z0-9]{4,12}$/)
 
-export const FRAGMENT_TYPES = ['prose', 'character', 'guideline', 'knowledge'] as const
+export const FRAGMENT_TYPES = ['prose', 'character', 'guideline', 'knowledge', 'image', 'icon'] as const
 
 export const FragmentTypeSchema = z.string().min(1)
 
@@ -17,6 +17,7 @@ export const FragmentSchema = z.object({
   tags: z.array(z.string()).default([]),
   refs: z.array(FragmentIdSchema).default([]),
   sticky: z.boolean().default(false),
+  placement: z.enum(['system', 'user']).default('user'),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   order: z.int().default(0),
@@ -37,8 +38,13 @@ export const StoryMetaSchema = z.object({
       outputFormat: z.enum(['plaintext', 'markdown']).default('markdown'),
       enabledPlugins: z.array(z.string()).default([]),
       summarizationThreshold: z.int().min(0).default(4),
+      maxSteps: z.int().min(1).max(50).default(10),
+      providerId: z.string().nullable().default(null),
+      modelId: z.string().nullable().default(null),
+      contextOrderMode: z.enum(['simple', 'advanced']).default('simple'),
+      fragmentOrder: z.array(z.string()).default([]),
     })
-    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4 }),
+    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple', fragmentOrder: [] }),
 })
 
 export type StoryMeta = z.infer<typeof StoryMetaSchema>

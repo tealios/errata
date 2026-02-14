@@ -9,19 +9,19 @@ import { getState, getAnalysis, listAnalyses } from '@/server/librarian/storage'
 import { initProseChain, addProseSection } from '@/server/fragments/prose-chain'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
-// Mock the AI SDK generateText
+// Mock the AI SDK generateObject
 vi.mock('ai', async () => {
   const actual = await vi.importActual('ai')
   return {
     ...actual,
-    generateText: vi.fn(),
+    generateObject: vi.fn(),
   }
 })
 
-import { generateText } from 'ai'
+import { generateObject } from 'ai'
 import { runLibrarian } from '@/server/librarian/agent'
 
-const mockedGenerateText = vi.mocked(generateText)
+const mockedGenerateObject = vi.mocked(generateObject)
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
   const now = new Date().toISOString()
@@ -32,7 +32,16 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 0 },
+    settings: {
+      outputFormat: 'markdown',
+      enabledPlugins: [],
+      summarizationThreshold: 0,
+      maxSteps: 10,
+      providerId: null,
+      modelId: null,
+      contextOrderMode: 'simple' as const,
+      fragmentOrder: [],
+    },
     ...overrides,
   }
 }
@@ -48,6 +57,7 @@ function makeFragment(overrides: Partial<Fragment>): Fragment {
     tags: [],
     refs: [],
     sticky: false,
+    placement: 'user' as const,
     createdAt: now,
     updatedAt: now,
     order: 0,
@@ -57,8 +67,8 @@ function makeFragment(overrides: Partial<Fragment>): Fragment {
 }
 
 function mockGenerateTextResponse(json: Record<string, unknown>) {
-  mockedGenerateText.mockResolvedValue({
-    text: JSON.stringify(json),
+  mockedGenerateObject.mockResolvedValue({
+    object: json,
     reasoning: undefined,
     reasoningDetails: [],
     sources: [],
@@ -328,20 +338,7 @@ describe('librarian agent', () => {
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
-    mockedGenerateText.mockResolvedValue({
-      text: 'This is not valid JSON at all',
-      reasoning: undefined,
-      reasoningDetails: [],
-      sources: [],
-      files: [],
-      steps: [],
-      toolCalls: [],
-      toolResults: [],
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
-      response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
-      request: {},
-    } as any)
+    mockedGenerateObject.mockRejectedValue(new Error('Invalid structured output'))
 
     await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow()
   })
@@ -351,16 +348,16 @@ describe('librarian agent', () => {
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
-    const json = JSON.stringify({
+    const parsed = {
       summaryUpdate: 'Fenced response.',
       mentionedCharacters: [],
       contradictions: [],
       knowledgeSuggestions: [],
       timelineEvents: [],
-    })
+    }
 
-    mockedGenerateText.mockResolvedValue({
-      text: '```json\n' + json + '\n```',
+    mockedGenerateObject.mockResolvedValue({
+      object: parsed,
       reasoning: undefined,
       reasoningDetails: [],
       sources: [],

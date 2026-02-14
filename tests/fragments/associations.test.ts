@@ -24,7 +24,7 @@ const makeStory = (): StoryMeta => ({
   summary: '',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-  settings: { outputFormat: 'markdown', enabledPlugins: [] },
+  settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
 })
 
 beforeEach(async () => {

@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ThemeProvider } from '@/lib/theme'
 import appCss from '../styles.css?url'
 
 const queryClient = new QueryClient({
@@ -37,11 +38,14 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 })
 
+const themeScript = `(function(){var t=localStorage.getItem('errata-theme');document.documentElement.classList.toggle('dark',t!=='light')})()`;
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         {children}
@@ -53,10 +57,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Outlet />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Outlet />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
