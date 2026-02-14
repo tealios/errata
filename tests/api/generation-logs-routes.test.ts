@@ -6,6 +6,7 @@ import { saveGenerationLog, type GenerationLog } from '@/server/llm/generation-l
 
 // Mock the AI SDK to prevent real LLM calls
 vi.mock('ai', () => ({
+  stepCountIs: vi.fn((n: number) => n),
   streamText: vi.fn(() => {
     const text = 'Generated prose text'
     return {
