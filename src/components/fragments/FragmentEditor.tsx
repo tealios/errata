@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { componentId, fragmentComponentId } from '@/lib/dom-ids'
@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2 } from 'lucide-react'
+import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check } from 'lucide-react'
+import { copyFragmentToClipboard } from '@/lib/fragment-clipboard'
 import { CropDialog } from '@/components/fragments/CropDialog'
 
 export interface FragmentPrefill {
@@ -41,6 +42,7 @@ export function FragmentEditor({
   const [content, setContent] = useState('')
   const [type, setType] = useState(createType ?? 'prose')
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // Fetch live fragment data so sticky/placement updates are reflected immediately
   const { data: liveFragment } = useQuery({
@@ -51,6 +53,22 @@ export function FragmentEditor({
   })
 
   const fragment = liveFragment ?? fragmentProp
+
+  // Media queries for clipboard copy (embed attached images)
+  const { data: _imageFragments } = useQuery({
+    queryKey: ['fragments', storyId, 'image'],
+    queryFn: () => api.fragments.list(storyId, 'image'),
+  })
+  const { data: _iconFragments } = useQuery({
+    queryKey: ['fragments', storyId, 'icon'],
+    queryFn: () => api.fragments.list(storyId, 'icon'),
+  })
+  const mediaById = useMemo(() => {
+    const map = new Map<string, Fragment>()
+    for (const f of _imageFragments ?? []) map.set(f.id, f)
+    for (const f of _iconFragments ?? []) map.set(f.id, f)
+    return map
+  }, [_imageFragments, _iconFragments])
 
   useEffect(() => {
     if (fragmentProp) {
@@ -200,6 +218,22 @@ export function FragmentEditor({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {fragment && mode !== 'create' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs gap-1"
+              onClick={async () => {
+                await copyFragmentToClipboard(fragment, mediaById)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              data-component-id={fragmentComponentId(fragment, 'copy-clipboard')}
+            >
+              {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+          )}
           {fragment && (
             <Button
               size="sm"

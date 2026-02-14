@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Pin, GripVertical } from 'lucide-react'
+import { Plus, Pin, GripVertical, FileDown } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -16,6 +16,7 @@ interface FragmentListProps {
   listIdBase?: string
   onSelect: (fragment: Fragment) => void
   onCreateNew: () => void
+  onImport?: () => void
   selectedId?: string
 }
 
@@ -28,6 +29,7 @@ export function FragmentList({
   listIdBase,
   onSelect,
   onCreateNew,
+  onImport,
   selectedId,
 }: FragmentListProps) {
   const [search, setSearch] = useState('')
@@ -181,9 +183,16 @@ export function FragmentList({
               </button>
             ))}
           </div>
-          <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'create-button')}>
-            <Plus className="size-3.5" />
-          </Button>
+          <div className="flex gap-0.5">
+            {onImport && (
+              <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onImport} title="Import fragment" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'import-button')}>
+                <FileDown className="size-3.5" />
+              </Button>
+            )}
+            <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'create-button')}>
+              <Plus className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 

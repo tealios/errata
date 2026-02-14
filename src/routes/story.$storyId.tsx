@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { api, type Fragment } from '@/lib/api'
 import type { FragmentPrefill } from '@/components/fragments/FragmentEditor'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySid
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
 import { getPluginPanel } from '@/lib/plugin-panels'
 import { componentId } from '@/lib/dom-ids'
+import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
+import { parseFragmentClipboard, type FragmentClipboardData } from '@/lib/fragment-clipboard'
 import '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
@@ -30,6 +32,8 @@ function StoryEditorPage() {
   const [showWizard, setShowWizard] = useState<boolean | null>(null)
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
   const [showProviders, setShowProviders] = useState(false)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [importInitialData, setImportInitialData] = useState<FragmentClipboardData | null>(null)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -92,6 +96,33 @@ function StoryEditorPage() {
     setEditorMode('view')
   }
 
+  const handleOpenImport = useCallback(() => {
+    setImportInitialData(null)
+    setShowImportDialog(true)
+  }, [])
+
+  // Listen for paste events — if a fragment is on clipboard, offer to import
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't intercept paste inside inputs/textareas/contenteditable
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      const text = e.clipboardData?.getData('text/plain')
+      if (!text) return
+
+      const parsed = parseFragmentClipboard(text)
+      if (parsed) {
+        e.preventDefault()
+        setImportInitialData(parsed)
+        setShowImportDialog(true)
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -134,6 +165,7 @@ function StoryEditorPage() {
         selectedFragmentId={selectedFragment?.id}
         onManageProviders={() => setShowProviders(true)}
         onLaunchWizard={() => setShowWizard(true)}
+        onImportFragment={handleOpenImport}
       />
 
       {/* Main Content */}
@@ -148,12 +180,12 @@ function StoryEditorPage() {
 
         {/* Overlay panels render on top */}
         {showWizard && (
-          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-story-wizard">
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-story-wizard">
             <StoryWizard storyId={storyId} onComplete={() => setShowWizard(false)} />
           </div>
         )}
         {debugLogId && (
-          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-debug-panel">
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-debug-panel">
             <DebugPanel
               storyId={storyId}
               fragmentId={debugLogId === '__browse__' ? undefined : debugLogId}
@@ -162,12 +194,12 @@ function StoryEditorPage() {
           </div>
         )}
         {showProviders && (
-          <div className="absolute inset-0 z-10 bg-background" data-component-id="overlay-provider-panel">
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-provider-panel">
             <ProviderPanel onClose={() => setShowProviders(false)} />
           </div>
         )}
         {isEditingFragment && (
-          <div className="absolute inset-0 z-10 bg-background" data-component-id={componentId('overlay-fragment-editor', editorMode)}>
+          <div className="absolute inset-0 z-30 bg-background" data-component-id={componentId('overlay-fragment-editor', editorMode)}>
             <FragmentEditor
               storyId={storyId}
               fragment={selectedFragment}
@@ -180,6 +212,13 @@ function StoryEditorPage() {
           </div>
         )}
       </SidebarInset>
+
+      <FragmentImportDialog
+        storyId={storyId}
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        initialData={importInitialData}
+      />
     </SidebarProvider>
   )
 }

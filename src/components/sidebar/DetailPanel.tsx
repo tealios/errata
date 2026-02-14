@@ -23,6 +23,7 @@ interface DetailPanelProps {
   selectedFragmentId?: string
   onManageProviders: () => void
   onLaunchWizard?: () => void
+  onImportFragment?: () => void
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -59,6 +60,7 @@ export function DetailPanel({
   selectedFragmentId,
   onManageProviders,
   onLaunchWizard,
+  onImportFragment,
 }: DetailPanelProps) {
   const open = !!section
   const [mounted, setMounted] = useState(open)
@@ -156,6 +158,7 @@ export function DetailPanel({
               listIdBase={SECTION_LIST_IDS[activeSection] ?? componentId(activeSection, 'sidebar-list')}
               onSelect={onSelectFragment}
               onCreateNew={() => onCreateFragment(SECTION_TO_TYPE[activeSection])}
+              onImport={onImportFragment}
               selectedId={selectedFragmentId}
             />
           )}
