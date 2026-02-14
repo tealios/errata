@@ -255,6 +255,50 @@ describe('context-builder', () => {
     expect(messages[0].role).toBe('user')
   })
 
+  it('includes sticky characters in full', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    const character = makeFragment({
+      id: 'ch-0001',
+      type: 'character',
+      name: 'Elena',
+      description: 'The protagonist',
+      content: 'Elena is a fierce warrior with red hair.',
+      sticky: true,
+    })
+    await createFragment(dataDir, story.id, character)
+
+    const messages = await buildContext(dataDir, story.id, 'Continue')
+    const msg = messages.find((m) => m.role === 'user')
+
+    expect(msg!.content).toContain('Elena is a fierce warrior with red hair.')
+    expect(msg!.content).toContain('## Characters')
+  })
+
+  it('includes non-sticky characters as shortlist only', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    const character = makeFragment({
+      id: 'ch-0002',
+      type: 'character',
+      name: 'Villain',
+      description: 'The antagonist',
+      content: 'The dark lord rules with an iron fist.',
+      sticky: false,
+    })
+    await createFragment(dataDir, story.id, character)
+
+    const messages = await buildContext(dataDir, story.id, 'Continue')
+    const msg = messages.find((m) => m.role === 'user')
+
+    // Shortlist should contain id and description but not full content
+    expect(msg!.content).toContain('ch-0002')
+    expect(msg!.content).toContain('The antagonist')
+    expect(msg!.content).not.toContain('The dark lord rules with an iron fist.')
+  })
+
   it('includes fragment tool availability note in system message', async () => {
     const story = makeStory()
     await createStory(dataDir, story)

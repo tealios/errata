@@ -7,8 +7,10 @@ export interface ContextBuildState {
   proseFragments: Fragment[]
   stickyGuidelines: Fragment[]
   stickyKnowledge: Fragment[]
+  stickyCharacters: Fragment[]
   guidelineShortlist: Fragment[]
   knowledgeShortlist: Fragment[]
+  characterShortlist: Fragment[]
   authorInput: string
 }
 
@@ -38,6 +40,7 @@ export async function buildContextState(
   const allProse = await listFragments(dataDir, storyId, 'prose')
   const allGuidelines = await listFragments(dataDir, storyId, 'guideline')
   const allKnowledge = await listFragments(dataDir, storyId, 'knowledge')
+  const allCharacters = await listFragments(dataDir, storyId, 'character')
 
   // Sort prose by order, then createdAt
   const sortedProse = allProse.sort(
@@ -47,19 +50,23 @@ export async function buildContextState(
   // Take only the last N prose fragments
   const recentProse = sortedProse.slice(-proseLimit)
 
-  // Split guidelines and knowledge into sticky (full) vs shortlist
+  // Split guidelines, knowledge, and characters into sticky (full) vs shortlist
   const stickyGuidelines = allGuidelines.filter((f) => f.sticky)
   const nonStickyGuidelines = allGuidelines.filter((f) => !f.sticky)
   const stickyKnowledge = allKnowledge.filter((f) => f.sticky)
   const nonStickyKnowledge = allKnowledge.filter((f) => !f.sticky)
+  const stickyCharacters = allCharacters.filter((f) => f.sticky)
+  const nonStickyCharacters = allCharacters.filter((f) => !f.sticky)
 
   return {
     story,
     proseFragments: recentProse,
     stickyGuidelines,
     stickyKnowledge,
+    stickyCharacters,
     guidelineShortlist: nonStickyGuidelines,
     knowledgeShortlist: nonStickyKnowledge,
+    characterShortlist: nonStickyCharacters,
     authorInput,
   }
 }
@@ -79,18 +86,28 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     proseFragments,
     stickyGuidelines,
     stickyKnowledge,
+    stickyCharacters,
     guidelineShortlist,
     knowledgeShortlist,
+    characterShortlist,
     authorInput,
   } = state
 
   const systemParts: string[] = []
 
   // Story info
-  systemParts.push(`# Story: ${story.name}`)
+  systemParts.push(`## Story: ${story.name}`)
   systemParts.push(`${story.description}`)
   if (story.summary) {
     systemParts.push(`\n## Story Summary So Far\n${story.summary}`)
+  }
+
+  // Prose chain
+  if (proseFragments.length > 0) {
+    systemParts.push('\n## Recent Prose')
+    for (const p of proseFragments) {
+      systemParts.push(registry.renderContext(p))
+    }
   }
 
   // Sticky guidelines (full content)
@@ -106,6 +123,14 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     systemParts.push('\n## Knowledge')
     for (const k of stickyKnowledge) {
       systemParts.push(registry.renderContext(k))
+    }
+  }
+
+  // Sticky characters (full content)
+  if (stickyCharacters.length > 0) {
+    systemParts.push('\n## Characters')
+    for (const c of stickyCharacters) {
+      systemParts.push(registry.renderContext(c))
     }
   }
 
@@ -125,11 +150,11 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     }
   }
 
-  // Prose chain
-  if (proseFragments.length > 0) {
-    systemParts.push('\n## Recent Prose')
-    for (const p of proseFragments) {
-      systemParts.push(registry.renderContext(p))
+  // Shortlists for non-sticky characters
+  if (characterShortlist.length > 0) {
+    systemParts.push('\n## Available Characters (use getCharacter(id) to retrieve)')
+    for (const c of characterShortlist) {
+      systemParts.push(`- ${c.id}: ${c.name} — ${c.description}`)
     }
   }
 
