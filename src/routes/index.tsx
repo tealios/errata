@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { ErrataLogo } from '@/components/ErrataLogo'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -74,7 +75,7 @@ function StoryListPage() {
       <header className="border-b border-border/50" data-component-id="stories-header">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-8 py-6">
           <div>
-            <h1 className="font-display text-3xl italic tracking-tight">Errata</h1>
+            <h1><ErrataLogo variant="full" size={28} /></h1>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
