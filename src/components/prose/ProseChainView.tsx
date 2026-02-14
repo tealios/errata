@@ -26,8 +26,8 @@ export function ProseChainView({
   )
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
+    <div className="flex flex-col flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0">
         {sorted.length > 0 ? (
           <div className="max-w-prose mx-auto py-6 px-6 space-y-1">
             {sorted.map((fragment, idx) => (
