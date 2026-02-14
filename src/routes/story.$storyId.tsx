@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { FragmentList } from '@/components/fragments/FragmentList'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
+import { GenerationPanel } from '@/components/generation/GenerationPanel'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -26,6 +27,7 @@ function StoryEditorPage() {
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
   const [createType, setCreateType] = useState<string>('prose')
+  const [showGenerate, setShowGenerate] = useState(false)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -40,12 +42,14 @@ function StoryEditorPage() {
   const handleSelectFragment = (fragment: Fragment) => {
     setSelectedFragment(fragment)
     setEditorMode('edit')
+    setShowGenerate(false)
   }
 
   const handleCreateNew = () => {
     setSelectedFragment(null)
     setCreateType(activeTab)
     setEditorMode('create')
+    setShowGenerate(false)
   }
 
   const handleEditorClose = () => {
@@ -71,6 +75,8 @@ function StoryEditorPage() {
       </div>
     )
   }
+
+  const isEditingFragment = editorMode !== 'view' || selectedFragment
 
   return (
     <div className="flex h-screen">
@@ -108,7 +114,7 @@ function StoryEditorPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {editorMode !== 'view' || selectedFragment ? (
+        {isEditingFragment ? (
           <FragmentEditor
             storyId={storyId}
             fragment={selectedFragment}
@@ -117,11 +123,19 @@ function StoryEditorPage() {
             onClose={handleEditorClose}
             onSaved={handleEditorClose}
           />
+        ) : showGenerate ? (
+          <GenerationPanel storyId={storyId} onBack={() => setShowGenerate(false)} />
         ) : (
-          /* Prose reading view */
+          /* Prose reading view with generate button */
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold">Story</h2>
+              <Button
+                size="sm"
+                onClick={() => setShowGenerate(true)}
+              >
+                Generate
+              </Button>
             </div>
             <ScrollArea className="flex-1 p-6">
               {proseFragments && proseFragments.length > 0 ? (
@@ -152,19 +166,28 @@ function StoryEditorPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <p className="text-muted-foreground mb-4">No prose fragments yet.</p>
-                  <Button
-                    onClick={() => {
-                      setActiveTab('prose')
-                      handleCreateNew()
-                    }}
-                  >
-                    Write your first prose
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setActiveTab('prose')
+                        handleCreateNew()
+                      }}
+                    >
+                      Write manually
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowGenerate(true)}
+                    >
+                      Generate with AI
+                    </Button>
+                  </div>
                 </div>
               )}
             </ScrollArea>
           </div>
         )}
+
       </div>
     </div>
   )
