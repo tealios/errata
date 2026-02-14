@@ -12,6 +12,15 @@ import {
   updateFragment,
   deleteFragment,
 } from './fragments/storage'
+import {
+  addTag,
+  removeTag,
+  getAssociations,
+  addRef,
+  removeRef,
+  getRefs,
+  getBackRefs,
+} from './fragments/associations'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
 import { buildContext } from './llm/context-builder'
@@ -193,6 +202,71 @@ export function createApp(dataDir: string = DATA_DIR) {
     .delete('/stories/:storyId/fragments/:fragmentId', async ({ params }) => {
       await deleteFragment(dataDir, params.storyId, params.fragmentId)
       return { ok: true }
+    })
+
+    // --- Tags ---
+    .get('/stories/:storyId/fragments/:fragmentId/tags', async ({ params }) => {
+      const assoc = await getAssociations(dataDir, params.storyId)
+      const tags: string[] = []
+      for (const [tag, ids] of Object.entries(assoc.tagIndex)) {
+        if (ids.includes(params.fragmentId)) {
+          tags.push(tag)
+        }
+      }
+      return { tags }
+    })
+
+    .post('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, body }) => {
+      await addTag(dataDir, params.storyId, params.fragmentId, body.tag)
+      return { ok: true }
+    }, {
+      body: t.Object({ tag: t.String() }),
+    })
+
+    .delete('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, body }) => {
+      await removeTag(dataDir, params.storyId, params.fragmentId, body.tag)
+      return { ok: true }
+    }, {
+      body: t.Object({ tag: t.String() }),
+    })
+
+    // --- Refs ---
+    .get('/stories/:storyId/fragments/:fragmentId/refs', async ({ params }) => {
+      const refs = await getRefs(dataDir, params.storyId, params.fragmentId)
+      const backRefs = await getBackRefs(dataDir, params.storyId, params.fragmentId)
+      return { refs, backRefs }
+    })
+
+    .post('/stories/:storyId/fragments/:fragmentId/refs', async ({ params, body }) => {
+      await addRef(dataDir, params.storyId, params.fragmentId, body.targetId)
+      return { ok: true }
+    }, {
+      body: t.Object({ targetId: t.String() }),
+    })
+
+    .delete('/stories/:storyId/fragments/:fragmentId/refs', async ({ params, body }) => {
+      await removeRef(dataDir, params.storyId, params.fragmentId, body.targetId)
+      return { ok: true }
+    }, {
+      body: t.Object({ targetId: t.String() }),
+    })
+
+    // --- Sticky toggle ---
+    .patch('/stories/:storyId/fragments/:fragmentId/sticky', async ({ params, body, set }) => {
+      const existing = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!existing) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      const updated: Fragment = {
+        ...existing,
+        sticky: body.sticky,
+        updatedAt: new Date().toISOString(),
+      }
+      await updateFragment(dataDir, params.storyId, updated)
+      return { ok: true, sticky: body.sticky }
+    }, {
+      body: t.Object({ sticky: t.Boolean() }),
     })
 
     // --- Fragment types ---

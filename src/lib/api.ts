@@ -110,6 +110,33 @@ export const api = {
       apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'DELETE' }),
     types: (storyId: string) =>
       apiFetch<FragmentTypeInfo[]>(`/stories/${storyId}/fragment-types`),
+    // Tags
+    getTags: (storyId: string, fragmentId: string) =>
+      apiFetch<{ tags: string[] }>(`/stories/${storyId}/fragments/${fragmentId}/tags`),
+    addTag: (storyId: string, fragmentId: string, tag: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}/tags`, {
+        method: 'POST', body: JSON.stringify({ tag }),
+      }),
+    removeTag: (storyId: string, fragmentId: string, tag: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}/tags`, {
+        method: 'DELETE', body: JSON.stringify({ tag }),
+      }),
+    // Refs
+    getRefs: (storyId: string, fragmentId: string) =>
+      apiFetch<{ refs: string[]; backRefs: string[] }>(`/stories/${storyId}/fragments/${fragmentId}/refs`),
+    addRef: (storyId: string, fragmentId: string, targetId: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}/refs`, {
+        method: 'POST', body: JSON.stringify({ targetId }),
+      }),
+    removeRef: (storyId: string, fragmentId: string, targetId: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}/refs`, {
+        method: 'DELETE', body: JSON.stringify({ targetId }),
+      }),
+    // Sticky
+    toggleSticky: (storyId: string, fragmentId: string, sticky: boolean) =>
+      apiFetch<{ ok: boolean; sticky: boolean }>(`/stories/${storyId}/fragments/${fragmentId}/sticky`, {
+        method: 'PATCH', body: JSON.stringify({ sticky }),
+      }),
   },
   generation: {
     /** Stream prose generation (returns ReadableStream of text chunks) */
