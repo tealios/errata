@@ -518,6 +518,21 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
           </div>
         </ScrollArea>
       )}
+
+      {/* Creator */}
+      <div className="px-6 py-3 border-t border-border/30 text-center">
+        <span className="text-[10px] text-muted-foreground/30">
+          built by{' '}
+          <a
+            href="https://github.com/nokusukun/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors underline underline-offset-2"
+          >
+            nokusukun
+          </a>
+        </span>
+      </div>
     </div>
   )
 }
