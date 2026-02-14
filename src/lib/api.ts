@@ -51,6 +51,39 @@ export interface FragmentTypeInfo {
   stickyByDefault: boolean
 }
 
+/**
+ * Calls the generate endpoint and returns a ReadableStream of text chunks.
+ */
+async function fetchStream(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ReadableStream<string>> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? `API error: ${res.status}`)
+  }
+  if (!res.body) {
+    throw new Error('No response body')
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  return new ReadableStream<string>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        controller.close()
+        return
+      }
+      controller.enqueue(decoder.decode(value, { stream: true }))
+    },
+  })
+}
+
 export const api = {
   stories: {
     list: () => apiFetch<StoryMeta[]>('/stories'),
@@ -77,5 +110,13 @@ export const api = {
       apiFetch<{ ok: boolean }>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'DELETE' }),
     types: (storyId: string) =>
       apiFetch<FragmentTypeInfo[]>(`/stories/${storyId}/fragment-types`),
+  },
+  generation: {
+    /** Stream prose generation (returns ReadableStream of text chunks) */
+    stream: (storyId: string, input: string) =>
+      fetchStream(`/stories/${storyId}/generate`, { input, saveResult: false }),
+    /** Generate and save as a new prose fragment */
+    generateAndSave: (storyId: string, input: string) =>
+      fetchStream(`/stories/${storyId}/generate`, { input, saveResult: true }),
   },
 }
