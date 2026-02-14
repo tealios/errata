@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Plus, Trash2 } from 'lucide-react'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -46,83 +46,125 @@ function StoryListPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto flex items-center justify-between px-6 py-4">
-          <h1 className="text-2xl font-bold tracking-tight">Errata</h1>
+      {/* Header */}
+      <header className="border-b border-border/50">
+        <div className="max-w-4xl mx-auto flex items-center justify-between px-8 py-6">
+          <div>
+            <h1 className="font-display text-3xl italic tracking-tight">Errata</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Your stories, refined.</p>
+          </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button>New Story</Button>
+              <Button size="sm" className="gap-1.5">
+                <Plus className="size-3.5" />
+                New Story
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create New Story</DialogTitle>
+                <DialogTitle className="font-display text-xl">Create a new story</DialogTitle>
               </DialogHeader>
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
                   createMutation.mutate({ name, description })
                 }}
-                className="space-y-4"
+                className="space-y-4 mt-2"
               >
-                <Input
-                  placeholder="Story name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-                <Textarea
-                  placeholder="Description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                />
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating...' : 'Create'}
-                </Button>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Title</label>
+                  <Input
+                    placeholder="Untitled Story"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="font-display text-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Description</label>
+                  <Textarea
+                    placeholder="A brief description of your story..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="resize-none min-h-[80px]"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? 'Creating...' : 'Create'}
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
-        {isLoading && <p className="text-muted-foreground">Loading stories...</p>}
+      {/* Content */}
+      <main className="max-w-4xl mx-auto px-8 py-10">
+        {isLoading && (
+          <p className="text-muted-foreground text-sm">Loading stories...</p>
+        )}
+
         {stories && stories.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-lg text-muted-foreground mb-4">No stories yet.</p>
-            <Button onClick={() => setOpen(true)}>Create your first story</Button>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="font-display text-2xl italic text-muted-foreground/60 mb-2">
+              Begin something new.
+            </p>
+            <p className="text-sm text-muted-foreground mb-8 max-w-xs">
+              Every great story starts with a blank page. Create your first story to get started.
+            </p>
+            <Button onClick={() => setOpen(true)} className="gap-1.5">
+              <Plus className="size-3.5" />
+              Create your first story
+            </Button>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        <div className="space-y-2">
           {stories?.map((story) => (
-            <Card key={story.id} className="group relative">
-              <Link
-                to="/story/$storyId"
-                params={{ storyId: story.id }}
-                className="block"
-              >
-                <CardHeader>
-                  <CardTitle className="text-lg">{story.name}</CardTitle>
-                  <CardDescription>{story.description}</CardDescription>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Updated {new Date(story.updatedAt).toLocaleDateString()}
+            <Link
+              key={story.id}
+              to="/story/$storyId"
+              params={{ storyId: story.id }}
+              className="group block"
+            >
+              <div className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150">
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-display text-lg leading-tight group-hover:text-primary transition-colors">
+                    {story.name}
+                  </h2>
+                  {story.description && (
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {story.description}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground/60 mt-2">
+                    {new Date(story.updatedAt).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
                   </p>
-                </CardHeader>
-              </Link>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-destructive"
-                onClick={(e) => {
-                  e.preventDefault()
-                  if (confirm(`Delete "${story.name}"?`)) {
-                    deleteMutation.mutate(story.id)
-                  }
-                }}
-              >
-                Delete
-              </Button>
-            </Card>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 ml-4"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (confirm(`Delete "${story.name}"?`)) {
+                      deleteMutation.mutate(story.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            </Link>
           ))}
         </div>
       </main>

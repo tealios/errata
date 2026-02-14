@@ -1,6 +1,7 @@
-import { getStory, listFragments } from '../fragments/storage'
+import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
+import { getActiveProseIds } from '../fragments/prose-chain'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 
 export interface ContextBuildState {
@@ -44,20 +45,40 @@ export async function buildContextState(
 
   // Load all fragments by type
   requestLogger.debug('Loading fragments by type...')
-  const allProse = await listFragments(dataDir, storyId, 'prose')
   const allGuidelines = await listFragments(dataDir, storyId, 'guideline')
   const allKnowledge = await listFragments(dataDir, storyId, 'knowledge')
   const allCharacters = await listFragments(dataDir, storyId, 'character')
 
+  // Load prose from chain - get active prose fragment IDs
+  // If no chain exists (empty array), fall back to listing all prose fragments
+  let activeProseIds = await getActiveProseIds(dataDir, storyId)
+  let proseFragments: Fragment[] = []
+
+  if (activeProseIds.length === 0) {
+    requestLogger.debug('No prose chain found, falling back to listing all prose')
+    proseFragments = await listFragments(dataDir, storyId, 'prose')
+  } else {
+    requestLogger.debug('Prose chain loaded', { activeProseCount: activeProseIds.length })
+    // Load the actual prose fragments from chain
+    for (const proseId of activeProseIds) {
+      const fragment = await getFragment(dataDir, storyId, proseId)
+      if (fragment) {
+        proseFragments.push(fragment)
+      } else {
+        requestLogger.warn('Prose fragment not found in chain', { proseId })
+      }
+    }
+  }
+
   requestLogger.debug('Fragments loaded', {
-    proseCount: allProse.length,
+    proseCount: proseFragments.length,
     guidelineCount: allGuidelines.length,
     knowledgeCount: allKnowledge.length,
     characterCount: allCharacters.length,
   })
 
   // Sort prose by order, then createdAt
-  const sortedProse = allProse.sort(
+  const sortedProse = proseFragments.sort(
     (a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt),
   )
 

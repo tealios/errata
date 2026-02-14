@@ -101,6 +101,21 @@ export interface LibrarianState {
   timeline: Array<{ event: string; fragmentId: string }>
 }
 
+export interface ProseChainEntry {
+  proseFragments: Array<{
+    id: string
+    name: string
+    description: string
+    createdAt: string
+    generationMode?: string
+  }>
+  active: string
+}
+
+export interface ProseChain {
+  entries: ProseChainEntry[]
+}
+
 export interface GenerationLog {
   id: string
   createdAt: string
@@ -252,5 +267,14 @@ export const api = {
       apiFetch<LibrarianAnalysis>(`/stories/${storyId}/librarian/analyses/${id}`),
     acceptSuggestion: (storyId: string, analysisId: string, index: number) =>
       apiFetch<LibrarianAnalysis>(`/stories/${storyId}/librarian/analyses/${analysisId}/suggestions/${index}/accept`, { method: 'POST' }),
+  },
+  proseChain: {
+    get: (storyId: string) =>
+      apiFetch<ProseChain>(`/stories/${storyId}/prose-chain`),
+    switchVariation: (storyId: string, sectionIndex: number, fragmentId: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/prose-chain/${sectionIndex}/switch`, {
+        method: 'POST',
+        body: JSON.stringify({ fragmentId }),
+      }),
   },
 }

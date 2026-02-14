@@ -9,8 +9,15 @@ vi.mock('ai', () => ({
   stepCountIs: vi.fn((n: number) => n),
   streamText: vi.fn(() => {
     const text = 'Generated prose text'
+    // Create a proper ReadableStream for textStream that supports tee()
+    const textStream = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue(text)
+        controller.close()
+      },
+    })
     return {
-      textStream: (async function* () { yield text })(),
+      textStream,
       text: Promise.resolve(text),
       usage: Promise.resolve({ promptTokens: 10, completionTokens: 20, totalTokens: 30 }),
       finishReason: Promise.resolve('stop' as const),
@@ -156,6 +163,9 @@ describe('generation-logs API routes', () => {
       }),
     )
     expect(res.status).toBe(200)
+
+    // Wait for async background save to complete
+    await new Promise((r) => setTimeout(r, 100))
 
     // Check that a generation log was saved
     const logsRes = await app.fetch(

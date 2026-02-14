@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 
 interface SettingsPanelProps {
   storyId: string
@@ -38,14 +37,15 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-5">
       {/* Output Format */}
       <div>
-        <label className="text-xs text-muted-foreground mb-2 block">Output Format</label>
-        <div className="flex gap-2">
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Output Format</label>
+        <div className="flex gap-1.5">
           <Button
             size="sm"
             variant={story.settings.outputFormat === 'plaintext' ? 'default' : 'outline'}
+            className="h-7 text-xs"
             onClick={toggleFormat}
             disabled={updateMutation.isPending}
           >
@@ -54,6 +54,7 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
           <Button
             size="sm"
             variant={story.settings.outputFormat === 'markdown' ? 'default' : 'outline'}
+            className="h-7 text-xs"
             onClick={toggleFormat}
             disabled={updateMutation.isPending}
           >
@@ -62,24 +63,25 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
         </div>
       </div>
 
-      <Separator />
+      <div className="h-px bg-border/30" />
 
       {/* Plugins */}
       <div>
-        <label className="text-xs text-muted-foreground mb-2 block">Plugins</label>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Plugins</label>
         {plugins && plugins.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {plugins.map((plugin) => {
               const isEnabled = story.settings.enabledPlugins.includes(plugin.name)
               return (
                 <div key={plugin.name} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{plugin.name}</p>
-                    <p className="text-xs text-muted-foreground">{plugin.description}</p>
+                    <p className="text-xs text-muted-foreground/50">{plugin.description}</p>
                   </div>
                   <Button
                     size="sm"
                     variant={isEnabled ? 'default' : 'outline'}
+                    className="h-7 text-xs"
                     onClick={() => togglePlugin(plugin.name)}
                     disabled={updateMutation.isPending}
                   >
@@ -90,7 +92,7 @@ export function SettingsPanel({ storyId, story }: SettingsPanelProps) {
             })}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No plugins available</p>
+          <p className="text-xs text-muted-foreground/40 italic">No plugins available</p>
         )}
       </div>
     </div>

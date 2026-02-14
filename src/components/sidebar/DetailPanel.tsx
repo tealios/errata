@@ -23,7 +23,7 @@ const SECTION_TITLES: Record<string, string> = {
   'story-info': 'Story Info',
   characters: 'Characters',
   guidelines: 'Guidelines',
-  knowledge: 'Knowledge Base',
+  knowledge: 'Knowledge',
   settings: 'Settings',
   'agent-activity': 'Agent Activity',
 }
@@ -52,12 +52,12 @@ export function DetailPanel({
     : SECTION_TITLES[section] ?? section
 
   return (
-    <div className="w-[300px] border-r flex flex-col bg-background shrink-0">
+    <div className="w-[300px] border-r border-border/50 flex flex-col bg-background shrink-0">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <Button size="icon" variant="ghost" className="size-6" onClick={onClose}>
-          <X className="size-4" />
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+        <h3 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{title}</h3>
+        <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onClose}>
+          <X className="size-3.5" />
         </Button>
       </div>
 

@@ -39,22 +39,22 @@ export function StoryInfoPanel({ storyId, story }: StoryInfoPanelProps) {
     return (
       <div className="p-4 space-y-4">
         <div>
-          <label className="text-xs text-muted-foreground">Name</label>
-          <p className="text-sm font-medium">{story.name}</p>
+          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Name</label>
+          <p className="text-sm font-display mt-0.5">{story.name}</p>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground">Description</label>
-          <p className="text-sm">{story.description || <span className="text-muted-foreground italic">No description</span>}</p>
+          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Description</label>
+          <p className="text-sm mt-0.5">{story.description || <span className="text-muted-foreground/40 italic">No description</span>}</p>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground">Summary</label>
-          <p className="text-sm whitespace-pre-wrap">{story.summary || <span className="text-muted-foreground italic">No summary yet</span>}</p>
+          <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Summary</label>
+          <p className="text-sm whitespace-pre-wrap mt-0.5">{story.summary || <span className="text-muted-foreground/40 italic">No summary yet</span>}</p>
         </div>
-        <div className="flex gap-2 text-xs text-muted-foreground">
-          <span>Created: {new Date(story.createdAt).toLocaleDateString()}</span>
-          <span>Updated: {new Date(story.updatedAt).toLocaleDateString()}</span>
+        <div className="flex gap-3 text-[10px] text-muted-foreground/40">
+          <span>Created {new Date(story.createdAt).toLocaleDateString()}</span>
+          <span>Updated {new Date(story.updatedAt).toLocaleDateString()}</span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(true)}>
           Edit
         </Button>
       </div>
@@ -64,22 +64,22 @@ export function StoryInfoPanel({ storyId, story }: StoryInfoPanelProps) {
   return (
     <div className="p-4 space-y-3">
       <div>
-        <label className="text-xs text-muted-foreground mb-1 block">Name</label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1.5 block">Name</label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-transparent" />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1.5 block">Description</label>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="min-h-[80px] resize-none text-sm"
+          className="min-h-[80px] resize-none text-sm bg-transparent"
         />
       </div>
-      <div className="flex gap-2">
-        <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+      <div className="flex gap-1.5">
+        <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={updateMutation.isPending}>
           {updateMutation.isPending ? 'Saving...' : 'Save'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={handleCancel}>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancel}>
           Cancel
         </Button>
       </div>

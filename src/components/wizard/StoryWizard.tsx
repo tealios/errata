@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 
 interface StoryWizardProps {
   storyId: string
@@ -32,8 +31,9 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
   const createMutation = useMutation({
     mutationFn: (data: { type: string; name: string; description: string; content: string }) =>
       api.fragments.create(storyId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
     },
   })
 
@@ -70,56 +70,58 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header with step indicator */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Story Setup</h2>
-          <Button variant="ghost" size="sm" onClick={onComplete}>
+      <div className="px-6 py-5 border-b border-border/50">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-xl italic">Story Setup</h2>
+          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground/50" onClick={onComplete}>
             Skip wizard
           </Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           {STEPS.map((s, i) => (
-            <Badge
+            <div
               key={s.key}
-              variant={i === step ? 'default' : i < step ? 'secondary' : 'outline'}
-              className="text-xs"
-            >
-              {i + 1}. {s.label}
-            </Badge>
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                i === step ? 'bg-primary' : i < step ? 'bg-primary/40' : 'bg-border/50'
+              }`}
+            />
           ))}
         </div>
+        <p className="text-xs text-muted-foreground/50 mt-2">
+          Step {step + 1} of {STEPS.length}
+        </p>
       </div>
 
       {/* Step content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto px-6 py-8">
         <div className="max-w-lg mx-auto space-y-6">
           <div>
-            <h3 className="text-base font-semibold">{current.label}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{current.description}</p>
+            <h3 className="font-display text-lg">{current.label}</h3>
+            <p className="text-sm text-muted-foreground/70 mt-1">{current.description}</p>
           </div>
 
           {/* Previously added entries for this step */}
           {entries.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-sm font-medium">Added:</span>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Added:</span>
               {entries.map((entry, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm bg-muted rounded-md px-3 py-2">
+                <div key={i} className="flex items-center gap-2 text-sm bg-card/50 rounded-md px-3 py-2">
                   <Badge variant="outline" className="text-[10px] shrink-0">{current.type}</Badge>
-                  <span className="font-medium">{entry.name}</span>
-                  <span className="text-muted-foreground truncate">{entry.description}</span>
+                  <span className="font-medium truncate">{entry.name}</span>
                 </div>
               ))}
-              <Separator />
+              <div className="h-px bg-border/30 mt-3" />
             </div>
           )}
 
           {/* Add form */}
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium mb-1 block">Name</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Name</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                className="bg-transparent"
                 placeholder={
                   current.type === 'guideline' ? 'e.g. Writing Style' :
                   current.type === 'character' ? 'e.g. Alice' :
@@ -129,22 +131,23 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">
-                Description <span className="text-muted-foreground">(max 50 chars)</span>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">
+                Description <span className="normal-case tracking-normal text-muted-foreground/50">(max 50 chars)</span>
               </label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={50}
+                className="bg-transparent"
                 placeholder="Brief description for context lists"
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Content</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Content</label>
               <Textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="min-h-[150px] font-mono text-sm"
+                className="min-h-[150px] font-mono text-sm bg-transparent"
                 placeholder={
                   current.type === 'guideline' ? 'Write in a dark, atmospheric tone...' :
                   current.type === 'character' ? 'Alice is a 28-year-old detective who...' :
@@ -155,6 +158,7 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
             </div>
             <Button
               onClick={handleAdd}
+              size="sm"
               disabled={!name.trim() || !content.trim() || createMutation.isPending}
             >
               {createMutation.isPending ? 'Adding...' : `Add ${current.label.replace(/s$/, '')}`}
@@ -164,14 +168,16 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
       </div>
 
       {/* Footer navigation */}
-      <div className="flex items-center justify-between p-4 border-t">
-        <div className="text-sm text-muted-foreground">
-          Step {step + 1} of {STEPS.length}
+      <div className="flex items-center justify-between px-6 py-4 border-t border-border/50">
+        <div className="text-xs text-muted-foreground/40">
+          {current.label}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           {step > 0 && (
             <Button
               variant="ghost"
+              size="sm"
+              className="text-xs"
               onClick={() => {
                 setEntries([])
                 setName('')
@@ -183,11 +189,11 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
               Back
             </Button>
           )}
-          <Button variant="outline" onClick={handleSkip}>
+          <Button variant="outline" size="sm" className="text-xs" onClick={handleSkip}>
             {entries.length > 0 ? 'Next' : 'Skip'}
           </Button>
           {step === STEPS.length - 1 && entries.length > 0 && (
-            <Button onClick={onComplete}>
+            <Button size="sm" className="text-xs" onClick={onComplete}>
               Finish
             </Button>
           )}
