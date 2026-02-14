@@ -199,13 +199,13 @@ describe('end-to-end generation integration', () => {
     expect(userMsg.role).toBe('user')
     expect(userMsg.content).toContain('Elena hears danger approaching')
 
-    // Should have tools
+    // Should have read-only tools (no write tools during generation)
     expect(callArgs.tools).toHaveProperty('fragmentGet')
     expect(callArgs.tools).toHaveProperty('fragmentList')
-    expect(callArgs.tools).toHaveProperty('fragmentSet')
-    expect(callArgs.tools).toHaveProperty('fragmentEdit')
-    expect(callArgs.tools).toHaveProperty('fragmentDelete')
     expect(callArgs.tools).toHaveProperty('fragmentTypesList')
+    expect(callArgs.tools).not.toHaveProperty('fragmentSet')
+    expect(callArgs.tools).not.toHaveProperty('fragmentEdit')
+    expect(callArgs.tools).not.toHaveProperty('fragmentDelete')
 
     // Step 8: Verify the generated prose was saved as a fragment
     const proseFragments = await listFragments(dataDir, sid, 'prose')
