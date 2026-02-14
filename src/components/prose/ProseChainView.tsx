@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,8 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { InlineGenerationInput } from '@/components/generation/InlineGenerationInput'
+import { ProseActionInput } from '@/components/prose/ProseActionInput'
+import { RefreshCw, Sparkles, Undo2 } from 'lucide-react'
 
 interface ProseChainViewProps {
   storyId: string
@@ -70,6 +72,16 @@ function ProseBlock({
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [editContent, setEditContent] = useState(fragment.content)
+  const [actionMode, setActionMode] = useState<'regenerate' | 'refine' | null>(null)
+  const [showUndo, setShowUndo] = useState(false)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clean up undo timer on unmount
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    }
+  }, [])
 
   const updateMutation = useMutation({
     mutationFn: (content: string) =>
@@ -84,12 +96,29 @@ function ProseBlock({
     },
   })
 
+  const revertMutation = useMutation({
+    mutationFn: () => api.fragments.revert(storyId, fragment.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      setShowUndo(false)
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    },
+  })
+
   const handleSave = () => {
     if (editContent !== fragment.content) {
       updateMutation.mutate(editContent)
     } else {
       setEditing(false)
     }
+  }
+
+  const handleActionComplete = () => {
+    setActionMode(null)
+    // Show undo button for 10 seconds
+    setShowUndo(true)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
   }
 
   if (editing) {
@@ -179,8 +208,58 @@ function ProseBlock({
               AI
             </Badge>
           )}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-5 w-5"
+            title="Regenerate"
+            onClick={(e) => {
+              e.stopPropagation()
+              setActionMode('regenerate')
+            }}
+          >
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-5 w-5"
+            title="Refine"
+            onClick={(e) => {
+              e.stopPropagation()
+              setActionMode('refine')
+            }}
+          >
+            <Sparkles className="h-3 w-3" />
+          </Button>
         </div>
       </button>
+
+      {showUndo && (
+        <div className="flex items-center gap-2 mt-1 ml-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-xs gap-1"
+            onClick={() => revertMutation.mutate()}
+            disabled={revertMutation.isPending}
+          >
+            <Undo2 className="h-3 w-3" />
+            {revertMutation.isPending ? 'Reverting...' : 'Undo'}
+          </Button>
+        </div>
+      )}
+
+      {actionMode && (
+        <ProseActionInput
+          storyId={storyId}
+          fragmentId={fragment.id}
+          mode={actionMode}
+          onComplete={handleActionComplete}
+          onCancel={() => setActionMode(null)}
+        />
+      )}
+
       <Separator className="mt-4" />
     </div>
   )

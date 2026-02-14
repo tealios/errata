@@ -46,6 +46,7 @@ import {
   getState as getLibrarianState,
   listAnalyses as listLibrarianAnalyses,
   getAnalysis as getLibrarianAnalysis,
+  saveAnalysis as saveLibrarianAnalysis,
 } from './librarian/storage'
 import type { StoryMeta, Fragment } from './fragments/schema'
 
@@ -361,6 +362,49 @@ export function createApp(dataDir: string = DATA_DIR) {
       return analysis
     })
 
+    .post('/stories/:storyId/librarian/analyses/:analysisId/suggestions/:index/accept', async ({ params, set }) => {
+      const analysis = await getLibrarianAnalysis(dataDir, params.storyId, params.analysisId)
+      if (!analysis) {
+        set.status = 404
+        return { error: 'Analysis not found' }
+      }
+      const index = parseInt(params.index, 10)
+      if (isNaN(index) || index < 0 || index >= analysis.knowledgeSuggestions.length) {
+        set.status = 422
+        return { error: 'Invalid suggestion index' }
+      }
+      analysis.knowledgeSuggestions[index].accepted = true
+      await saveLibrarianAnalysis(dataDir, params.storyId, analysis)
+      return analysis
+    })
+
+    // --- Fragment Revert ---
+    .post('/stories/:storyId/fragments/:fragmentId/revert', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      const fragment = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!fragment) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+      const previousContent = fragment.meta?.previousContent
+      if (typeof previousContent !== 'string') {
+        set.status = 422
+        return { error: 'No previous content to revert to' }
+      }
+      const updated: Fragment = {
+        ...fragment,
+        content: previousContent,
+        meta: { ...fragment.meta, previousContent: undefined },
+        updatedAt: new Date().toISOString(),
+      }
+      await updateFragment(dataDir, params.storyId, updated)
+      return updated
+    })
+
     // --- Generation ---
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -374,6 +418,28 @@ export function createApp(dataDir: string = DATA_DIR) {
         return { error: 'Input is required' }
       }
 
+      const mode = body.mode ?? 'generate'
+
+      // Validate fragmentId for regenerate/refine
+      let existingFragment: Fragment | null = null
+      if (mode === 'regenerate' || mode === 'refine') {
+        if (!body.fragmentId) {
+          set.status = 422
+          return { error: 'fragmentId is required for regenerate/refine modes' }
+        }
+        existingFragment = await getFragment(dataDir, params.storyId, body.fragmentId)
+        if (!existingFragment) {
+          set.status = 404
+          return { error: 'Fragment not found' }
+        }
+      }
+
+      // Compose prompt based on mode
+      let effectiveInput = body.input
+      if (mode === 'refine' && existingFragment) {
+        effectiveInput = `Here is an existing prose passage (fragment ${existingFragment.id}):\n---\n${existingFragment.content}\n---\nRefine this passage: ${body.input}\nOutput only the rewritten prose.`
+      }
+
       const startTime = Date.now()
 
       // Get enabled plugins
@@ -382,7 +448,7 @@ export function createApp(dataDir: string = DATA_DIR) {
       )
 
       // Build context with plugin hooks
-      let ctxState = await buildContextState(dataDir, params.storyId, body.input)
+      let ctxState = await buildContextState(dataDir, params.storyId, effectiveInput)
       ctxState = await runBeforeContext(enabledPlugins, ctxState)
 
       // Merge fragment tools + plugin tools
@@ -407,7 +473,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         stopWhen: stepCountIs(10),
       })
 
-      // If saveResult is true, consume the text and save as a new prose fragment
+      // If saveResult is true, consume the text and save
       if (body.saveResult) {
         const text = await result.text
         const durationMs = Date.now() - startTime
@@ -433,33 +499,60 @@ export function createApp(dataDir: string = DATA_DIR) {
         // Run afterGeneration hooks
         let genResult = await runAfterGeneration(enabledPlugins, {
           text,
-          fragmentId: null,
+          fragmentId: (mode === 'regenerate' || mode === 'refine') ? body.fragmentId! : null,
           toolCalls,
         })
 
         const now = new Date().toISOString()
-        const id = generateFragmentId('prose')
-        const fragment: Fragment = {
-          id,
-          type: 'prose',
-          name: `Generated ${new Date().toLocaleDateString()}`,
-          description: body.input.slice(0, 50),
-          content: genResult.text,
-          tags: [],
-          refs: [],
-          sticky: false,
-          createdAt: now,
-          updatedAt: now,
-          order: 0,
-          meta: { generatedFrom: body.input },
+        let savedFragmentId: string
+
+        if ((mode === 'regenerate' || mode === 'refine') && existingFragment) {
+          // Update existing fragment in-place
+          const updated: Fragment = {
+            ...existingFragment,
+            content: genResult.text,
+            updatedAt: now,
+            meta: {
+              ...existingFragment.meta,
+              generatedFrom: body.input,
+              generationMode: mode,
+              previousContent: existingFragment.content,
+            },
+          }
+          await updateFragment(dataDir, params.storyId, updated)
+          savedFragmentId = existingFragment.id
+
+          // Run afterSave hooks
+          await runAfterSave(enabledPlugins, updated, params.storyId)
+
+          // Trigger librarian analysis (fire-and-forget)
+          triggerLibrarian(dataDir, params.storyId, updated)
+        } else {
+          // Create new fragment (default generate mode)
+          const id = generateFragmentId('prose')
+          const fragment: Fragment = {
+            id,
+            type: 'prose',
+            name: `Generated ${new Date().toLocaleDateString()}`,
+            description: body.input.slice(0, 50),
+            content: genResult.text,
+            tags: [],
+            refs: [],
+            sticky: false,
+            createdAt: now,
+            updatedAt: now,
+            order: 0,
+            meta: { generatedFrom: body.input },
+          }
+          await createFragment(dataDir, params.storyId, fragment)
+          savedFragmentId = id
+
+          // Run afterSave hooks
+          await runAfterSave(enabledPlugins, fragment, params.storyId)
+
+          // Trigger librarian analysis (fire-and-forget)
+          triggerLibrarian(dataDir, params.storyId, fragment)
         }
-        await createFragment(dataDir, params.storyId, fragment)
-
-        // Run afterSave hooks
-        await runAfterSave(enabledPlugins, fragment, params.storyId)
-
-        // Trigger librarian analysis (fire-and-forget)
-        triggerLibrarian(dataDir, params.storyId, fragment)
 
         // Capture finish reason and step count
         const finishReason = await result.finishReason ?? 'unknown'
@@ -478,7 +571,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           })),
           toolCalls,
           generatedText: genResult.text,
-          fragmentId: id,
+          fragmentId: savedFragmentId,
           model: 'deepseek-chat',
           durationMs,
           stepCount,
@@ -498,6 +591,8 @@ export function createApp(dataDir: string = DATA_DIR) {
       body: t.Object({
         input: t.String(),
         saveResult: t.Optional(t.Boolean()),
+        mode: t.Optional(t.Union([t.Literal('generate'), t.Literal('regenerate'), t.Literal('refine')])),
+        fragmentId: t.Optional(t.String()),
       }),
     })
 

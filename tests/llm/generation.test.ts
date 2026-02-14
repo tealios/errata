@@ -3,6 +3,7 @@ import { createTempDir } from '../setup'
 import {
   createStory,
   createFragment,
+  getFragment,
   listFragments,
 } from '@/server/fragments/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
@@ -217,5 +218,173 @@ describe('generation endpoint', () => {
     })
 
     expect(res.status).toBe(422)
+  })
+
+  // --- Regenerate mode ---
+
+  it('regenerate mode replaces fragment content and stores previousContent', async () => {
+    const original = makeFragment({
+      id: 'pr-regen',
+      content: 'Original prose content.',
+    })
+    await createFragment(dataDir, storyId, original)
+
+    mockedStreamText.mockReturnValue(
+      createMockStreamResult('Regenerated prose content.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Take a different direction',
+        saveResult: true,
+        mode: 'regenerate',
+        fragmentId: 'pr-regen',
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    await res.text()
+    await new Promise((r) => setTimeout(r, 100))
+
+    const updated = await getFragment(dataDir, storyId, 'pr-regen')
+    expect(updated).toBeDefined()
+    expect(updated!.content).toBe('Regenerated prose content.')
+    expect(updated!.meta.previousContent).toBe('Original prose content.')
+    expect(updated!.meta.generationMode).toBe('regenerate')
+
+    // Should NOT create a new fragment
+    const fragments = await listFragments(dataDir, storyId, 'prose')
+    expect(fragments.filter((f) => f.id === 'pr-regen').length).toBe(1)
+  })
+
+  // --- Refine mode ---
+
+  it('refine mode includes existing content in prompt and replaces fragment', async () => {
+    const original = makeFragment({
+      id: 'pr-refine',
+      content: 'The hero walked slowly through the forest.',
+    })
+    await createFragment(dataDir, storyId, original)
+
+    mockedStreamText.mockReturnValue(
+      createMockStreamResult('The hero crept through the dark forest.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Make it more suspenseful',
+        saveResult: true,
+        mode: 'refine',
+        fragmentId: 'pr-refine',
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    await res.text()
+    await new Promise((r) => setTimeout(r, 100))
+
+    // Verify the prompt included existing content
+    const callArgs = mockedStreamText.mock.calls[0][0]
+    const userMsg = callArgs.messages!.find((m: any) => m.role === 'user')
+    expect(userMsg!.content).toContain('The hero walked slowly through the forest.')
+    expect(userMsg!.content).toContain('Make it more suspenseful')
+
+    // Verify fragment was updated in-place
+    const updated = await getFragment(dataDir, storyId, 'pr-refine')
+    expect(updated!.content).toBe('The hero crept through the dark forest.')
+    expect(updated!.meta.previousContent).toBe('The hero walked slowly through the forest.')
+    expect(updated!.meta.generationMode).toBe('refine')
+  })
+
+  // --- Validation ---
+
+  it('returns 422 when mode=regenerate but fragmentId is missing', async () => {
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Regenerate this',
+        saveResult: true,
+        mode: 'regenerate',
+      }),
+    })
+
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error).toContain('fragmentId')
+  })
+
+  it('returns 404 when mode=regenerate with nonexistent fragment', async () => {
+    mockedStreamText.mockReturnValue(
+      createMockStreamResult('test') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Regenerate this',
+        saveResult: true,
+        mode: 'regenerate',
+        fragmentId: 'pr-nonexistent',
+      }),
+    })
+
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toContain('Fragment not found')
+  })
+
+  // --- Revert endpoint ---
+
+  it('POST /stories/:storyId/fragments/:fragmentId/revert restores previousContent', async () => {
+    const fragment = makeFragment({
+      id: 'pr-revert',
+      content: 'New content after regenerate.',
+      meta: { previousContent: 'Original content before regenerate.' },
+    })
+    await createFragment(dataDir, storyId, fragment)
+
+    const res = await api(`/stories/${storyId}/fragments/pr-revert/revert`, {
+      method: 'POST',
+    })
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.content).toBe('Original content before regenerate.')
+
+    // Verify on disk
+    const reverted = await getFragment(dataDir, storyId, 'pr-revert')
+    expect(reverted!.content).toBe('Original content before regenerate.')
+    expect(reverted!.meta.previousContent).toBeUndefined()
+  })
+
+  it('POST /stories/:storyId/fragments/:fragmentId/revert returns 422 when no previousContent', async () => {
+    const fragment = makeFragment({
+      id: 'pr-norevert',
+      content: 'Some content.',
+      meta: {},
+    })
+    await createFragment(dataDir, storyId, fragment)
+
+    const res = await api(`/stories/${storyId}/fragments/pr-norevert/revert`, {
+      method: 'POST',
+    })
+
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error).toContain('No previous content')
+  })
+
+  it('POST /stories/:storyId/fragments/:fragmentId/revert returns 404 for nonexistent fragment', async () => {
+    const res = await api(`/stories/${storyId}/fragments/pr-ghost/revert`, {
+      method: 'POST',
+    })
+
+    expect(res.status).toBe(404)
   })
 })

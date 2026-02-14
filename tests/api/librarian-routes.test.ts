@@ -165,4 +165,69 @@ describe('librarian API routes', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  describe('POST /stories/:storyId/librarian/analyses/:analysisId/suggestions/:index/accept', () => {
+    it('marks a suggestion as accepted', async () => {
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-accept',
+        knowledgeSuggestions: [
+          { type: 'knowledge', name: 'Dragon Lore', description: 'Dragons breathe fire', content: 'Full details about dragons.' },
+          { type: 'character', name: 'Hero', description: 'Main character', content: 'Hero backstory.' },
+        ],
+      }))
+
+      const res = await app.fetch(
+        new Request(`http://localhost/api/stories/${storyId}/librarian/analyses/analysis-accept/suggestions/0/accept`, {
+          method: 'POST',
+        }),
+      )
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.knowledgeSuggestions[0].accepted).toBe(true)
+      expect(data.knowledgeSuggestions[1].accepted).toBeUndefined()
+    })
+
+    it('returns 404 for non-existent analysis', async () => {
+      const res = await app.fetch(
+        new Request(`http://localhost/api/stories/${storyId}/librarian/analyses/nonexistent/suggestions/0/accept`, {
+          method: 'POST',
+        }),
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 422 for invalid suggestion index', async () => {
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-badidx',
+        knowledgeSuggestions: [
+          { type: 'knowledge', name: 'Test', description: 'Test', content: 'Test' },
+        ],
+      }))
+
+      const res = await app.fetch(
+        new Request(`http://localhost/api/stories/${storyId}/librarian/analyses/analysis-badidx/suggestions/5/accept`, {
+          method: 'POST',
+        }),
+      )
+      expect(res.status).toBe(422)
+      const data = await res.json()
+      expect(data.error).toContain('Invalid suggestion index')
+    })
+
+    it('returns 422 for negative index', async () => {
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-negidx',
+        knowledgeSuggestions: [
+          { type: 'knowledge', name: 'Test', description: 'Test', content: 'Test' },
+        ],
+      }))
+
+      const res = await app.fetch(
+        new Request(`http://localhost/api/stories/${storyId}/librarian/analyses/analysis-negidx/suggestions/-1/accept`, {
+          method: 'POST',
+        }),
+      )
+      expect(res.status).toBe(422)
+    })
+  })
 })

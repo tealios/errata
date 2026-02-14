@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   api,
   type LibrarianAnalysis,
@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Plus,
+  Check,
 } from 'lucide-react'
 
 interface LibrarianPanelProps {
@@ -142,6 +143,7 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
             {analyses?.map((summary) => (
               <AnalysisItem
                 key={summary.id}
+                storyId={storyId}
                 summary={summary}
                 expanded={expandedId === summary.id}
                 analysis={expandedId === summary.id ? expandedAnalysis ?? null : null}
@@ -157,20 +159,40 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
 }
 
 function AnalysisItem({
+  storyId,
   summary,
   expanded,
   analysis,
   onToggle,
   onCreateFragment,
 }: {
+  storyId: string
   summary: LibrarianAnalysisSummary
   expanded: boolean
   analysis: LibrarianAnalysis | null
   onToggle: () => void
   onCreateFragment?: (type: string, prefill?: { name: string; description: string; content: string }) => void
 }) {
+  const queryClient = useQueryClient()
   const date = new Date(summary.createdAt)
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  const acceptMutation = useMutation({
+    mutationFn: (index: number) =>
+      api.librarian.acceptSuggestion(storyId, summary.id, index),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['librarian-analysis', storyId, summary.id] })
+    },
+  })
+
+  const handleAcceptSuggestion = (s: LibrarianAnalysis['knowledgeSuggestions'][number], index: number) => {
+    acceptMutation.mutate(index)
+    onCreateFragment?.(s.type ?? 'knowledge', {
+      name: s.name,
+      description: s.description,
+      content: s.content,
+    })
+  }
 
   return (
     <div className="border rounded-md">
@@ -239,26 +261,35 @@ function AnalysisItem({
             <div className="space-y-1">
               <span className="font-medium text-blue-600">Suggestions:</span>
               {analysis.knowledgeSuggestions.map((s, i) => (
-                <div key={i} className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-1.5 flex items-start justify-between gap-1">
+                <div
+                  key={i}
+                  className={`rounded p-1.5 flex items-start justify-between gap-1 ${
+                    s.accepted
+                      ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 opacity-60'
+                      : 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800'
+                  }`}
+                >
                   <div>
                     <div className="flex items-center gap-1">
                       <Badge variant="outline" className="text-[10px]">{s.type ?? 'knowledge'}</Badge>
                       <p className="font-medium">{s.name}</p>
+                      {s.accepted && (
+                        <Badge variant="secondary" className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                          <Check className="size-2.5 mr-0.5" />
+                          Added
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-muted-foreground">{s.description}</p>
                   </div>
-                  {onCreateFragment && (
+                  {onCreateFragment && !s.accepted && (
                     <Button
                       size="icon"
                       variant="ghost"
                       className="size-5 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation()
-                        onCreateFragment(s.type ?? 'knowledge', {
-                          name: s.name,
-                          description: s.description,
-                          content: s.content,
-                        })
+                        handleAcceptSuggestion(s, i)
                       }}
                     >
                       <Plus className="size-3" />

@@ -19,6 +19,7 @@ export interface LibrarianAnalysis {
     name: string
     description: string
     content: string
+    accepted?: boolean
   }>
   timelineEvents: Array<{
     event: string
