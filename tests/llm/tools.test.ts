@@ -7,6 +7,7 @@ import {
 } from '@/server/fragments/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 import { createFragmentTools } from '@/server/llm/tools'
+import { registry } from '@/server/fragments/registry'
 
 function makeStory(): StoryMeta {
   const now = new Date().toISOString()
@@ -58,22 +59,21 @@ describe('LLM tools', () => {
   })
 
   describe('read-only tools (default)', () => {
-    it('creates type-specific read tools for all built-in types', () => {
+    it('excludes type-specific tools for built-in types with llmTools: false', () => {
       const tools = createFragmentTools(dataDir, storyId)
-      // Per-type get tools
-      expect(tools).toHaveProperty('getProse')
-      expect(tools).toHaveProperty('getCharacter')
-      expect(tools).toHaveProperty('getGuideline')
-      expect(tools).toHaveProperty('getKnowledge')
-      expect(tools).toHaveProperty('getImage')
-      expect(tools).toHaveProperty('getIcon')
-      // Per-type list tools
-      expect(tools).toHaveProperty('listProse')
-      expect(tools).toHaveProperty('listCharacters')
-      expect(tools).toHaveProperty('listGuidelines')
-      expect(tools).toHaveProperty('listKnowledge')
-      expect(tools).toHaveProperty('listImages')
-      expect(tools).toHaveProperty('listIcons')
+      // Built-in types have llmTools: false — no per-type tools generated
+      expect(tools).not.toHaveProperty('getProse')
+      expect(tools).not.toHaveProperty('getCharacter')
+      expect(tools).not.toHaveProperty('getGuideline')
+      expect(tools).not.toHaveProperty('getKnowledge')
+      expect(tools).not.toHaveProperty('getImage')
+      expect(tools).not.toHaveProperty('getIcon')
+      expect(tools).not.toHaveProperty('listProse')
+      expect(tools).not.toHaveProperty('listCharacters')
+      expect(tools).not.toHaveProperty('listGuidelines')
+      expect(tools).not.toHaveProperty('listKnowledge')
+      expect(tools).not.toHaveProperty('listImages')
+      expect(tools).not.toHaveProperty('listIcons')
       // Always present
       expect(tools).toHaveProperty('listFragmentTypes')
     })
@@ -94,11 +94,8 @@ describe('LLM tools', () => {
   })
 
   describe('read-write tools', () => {
-    it('includes both read and write tools when readOnly: false', () => {
+    it('includes write tools when readOnly: false', () => {
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      // Read tools still present
-      expect(tools).toHaveProperty('getCharacter')
-      expect(tools).toHaveProperty('listCharacters')
       expect(tools).toHaveProperty('listFragmentTypes')
       // Write tools present
       expect(tools).toHaveProperty('updateFragment')
@@ -107,47 +104,81 @@ describe('LLM tools', () => {
     })
   })
 
-  describe('getCharacter / getProse (type-specific get)', () => {
-    it('retrieves a character fragment by ID', async () => {
-      const frag = makeFragment({
-        id: 'ch-0001',
-        type: 'character',
-        name: 'Hero',
-        content: 'A brave warrior',
-      })
-      await createFragment(dataDir, storyId, frag)
-
-      const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.getCharacter.execute(
-        { id: 'ch-0001' },
-        { toolCallId: 'tc-1', messages: [] },
-      )
-
-      expect(result.content).toBe('A brave warrior')
-      expect(result.name).toBe('Hero')
+  describe('llmTools registry flag', () => {
+    afterEach(() => {
+      // Clean up test type
+      registry.unregister('testtype')
     })
 
-    it('retrieves a prose fragment by ID', async () => {
+    it('generates tools for types with llmTools: true (or undefined)', () => {
+      registry.register({
+        type: 'testtype',
+        prefix: 'tt',
+        stickyByDefault: false,
+        contextRenderer: (f) => f.content,
+        llmTools: true,
+      })
+      const tools = createFragmentTools(dataDir, storyId)
+      expect(tools).toHaveProperty('getTesttype')
+      expect(tools).toHaveProperty('listTesttypes')
+    })
+
+    it('skips tools for types with llmTools: false', () => {
+      registry.register({
+        type: 'testtype',
+        prefix: 'tt',
+        stickyByDefault: false,
+        contextRenderer: (f) => f.content,
+        llmTools: false,
+      })
+      const tools = createFragmentTools(dataDir, storyId)
+      expect(tools).not.toHaveProperty('getTesttype')
+      expect(tools).not.toHaveProperty('listTesttypes')
+    })
+  })
+
+  describe('type-specific get tool (llmTools: true)', () => {
+    afterEach(() => {
+      registry.unregister('testtype')
+    })
+
+    it('retrieves a fragment by ID via generated get tool', async () => {
+      registry.register({
+        type: 'testtype',
+        prefix: 'tt',
+        stickyByDefault: false,
+        contextRenderer: (f) => f.content,
+        llmTools: true,
+      })
       const frag = makeFragment({
-        id: 'pr-0001',
-        content: 'Hello world',
+        id: 'te-0001',
+        type: 'testtype',
+        name: 'Test Item',
+        content: 'Test content here',
       })
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.getProse.execute(
-        { id: 'pr-0001' },
+      const result = await tools.getTesttype.execute(
+        { id: 'te-0001' },
         { toolCallId: 'tc-1', messages: [] },
       )
 
-      expect(result.content).toBe('Hello world')
-      expect(result.name).toBe('Test')
+      expect(result.content).toBe('Test content here')
+      expect(result.name).toBe('Test Item')
     })
 
     it('returns error for non-existent fragment', async () => {
+      registry.register({
+        type: 'testtype',
+        prefix: 'tt',
+        stickyByDefault: false,
+        contextRenderer: (f) => f.content,
+        llmTools: true,
+      })
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.getCharacter.execute(
-        { id: 'ch-9999' },
+      const result = await tools.getTesttype.execute(
+        { id: 'te-9999' },
         { toolCallId: 'tc-1', messages: [] },
       )
 
@@ -155,48 +186,52 @@ describe('LLM tools', () => {
     })
   })
 
-  describe('listCharacters / listProse (type-specific list)', () => {
+  describe('type-specific list tool (llmTools: true)', () => {
+    afterEach(() => {
+      registry.unregister('testtype')
+    })
+
     it('lists only fragments of the matching type', async () => {
-      const prose1 = makeFragment({
+      registry.register({
+        type: 'testtype',
+        prefix: 'tt',
+        stickyByDefault: false,
+        contextRenderer: (f) => f.content,
+        llmTools: true,
+      })
+      const frag1 = makeFragment({
+        id: 'te-0001',
+        type: 'testtype',
+        name: 'Item 1',
+        description: 'First item',
+      })
+      const frag2 = makeFragment({
+        id: 'te-0002',
+        type: 'testtype',
+        name: 'Item 2',
+        description: 'Second item',
+      })
+      const prose = makeFragment({
         id: 'pr-0001',
         type: 'prose',
         name: 'Chapter 1',
         description: 'Opening chapter',
       })
-      const prose2 = makeFragment({
-        id: 'pr-0002',
-        type: 'prose',
-        name: 'Chapter 2',
-        description: 'Second chapter',
-      })
-      const char = makeFragment({
-        id: 'ch-0001',
-        type: 'character',
-        name: 'Hero',
-        description: 'The protagonist',
-      })
-      await createFragment(dataDir, storyId, prose1)
-      await createFragment(dataDir, storyId, prose2)
-      await createFragment(dataDir, storyId, char)
+      await createFragment(dataDir, storyId, frag1)
+      await createFragment(dataDir, storyId, frag2)
+      await createFragment(dataDir, storyId, prose)
 
       const tools = createFragmentTools(dataDir, storyId)
 
-      const proseResult = await tools.listProse.execute(
+      const result = await tools.listTesttypes.execute(
         {},
         { toolCallId: 'tc-1', messages: [] },
       )
-      expect(proseResult.fragments).toHaveLength(2)
-      expect(proseResult.fragments[0]).toHaveProperty('id')
-      expect(proseResult.fragments[0]).toHaveProperty('name')
-      expect(proseResult.fragments[0]).toHaveProperty('description')
-      expect(proseResult.fragments[0]).not.toHaveProperty('content')
-
-      const charResult = await tools.listCharacters.execute(
-        {},
-        { toolCallId: 'tc-1', messages: [] },
-      )
-      expect(charResult.fragments).toHaveLength(1)
-      expect(charResult.fragments[0].name).toBe('Hero')
+      expect(result.fragments).toHaveLength(2)
+      expect(result.fragments[0]).toHaveProperty('id')
+      expect(result.fragments[0]).toHaveProperty('name')
+      expect(result.fragments[0]).toHaveProperty('description')
+      expect(result.fragments[0]).not.toHaveProperty('content')
     })
   })
 

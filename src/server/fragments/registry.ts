@@ -6,6 +6,8 @@ export interface FragmentTypeDefinition {
   stickyByDefault: boolean
   contextRenderer: (fragment: Fragment) => string
   shortlistFields?: (keyof Fragment)[]
+  /** Whether to generate type-specific LLM tools (get/list) for this type. Defaults to true. */
+  llmTools?: boolean
 }
 
 export class FragmentTypeRegistry {
@@ -62,6 +64,7 @@ export class FragmentTypeRegistry {
       stickyByDefault: false,
       contextRenderer: (f) => f.content,
       shortlistFields: ['id', 'type', 'description'],
+      llmTools: false,
     })
 
     this.register({
@@ -70,6 +73,7 @@ export class FragmentTypeRegistry {
       stickyByDefault: false,
       contextRenderer: (f) =>
         `## ${f.name}\n${f.content}`,
+      llmTools: false,
     })
 
     this.register({
@@ -79,6 +83,7 @@ export class FragmentTypeRegistry {
       contextRenderer: (f) =>
         `**${f.name}**: ${f.content}`,
       shortlistFields: ['id', 'name', 'description'],
+      llmTools: false,
     })
 
     this.register({
@@ -88,6 +93,7 @@ export class FragmentTypeRegistry {
       contextRenderer: (f) =>
         `### ${f.name}\n${f.content}`,
       shortlistFields: ['id', 'name', 'description'],
+      llmTools: false,
     })
 
     this.register({
@@ -97,6 +103,7 @@ export class FragmentTypeRegistry {
       contextRenderer: (f) =>
         `[image:${f.id}] ${f.name} - ${f.description}`,
       shortlistFields: ['id', 'name', 'description'],
+      llmTools: false,
     })
 
     this.register({
@@ -106,6 +113,7 @@ export class FragmentTypeRegistry {
       contextRenderer: (f) =>
         `[icon:${f.id}] ${f.name} - ${f.description}`,
       shortlistFields: ['id', 'name', 'description'],
+      llmTools: false,
     })
   }
 }

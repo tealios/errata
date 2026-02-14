@@ -167,8 +167,10 @@ describe('generation endpoint', () => {
 
     const callArgs = mockedStreamText.mock.calls[0][0]
     expect(callArgs.tools).toBeDefined()
-    expect(callArgs.tools).toHaveProperty('getCharacter')
-    expect(callArgs.tools).toHaveProperty('listCharacters')
+    // Built-in types have llmTools: false, so no type-specific tools
+    expect(callArgs.tools).not.toHaveProperty('getCharacter')
+    expect(callArgs.tools).not.toHaveProperty('listCharacters')
+    // listFragmentTypes is always present
     expect(callArgs.tools).toHaveProperty('listFragmentTypes')
   })
 

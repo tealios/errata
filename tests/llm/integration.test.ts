@@ -197,7 +197,7 @@ describe('end-to-end generation integration', () => {
     expect(sysMsg.role).toBe('system')
     // System message should contain instructions and tool list
     expect(sysMsg.content).toContain('creative writing assistant')
-    expect(sysMsg.content).toContain('getCharacter')
+    expect(sysMsg.content).toContain('listFragmentTypes')
 
     const msg = callArgs.messages![1]
     expect(msg.role).toBe('user')
@@ -208,11 +208,10 @@ describe('end-to-end generation integration', () => {
     // Should contain the author input
     expect(msg.content).toContain('Elena hears danger approaching')
 
-    // Should have type-specific read-only tools (no write tools during generation)
-    expect(callArgs.tools).toHaveProperty('getCharacter')
-    expect(callArgs.tools).toHaveProperty('getProse')
-    expect(callArgs.tools).toHaveProperty('listCharacters')
-    expect(callArgs.tools).toHaveProperty('listProse')
+    // Built-in types have llmTools: false, so no type-specific tools
+    expect(callArgs.tools).not.toHaveProperty('getCharacter')
+    expect(callArgs.tools).not.toHaveProperty('getProse')
+    // listFragmentTypes is always present
     expect(callArgs.tools).toHaveProperty('listFragmentTypes')
     expect(callArgs.tools).not.toHaveProperty('updateFragment')
     expect(callArgs.tools).not.toHaveProperty('editFragment')

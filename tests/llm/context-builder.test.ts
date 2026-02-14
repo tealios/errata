@@ -308,9 +308,10 @@ describe('context-builder', () => {
     const messages = await buildContext(dataDir, story.id, 'Continue')
     const sysMsg = messages.find((m) => m.role === 'system')!
 
-    // System message should list available tools
-    expect(sysMsg.content).toContain('getCharacter')
-    expect(sysMsg.content).toContain('listCharacters')
+    // System message should list available tools (built-in types have llmTools: false)
+    expect(sysMsg.content).not.toContain('getCharacter')
+    expect(sysMsg.content).not.toContain('listCharacters')
+    expect(sysMsg.content).toContain('listFragmentTypes')
     expect(sysMsg.content).toContain('creative writing assistant')
   })
 })

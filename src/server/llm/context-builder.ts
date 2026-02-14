@@ -212,10 +212,11 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
   const systemPlaced = allSticky.filter(f => (f.placement ?? 'user') === 'system')
   const userPlaced = allSticky.filter(f => (f.placement ?? 'user') === 'user')
 
-  // Build tool lines
+  // Build tool lines (only for types with llmTools enabled)
   const toolLines: string[] = []
   const types = registry.listTypes()
   for (const t of types) {
+    if (t.llmTools === false) continue
     const cap = t.type.charAt(0).toUpperCase() + t.type.slice(1)
     const plural = ['prose', 'knowledge'].includes(t.type) ? cap : cap + 's'
     toolLines.push(`- get${cap}(id): Get full content of a ${t.type} fragment`)
@@ -231,19 +232,19 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
   // Shortlists (always go in user message)
   const shortlistParts: string[] = []
   if (guidelineShortlist.length > 0) {
-    shortlistParts.push('\n## Available Guidelines (use getGuideline(id) to retrieve)')
+    shortlistParts.push('\n## Available Guidelines')
     for (const g of guidelineShortlist) {
       shortlistParts.push(`- ${g.id}: ${g.name} — ${g.description}`)
     }
   }
   if (knowledgeShortlist.length > 0) {
-    shortlistParts.push('\n## Available Knowledge (use getKnowledge(id) to retrieve)')
+    shortlistParts.push('\n## Available Knowledge')
     for (const k of knowledgeShortlist) {
       shortlistParts.push(`- ${k.id}: ${k.name} — ${k.description}`)
     }
   }
   if (characterShortlist.length > 0) {
-    shortlistParts.push('\n## Available Characters (use getCharacter(id) to retrieve)')
+    shortlistParts.push('\n## Available Characters')
     for (const c of characterShortlist) {
       shortlistParts.push(`- ${c.id}: ${c.name} — ${c.description}`)
     }
@@ -294,14 +295,6 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     userParts.push(`\n## Story Summary So Far\n${story.summary}`)
   }
 
-  // Prose chain
-  if (proseFragments.length > 0) {
-    userParts.push('\n## Recent Prose')
-    for (const p of proseFragments) {
-      userParts.push(registry.renderContext(p))
-    }
-  }
-
   // User-placed sticky fragments
   if (contextOrderMode === 'advanced') {
     userParts.push(...renderAdvancedOrder(userPlaced, fragmentOrder))
@@ -317,6 +310,15 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
 
   // Shortlists
   userParts.push(...shortlistParts)
+
+  // Prose chain
+  if (proseFragments.length > 0) {
+    userParts.push('\n## Recent Prose')
+    for (const p of proseFragments) {
+      userParts.push(registry.renderContext(p))
+    }
+    userParts.push('\n## End of Recent Prose')
+  }
 
   // Author input
   userParts.push('\nThe author wants the following to happen next: ' + authorInput)

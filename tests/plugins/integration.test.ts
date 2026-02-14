@@ -283,8 +283,8 @@ describe('plugin integration', () => {
 
     const callArgs = mockedStreamText.mock.calls[0][0]
     expect(callArgs.tools).toHaveProperty('customTool')
-    // Built-in tools should still be present
-    expect(callArgs.tools).toHaveProperty('getCharacter')
+    // Built-in tools should still be present (listFragmentTypes is always included)
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
   })
 
   it('no plugin tools when no plugins are enabled', async () => {
@@ -303,7 +303,7 @@ describe('plugin integration', () => {
 
     const callArgs = mockedStreamText.mock.calls[0][0]
     // Should have built-in tools but no plugin tools
-    expect(callArgs.tools).toHaveProperty('getCharacter')
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
     expect(callArgs.tools).not.toHaveProperty('customTool')
   })
 })

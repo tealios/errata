@@ -343,5 +343,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ fragmentId }),
       }),
+    removeSection: (storyId: string, sectionIndex: number) =>
+      apiFetch<{ ok: boolean; archivedFragmentIds: string[] }>(`/stories/${storyId}/prose-chain/${sectionIndex}`, {
+        method: 'DELETE',
+      }),
   },
 }

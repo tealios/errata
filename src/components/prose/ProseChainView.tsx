@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
-import { RefreshCw, Sparkles, Undo2, Loader2, Send, Bug, ChevronsDown, ChevronLeft, ChevronRight, Bot } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, Loader2, Send, Bug, ChevronsDown, ChevronLeft, ChevronRight, Bot, Trash2 } from 'lucide-react'
 import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
@@ -559,6 +559,15 @@ function ProseBlock({
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.proseChain.removeSection(storyId, sectionIndex),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId, 'prose'] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    },
+  })
+
   const variationCount = chainEntry?.proseFragments.length ?? 0
   const variationIndex = chainEntry?.proseFragments.findIndex(f => f.id === chainEntry.active) ?? -1
   const hasMultiple = variationCount > 1
@@ -747,6 +756,23 @@ function ProseBlock({
             >
               <Sparkles className="size-3" />
             </Button>
+            {sectionIndex >= 0 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-6 text-muted-foreground/50 hover:text-destructive"
+                title="Remove passage"
+                disabled={deleteMutation.isPending}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (window.confirm('Remove this passage? It will be archived and can be restored later.')) {
+                    deleteMutation.mutate()
+                  }
+                }}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            )}
             {isLast && (
               <span className="text-[10px] text-muted-foreground/40 ml-1">
                 click to edit

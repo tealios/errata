@@ -48,6 +48,9 @@ export function createFragmentTools(
   const types = registry.listTypes()
 
   for (const typeDef of types) {
+    // Skip types that opt out of LLM tools (content already in context)
+    if (typeDef.llmTools === false) continue
+
     const name = capitalize(typeDef.type) // "Character"
     const plural = pluralize(name) // "Characters" or "Prose"
 

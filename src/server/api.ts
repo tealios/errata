@@ -30,6 +30,7 @@ import {
   findSectionIndex,
   getFullProseChain,
   switchActiveProse,
+  removeProseSection,
 } from './fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
@@ -882,6 +883,38 @@ export function createApp(dataDir: string = DATA_DIR) {
       body: t.Object({
         fragmentId: t.String(),
       }),
+    })
+
+    .delete('/stories/:storyId/prose-chain/:sectionIndex', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const sectionIndex = parseInt(params.sectionIndex, 10)
+      if (isNaN(sectionIndex) || sectionIndex < 0) {
+        set.status = 400
+        return { error: 'Invalid section index' }
+      }
+
+      try {
+        const fragmentIds = await removeProseSection(dataDir, params.storyId, sectionIndex)
+        // Archive all fragments that were in the section
+        const archivedFragmentIds: string[] = []
+        for (const fid of fragmentIds) {
+          try {
+            await archiveFragment(dataDir, params.storyId, fid)
+            archivedFragmentIds.push(fid)
+          } catch {
+            // Fragment may already be archived or deleted
+          }
+        }
+        return { ok: true, archivedFragmentIds }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to remove prose section' }
+      }
     })
 
     // --- Config / Providers ---

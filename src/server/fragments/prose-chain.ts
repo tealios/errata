@@ -157,6 +157,29 @@ export async function getFullProseChain(
 }
 
 /**
+ * Remove a section from the prose chain by index.
+ * Returns the fragment IDs that were in that section.
+ */
+export async function removeProseSection(
+  dataDir: string,
+  storyId: string,
+  sectionIndex: number,
+): Promise<string[]> {
+  const chain = await getProseChain(dataDir, storyId)
+  if (!chain) {
+    throw new Error(`No prose chain found for story ${storyId}`)
+  }
+
+  if (sectionIndex < 0 || sectionIndex >= chain.entries.length) {
+    throw new Error(`Invalid section index ${sectionIndex}`)
+  }
+
+  const removed = chain.entries.splice(sectionIndex, 1)[0]
+  await saveProseChain(dataDir, storyId, chain)
+  return removed.proseFragments
+}
+
+/**
  * Find the section index for a given fragment ID.
  * Returns -1 if not found.
  */
