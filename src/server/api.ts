@@ -859,6 +859,26 @@ export function createApp(dataDir: string = DATA_DIR) {
       return { entries: entriesWithFragments }
     })
 
+    .post('/stories/:storyId/prose-chain', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      try {
+        await addProseSection(dataDir, params.storyId, body.fragmentId)
+        return { ok: true }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to add prose section' }
+      }
+    }, {
+      body: t.Object({
+        fragmentId: t.String(),
+      }),
+    })
+
     .post('/stories/:storyId/prose-chain/:sectionIndex/switch', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
       if (!story) {

@@ -338,6 +338,11 @@ export const api = {
   proseChain: {
     get: (storyId: string) =>
       apiFetch<ProseChain>(`/stories/${storyId}/prose-chain`),
+    addSection: (storyId: string, fragmentId: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/prose-chain`, {
+        method: 'POST',
+        body: JSON.stringify({ fragmentId }),
+      }),
     switchVariation: (storyId: string, sectionIndex: number, fragmentId: string) =>
       apiFetch<{ ok: boolean }>(`/stories/${storyId}/prose-chain/${sectionIndex}/switch`, {
         method: 'POST',

@@ -507,6 +507,8 @@ function ContentStep({
           await api.fragments.setPlacement(storyId, savedId, 'system')
         } else if (step === 'world') {
           await api.fragments.toggleSticky(storyId, savedId, true)
+        } else if (step === 'prose') {
+          await api.proseChain.addSection(storyId, savedId)
         }
       }
 
