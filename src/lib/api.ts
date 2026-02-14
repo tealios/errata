@@ -51,6 +51,28 @@ export interface FragmentTypeInfo {
   stickyByDefault: boolean
 }
 
+export interface GenerationLogSummary {
+  id: string
+  createdAt: string
+  input: string
+  fragmentId: string | null
+  model: string
+  durationMs: number
+  toolCallCount: number
+}
+
+export interface GenerationLog {
+  id: string
+  createdAt: string
+  input: string
+  messages: Array<{ role: string; content: string }>
+  toolCalls: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }>
+  generatedText: string
+  fragmentId: string | null
+  model: string
+  durationMs: number
+}
+
 /**
  * Calls the generate endpoint and returns a ReadableStream of text chunks.
  */
@@ -145,5 +167,11 @@ export const api = {
     /** Generate and save as a new prose fragment */
     generateAndSave: (storyId: string, input: string) =>
       fetchStream(`/stories/${storyId}/generate`, { input, saveResult: true }),
+    /** List generation log summaries (newest first) */
+    listLogs: (storyId: string) =>
+      apiFetch<GenerationLogSummary[]>(`/stories/${storyId}/generation-logs`),
+    /** Get a full generation log by ID */
+    getLog: (storyId: string, logId: string) =>
+      apiFetch<GenerationLog>(`/stories/${storyId}/generation-logs/${logId}`),
   },
 }
