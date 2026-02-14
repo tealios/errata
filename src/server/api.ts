@@ -26,6 +26,13 @@ import { registry } from './fragments/registry'
 import { buildContext } from './llm/context-builder'
 import { createFragmentTools } from './llm/tools'
 import { defaultModel } from './llm/client'
+import {
+  saveGenerationLog,
+  getGenerationLog,
+  listGenerationLogs,
+  type GenerationLog,
+  type ToolCallLog,
+} from './llm/generation-logs'
 import type { StoryMeta, Fragment } from './fragments/schema'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
@@ -278,6 +285,20 @@ export function createApp(dataDir: string = DATA_DIR) {
       }))
     })
 
+    // --- Generation Logs ---
+    .get('/stories/:storyId/generation-logs', async ({ params }) => {
+      return listGenerationLogs(dataDir, params.storyId)
+    })
+
+    .get('/stories/:storyId/generation-logs/:logId', async ({ params, set }) => {
+      const log = await getGenerationLog(dataDir, params.storyId, params.logId)
+      if (!log) {
+        set.status = 404
+        return { error: 'Generation log not found' }
+      }
+      return log
+    })
+
     // --- Generation ---
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -291,6 +312,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         return { error: 'Input is required' }
       }
 
+      const startTime = Date.now()
       const messages = await buildContext(dataDir, params.storyId, body.input)
       const tools = createFragmentTools(dataDir, params.storyId)
 
@@ -304,6 +326,26 @@ export function createApp(dataDir: string = DATA_DIR) {
       // If saveResult is true, consume the text and save as a new prose fragment
       if (body.saveResult) {
         const text = await result.text
+        const durationMs = Date.now() - startTime
+
+        // Extract tool calls from steps
+        const steps = await result.steps
+        const toolCalls: ToolCallLog[] = []
+        if (Array.isArray(steps)) {
+          for (const step of steps) {
+            const stepObj = step as { toolResults?: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> }
+            if (Array.isArray(stepObj.toolResults)) {
+              for (const tr of stepObj.toolResults) {
+                toolCalls.push({
+                  toolName: tr.toolName,
+                  args: tr.args ?? {},
+                  result: tr.result,
+                })
+              }
+            }
+          }
+        }
+
         const now = new Date().toISOString()
         const id = generateFragmentId('prose')
         const fragment: Fragment = {
@@ -322,12 +364,30 @@ export function createApp(dataDir: string = DATA_DIR) {
         }
         await createFragment(dataDir, params.storyId, fragment)
 
+        // Persist generation log
+        const logId = `gen-${Date.now().toString(36)}`
+        const log: GenerationLog = {
+          id: logId,
+          createdAt: now,
+          input: body.input,
+          messages: messages.map((m) => ({
+            role: String(m.role),
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+          })),
+          toolCalls,
+          generatedText: text,
+          fragmentId: id,
+          model: 'deepseek-chat',
+          durationMs,
+        }
+        await saveGenerationLog(dataDir, params.storyId, log)
+
         return new Response(text, {
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         })
       }
 
-      // Stream the response
+      // Stream the response (no log for streaming-only requests)
       return result.toTextStreamResponse()
     }, {
       body: t.Object({
