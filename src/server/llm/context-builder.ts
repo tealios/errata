@@ -104,14 +104,19 @@ export async function buildContext(
     }
   }
 
-  // Tool availability note
+  // Instructions + tool availability note
   systemParts.push(
-    '\n## Available Tools\n' +
+    '\n## Instructions\n' +
+      'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.\n' +
+      'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.\n' +
+      'Only use tools to look up context you need before writing.\n' +
+      '\n## Available Tools\n' +
       'You have access to fragment tools to look up additional context:\n' +
       '- fragmentGet: Retrieve the full content of any fragment by ID\n' +
       '- fragmentList: List all fragments of a given type (returns id, name, description)\n' +
       '- fragmentTypesList: List all available fragment types\n' +
-      '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed.',
+      '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
+      'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.',
   )
 
   const systemContent = systemParts.join('\n')

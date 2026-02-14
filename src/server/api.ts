@@ -24,7 +24,7 @@ import {
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
 import { buildContext } from './llm/context-builder'
-import { createFragmentTools } from './llm/tools'
+import { createFragmentTools, createReadOnlyTools } from './llm/tools'
 import { defaultModel } from './llm/client'
 import {
   saveGenerationLog,
@@ -314,7 +314,7 @@ export function createApp(dataDir: string = DATA_DIR) {
 
       const startTime = Date.now()
       const messages = await buildContext(dataDir, params.storyId, body.input)
-      const tools = createFragmentTools(dataDir, params.storyId)
+      const tools = createReadOnlyTools(dataDir, params.storyId)
 
       const result = streamText({
         model: defaultModel,

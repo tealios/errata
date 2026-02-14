@@ -10,6 +10,19 @@ import { registry } from '../fragments/registry'
 import type { Fragment } from '../fragments/schema'
 
 /**
+ * Creates read-only LLM tools for context lookup during prose generation.
+ * These tools let the LLM look up fragments but not modify them.
+ */
+export function createReadOnlyTools(dataDir: string, storyId: string) {
+  const allTools = createFragmentTools(dataDir, storyId)
+  return {
+    fragmentGet: allTools.fragmentGet,
+    fragmentList: allTools.fragmentList,
+    fragmentTypesList: allTools.fragmentTypesList,
+  }
+}
+
+/**
  * Creates LLM tool definitions for fragment operations.
  * These tools let the LLM look up and modify fragments during generation.
  */
