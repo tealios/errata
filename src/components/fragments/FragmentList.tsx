@@ -271,7 +271,7 @@ export function FragmentList({
 
               <button
                 onClick={() => onSelect(fragment)}
-                className="flex-1 text-left min-w-0"
+                className="flex-grow w-0 text-left overflow-hidden"
                 data-component-id={fragmentComponentId(fragment, 'select')}
               >
                 <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
