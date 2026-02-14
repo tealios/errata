@@ -434,7 +434,7 @@ function InlineGenerationInput({
           placeholder="What happens next..."
           rows={1}
           className="w-full resize-none bg-transparent border-none outline-none px-4 pt-3.5 pb-2 font-prose text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/30 placeholder:italic disabled:opacity-40"
-          style={{ minHeight: '44px', maxHeight: '200px' }}
+          style={{ minHeight: '44px', maxHeight: '200px', overflowY: 'auto', scrollbarWidth: 'none' }}
           disabled={isGenerating}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
