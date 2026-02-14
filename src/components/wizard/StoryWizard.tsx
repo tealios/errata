@@ -703,20 +703,22 @@ function CharactersStep({
 
     const char = characters[editingIndex]
     const charName = editName.trim() || char.concept.split(',')[0].trim() || char.concept
+    const conceptDesc = char.concept.split(',').slice(1).join(',').trim()
+    const fragDescription = (conceptDesc || charName).slice(0, 50)
 
     try {
       let savedId = char.fragmentId
       if (savedId) {
         await api.fragments.update(storyId, savedId, {
           name: charName,
-          description: charName.slice(0, 50),
+          description: fragDescription,
           content: editContent.trim(),
         })
       } else {
         const created = await api.fragments.create(storyId, {
           type: 'character',
           name: charName,
-          description: charName.slice(0, 50),
+          description: fragDescription,
           content: editContent.trim(),
         })
         savedId = created.id
