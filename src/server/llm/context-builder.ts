@@ -24,6 +24,12 @@ export interface ContextMessage {
 const DEFAULT_PROSE_LIMIT = 10
 const logger = createLogger('context-builder')
 
+export interface BuildContextOptions {
+  proseLimit?: number
+  /** Fragment ID to exclude from context (e.g., when regenerating) */
+  excludeFragmentId?: string
+}
+
 /**
  * Loads fragments and builds the intermediate state for context assembly.
  * This is the first step — hooks can modify this state before message assembly.
@@ -32,8 +38,9 @@ export async function buildContextState(
   dataDir: string,
   storyId: string,
   authorInput: string,
-  proseLimit: number = DEFAULT_PROSE_LIMIT,
+  opts: BuildContextOptions = {},
 ): Promise<ContextBuildState> {
+  const { proseLimit = DEFAULT_PROSE_LIMIT, excludeFragmentId } = opts
   const requestLogger = logger.child({ storyId })
   requestLogger.info('Building context state...')
 
@@ -57,10 +64,19 @@ export async function buildContextState(
   if (activeProseIds.length === 0) {
     requestLogger.debug('No prose chain found, falling back to listing all prose')
     proseFragments = await listFragments(dataDir, storyId, 'prose')
+    // Filter out excluded fragment
+    if (excludeFragmentId) {
+      proseFragments = proseFragments.filter(f => f.id !== excludeFragmentId)
+    }
   } else {
     requestLogger.debug('Prose chain loaded', { activeProseCount: activeProseIds.length })
-    // Load the actual prose fragments from chain
+    // Load the actual prose fragments from chain, excluding the specified fragment
     for (const proseId of activeProseIds) {
+      // Skip the excluded fragment
+      if (excludeFragmentId && proseId === excludeFragmentId) {
+        requestLogger.debug('Excluding fragment from context', { excludedId: excludeFragmentId })
+        continue
+      }
       const fragment = await getFragment(dataDir, storyId, proseId)
       if (fragment) {
         proseFragments.push(fragment)
@@ -259,8 +275,8 @@ export async function buildContext(
   dataDir: string,
   storyId: string,
   authorInput: string,
-  proseLimit: number = DEFAULT_PROSE_LIMIT,
+  opts: BuildContextOptions = {},
 ): Promise<ContextMessage[]> {
-  const state = await buildContextState(dataDir, storyId, authorInput, proseLimit)
+  const state = await buildContextState(dataDir, storyId, authorInput, opts)
   return assembleMessages(state)
 }

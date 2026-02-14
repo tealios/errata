@@ -225,6 +225,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         name: body.name,
         description: body.description,
         content: body.content,
+        ...(body.sticky !== undefined ? { sticky: body.sticky } : {}),
         updatedAt: new Date().toISOString(),
       }
       await updateFragment(dataDir, params.storyId, updated)
@@ -234,6 +235,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         name: t.String(),
         description: t.String(),
         content: t.String(),
+        sticky: t.Optional(t.Boolean()),
       }),
     })
 
@@ -467,8 +469,12 @@ export function createApp(dataDir: string = DATA_DIR) {
       requestLogger.info('Plugins enabled', { pluginCount: enabledPlugins.length, plugins: enabledPlugins.map(p => p.manifest.name) })
 
       // Build context with plugin hooks
+      // When regenerating/refining, exclude the fragment being replaced from context
       requestLogger.info('Building context...')
-      let ctxState = await buildContextState(dataDir, params.storyId, effectiveInput)
+      const buildContextOpts = (mode === 'regenerate' || mode === 'refine') && existingFragment
+        ? { excludeFragmentId: existingFragment.id }
+        : {}
+      let ctxState = await buildContextState(dataDir, params.storyId, effectiveInput, buildContextOpts)
       const contextFragments = {
         proseCount: ctxState.proseFragments.length,
         stickyGuidelines: ctxState.stickyGuidelines.length,

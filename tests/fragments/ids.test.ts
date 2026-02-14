@@ -3,10 +3,10 @@ import { generateFragmentId, PREFIXES } from '@/lib/fragment-ids'
 
 describe('generateFragmentId', () => {
   it('generates IDs with correct prefix for each built-in type', () => {
-    expect(generateFragmentId('prose')).toMatch(/^pr-[a-z0-9]{4}$/)
-    expect(generateFragmentId('character')).toMatch(/^ch-[a-z0-9]{4}$/)
-    expect(generateFragmentId('guideline')).toMatch(/^gl-[a-z0-9]{4}$/)
-    expect(generateFragmentId('knowledge')).toMatch(/^kn-[a-z0-9]{4}$/)
+    expect(generateFragmentId('prose')).toMatch(/^pr-[a-z0-9]{6}$/)
+    expect(generateFragmentId('character')).toMatch(/^ch-[a-z0-9]{6}$/)
+    expect(generateFragmentId('guideline')).toMatch(/^gl-[a-z0-9]{6}$/)
+    expect(generateFragmentId('knowledge')).toMatch(/^kn-[a-z0-9]{6}$/)
   })
 
   it('generates unique IDs', () => {
@@ -14,13 +14,13 @@ describe('generateFragmentId', () => {
     for (let i = 0; i < 100; i++) {
       ids.add(generateFragmentId('prose'))
     }
-    // With 4 chars of base36, collisions in 100 are extremely unlikely
+    // With 6 chars of base36, collisions in 100 are extremely unlikely
     expect(ids.size).toBe(100)
   })
 
-  it('falls back to first 2 chars for unknown types', () => {
+  it('falls back to first 4 chars for unknown types', () => {
     const id = generateFragmentId('custom')
-    expect(id).toMatch(/^cu-[a-z0-9]{4}$/)
+    expect(id).toMatch(/^cust-[a-z0-9]{6}$/)
   })
 })
 

@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus } from 'lucide-react'
+import { Plus, Pin } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -26,10 +26,24 @@ export function FragmentList({
 }: FragmentListProps) {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortMode>('order')
+  const queryClient = useQueryClient()
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type],
     queryFn: () => api.fragments.list(storyId, type),
+  })
+
+  const pinMutation = useMutation({
+    mutationFn: (fragment: Fragment) =>
+      api.fragments.update(storyId, fragment.id, {
+        name: fragment.name,
+        description: fragment.description,
+        content: fragment.content,
+        sticky: !fragment.sticky,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    },
   })
 
   const filtered = useMemo(() => {
@@ -109,30 +123,53 @@ export function FragmentList({
             </p>
           )}
           {filtered.map((fragment) => (
-            <button
+            <div
               key={fragment.id}
-              onClick={() => onSelect(fragment)}
-              className={`w-full text-left rounded-md px-3 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
+              className={`group flex items-start gap-2 rounded-md px-3 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
                 selectedId === fragment.id ? 'bg-accent' : ''
               }`}
             >
-              <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[10px] font-mono text-muted-foreground/40">
-                  {fragment.id}
-                </span>
-                {fragment.sticky && (
-                  <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
-                    pinned
-                  </Badge>
+              <button
+                onClick={() => onSelect(fragment)}
+                className="flex-1 text-left min-w-0"
+              >
+                <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[10px] font-mono text-muted-foreground/40">
+                    {fragment.id}
+                  </span>
+                  {fragment.sticky && (
+                    <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
+                      pinned
+                    </Badge>
+                  )}
+                </div>
+                {fragment.description && (
+                  <p className="text-xs text-muted-foreground/60 truncate mt-0.5">
+                    {fragment.description}
+                  </p>
                 )}
-              </div>
-              {fragment.description && (
-                <p className="text-xs text-muted-foreground/60 truncate mt-0.5">
-                  {fragment.description}
-                </p>
-              )}
-            </button>
+              </button>
+              
+              {/* Pin button - visible on hover or when pinned */}
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`size-6 shrink-0 transition-opacity ${
+                  fragment.sticky 
+                    ? 'opacity-100 text-primary' 
+                    : 'opacity-0 group-hover:opacity-50 hover:opacity-100 hover:text-foreground'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  pinMutation.mutate(fragment)
+                }}
+                disabled={pinMutation.isPending}
+                title={fragment.sticky ? 'Unpin' : 'Pin to context'}
+              >
+                <Pin className={`size-3.5 ${fragment.sticky ? 'fill-current' : ''}`} />
+              </Button>
+            </div>
           ))}
         </div>
       </ScrollArea>

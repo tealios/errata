@@ -199,7 +199,7 @@ export const api = {
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`),
     create: (storyId: string, data: { type: string; name: string; description: string; content: string }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments`, { method: 'POST', body: JSON.stringify(data) }),
-    update: (storyId: string, fragmentId: string, data: { name: string; description: string; content: string }) =>
+    update: (storyId: string, fragmentId: string, data: { name: string; description: string; content: string; sticky?: boolean }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'PUT', body: JSON.stringify(data) }),
     edit: (storyId: string, fragmentId: string, data: { oldText: string; newText: string }) =>
       apiFetch<Fragment>(`/stories/${storyId}/fragments/${fragmentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
