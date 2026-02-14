@@ -10,6 +10,8 @@
     "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.20",
+    "@ai-sdk/react": "^3.0.88",
     "@elysiajs/eden": "^1.4.8",
     "@sinclair/typebox": "^0.34.48",
     "@tailwindcss/vite": "^4.1.18",
@@ -20,6 +22,7 @@
     "@tanstack/react-router-ssr-query": "^1.131.7",
     "@tanstack/react-start": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
+    "ai": "^6.0.86",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "elysia": "^1.4.25",
