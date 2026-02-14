@@ -734,6 +734,8 @@ All API routes are defined in Elysia and mounted at `/api/*`.
 |--------|------------------------------------|--------------------------------------------|
 | POST   | `/api/stories/:sid/generate`       | Generate prose (streaming SSE response)     |
 | GET    | `/api/stories/:sid/librarian/status` | Librarian status for the story            |
+| GET    | `/api/stories/:sid/generation-logs` | List recent generation debug logs          |
+| GET    | `/api/stories/:sid/generation-logs/:logId` | Get a specific generation debug log  |
 
 ### Plugin Routes
 
@@ -787,6 +789,48 @@ Plugins mount under `/api/plugins/<plugin-name>/*`.
 - [x] **Test** → Fragment tagging UI (verify tag operations)
 - [x] **Test** → Fragment association/linking UI (verify ref operations)
 - [x] Sidebar improvements: search, filter by tag, sort
+- [ ] **Test** → Generation debug view (show full prompt + tool calls for each generation)
+
+#### Generation Debug View
+
+A toggleable debug panel that shows exactly what was sent to the LLM and what tool calls it made during prose generation. Essential for understanding and tuning the context assembly.
+
+**Backend changes:**
+- New endpoint: `GET /api/stories/:storyId/generation-logs/:logId` — fetch a stored generation log
+- New endpoint: `GET /api/stories/:storyId/generation-logs` — list recent generation logs
+- On each generation, persist a log entry to `data/stories/<storyId>/generation-logs/<timestamp>.json` containing:
+  ```json
+  {
+    "id": "<timestamp>",
+    "createdAt": "...",
+    "input": "author's input text",
+    "messages": [
+      { "role": "system", "content": "..." },
+      { "role": "user", "content": "..." }
+    ],
+    "toolCalls": [
+      {
+        "toolName": "fragmentGet",
+        "args": { "fragmentId": "ch-a1b2" },
+        "result": { "id": "ch-a1b2", "name": "Alice", "..." : "..." }
+      }
+    ],
+    "generatedText": "The resulting prose...",
+    "fragmentId": "pr-xxxx or null",
+    "model": "deepseek-chat",
+    "durationMs": 1234
+  }
+  ```
+- Capture tool calls from AI SDK's `streamText()` result via `result.toolCalls` / `result.steps` (accumulate during streaming)
+
+**Frontend:**
+- `src/components/generation/DebugPanel.tsx` — collapsible panel showing:
+  - **Prompt tab**: full system message and user message, syntax-highlighted or in a `<pre>` block with sections clearly labeled (story meta, sticky fragments, shortlists, prose chain, tool hints)
+  - **Tool calls tab**: chronological list of tool invocations with expandable args/results
+  - **Stats**: model name, total tokens (if available), duration, fragment ID of saved result
+- Toggle button in `GenerationPanel` header: "Debug" that opens/closes the debug view
+- Also accessible from prose blocks that have `meta.generatedFrom` — clicking the "AI" badge opens the debug log for that generation
+- Each generation log is linked to the resulting prose fragment via `fragmentId`
 
 ### Phase 4: Plugin System
 > Goal: Extensible plugin architecture
