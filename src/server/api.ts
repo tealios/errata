@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { streamText } from 'ai'
 import {
   createStory,
   getStory,
@@ -13,6 +14,9 @@ import {
 } from './fragments/storage'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
+import { buildContext } from './llm/context-builder'
+import { createFragmentTools } from './llm/tools'
+import { defaultModel } from './llm/client'
 import type { StoryMeta, Fragment } from './fragments/schema'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
@@ -198,6 +202,64 @@ export function createApp(dataDir: string = DATA_DIR) {
         prefix: t.prefix,
         stickyByDefault: t.stickyByDefault,
       }))
+    })
+
+    // --- Generation ---
+    .post('/stories/:storyId/generate', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      if (!body.input || body.input.trim() === '') {
+        set.status = 422
+        return { error: 'Input is required' }
+      }
+
+      const messages = await buildContext(dataDir, params.storyId, body.input)
+      const tools = createFragmentTools(dataDir, params.storyId)
+
+      const result = streamText({
+        model: defaultModel,
+        messages,
+        tools,
+        toolChoice: 'auto',
+      })
+
+      // If saveResult is true, consume the text and save as a new prose fragment
+      if (body.saveResult) {
+        const text = await result.text
+        const now = new Date().toISOString()
+        const id = generateFragmentId('prose')
+        const fragment: Fragment = {
+          id,
+          type: 'prose',
+          name: `Generated ${new Date().toLocaleDateString()}`,
+          description: body.input.slice(0, 50),
+          content: text,
+          tags: [],
+          refs: [],
+          sticky: false,
+          createdAt: now,
+          updatedAt: now,
+          order: 0,
+          meta: { generatedFrom: body.input },
+        }
+        await createFragment(dataDir, params.storyId, fragment)
+
+        return new Response(text, {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        })
+      }
+
+      // Stream the response
+      return result.toTextStreamResponse()
+    }, {
+      body: t.Object({
+        input: t.String(),
+        saveResult: t.Optional(t.Boolean()),
+      }),
     })
 }
 
