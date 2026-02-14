@@ -789,7 +789,7 @@ Plugins mount under `/api/plugins/<plugin-name>/*`.
 - [x] **Test** → Fragment tagging UI (verify tag operations)
 - [x] **Test** → Fragment association/linking UI (verify ref operations)
 - [x] Sidebar improvements: search, filter by tag, sort
-- [ ] **Test** → Generation debug view (show full prompt + tool calls for each generation)
+- [x] **Test** → Generation debug view (show full prompt + tool calls for each generation)
 
 #### Generation Debug View
 

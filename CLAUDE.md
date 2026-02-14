@@ -30,7 +30,9 @@ bunx shadcn@latest add <component>   # Add a shadcn/ui component
 - `src/server/llm/client.ts` — DeepSeek provider + default model
 - `src/server/llm/context-builder.ts` — Assembles system+user messages from fragments (sticky in full, non-sticky as shortlists)
 - `src/server/llm/tools.ts` — 6 fragment tools: `fragmentGet`, `fragmentSet`, `fragmentEdit`, `fragmentDelete`, `fragmentList`, `fragmentTypesList`
-- Generation endpoint: `POST /api/stories/:storyId/generate` with `{ input, saveResult }` body
+- Generation endpoint: `POST /api/stories/:storyId/generate` with `{ input, saveResult }` body (auto-persists generation logs when saveResult=true)
+- `src/server/llm/generation-logs.ts` — Generation log storage (save/get/list) at `data/stories/<storyId>/generation-logs/`
+- Debug log endpoints: `GET /api/stories/:storyId/generation-logs` (list summaries) and `GET .../generation-logs/:logId` (full log)
 - AI SDK v6 API: `tool()` uses `inputSchema` (not `parameters`), `streamText()` uses `stopWhen: stepCountIs(N)` (not `maxSteps`), streaming via `toTextStreamResponse()`
 
 **Frontend UI** (Phase 3 complete):
@@ -38,7 +40,8 @@ bunx shadcn@latest add <component>   # Add a shadcn/ui component
 - `src/components/fragments/FragmentEditor.tsx` — Full fragment editor with tags, refs, and sticky toggle
 - `src/components/fragments/FragmentList.tsx` — Sidebar list with search filtering and sort (order/name/newest/oldest)
 - `src/components/wizard/StoryWizard.tsx` — Multi-step creation wizard (Guidelines → Characters → Knowledge → Prose), auto-shows for empty stories
-- `src/components/generation/GenerationPanel.tsx` — Streaming LLM generation UI
+- `src/components/generation/GenerationPanel.tsx` — Streaming LLM generation UI with Debug toggle
+- `src/components/generation/DebugPanel.tsx` — Inspect generation logs: prompt messages, tool calls, output, stats
 
 **Plugin system**: Plugins live in `plugins/<name>/plugin.ts` and implement `WritingPlugin`. They can register fragment types, LLM tools, API routes, and pipeline hooks (`beforeContext`, `beforeGeneration`, `afterGeneration`, `afterSave`). Plugins are enabled per-story.
 
