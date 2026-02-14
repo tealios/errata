@@ -14,3 +14,4 @@ __unconfig*
 todos.json
 data/
 bun.lock
+_data
