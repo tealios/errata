@@ -833,6 +833,12 @@ export function createApp(dataDir: string = DATA_DIR) {
       }
 
       const mode = body.mode ?? 'generate'
+      const modeLabel = mode === 'regenerate'
+        ? 'Regenerate'
+        : mode === 'refine'
+          ? 'Refine'
+          : 'Continuation'
+      const proseFragmentName = `[${modeLabel}] ${body.input.trim()}`.slice(0, 100)
 
       // Validate fragmentId for regenerate/refine
       let existingFragment: Fragment | null = null
@@ -973,7 +979,7 @@ export function createApp(dataDir: string = DATA_DIR) {
               const fragment: Fragment = {
                 id,
                 type: 'prose',
-                name: existingFragment.name,
+                name: proseFragmentName,
                 description: body.input.slice(0, 50),
                 content: genResult.text,
                 tags: [...existingFragment.tags],
@@ -1018,7 +1024,7 @@ export function createApp(dataDir: string = DATA_DIR) {
               const fragment: Fragment = {
                 id,
                 type: 'prose',
-                name: `Generated ${new Date().toLocaleDateString()}`,
+                name: proseFragmentName,
                 description: body.input.slice(0, 50),
                 content: genResult.text,
                 tags: [],

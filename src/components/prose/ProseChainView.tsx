@@ -754,12 +754,45 @@ function ProseBlock({
   const hasMultiple = variationCount > 1
   const canPrev = hasMultiple && variationIndex > 0
   const canNext = hasMultiple && variationIndex < variationCount - 1
+  const generatedFrom = typeof fragment.meta?.generatedFrom === 'string'
+    ? fragment.meta.generatedFrom.trim()
+    : ''
+  const quickRegenerateInput = generatedFrom || fragment.description?.trim() || ''
+  const canQuickRegenerate = !canNext && !!quickRegenerateInput
 
   const switchVariation = (dir: -1 | 1) => {
     if (!chainEntry) return
     const nextIdx = variationIndex + dir
     if (nextIdx < 0 || nextIdx >= variationCount) return
     switchMutation.mutate(chainEntry.proseFragments[nextIdx].id)
+  }
+
+  const handleQuickRegenerate = async () => {
+    if (!canQuickRegenerate || isStreamingAction) return
+
+    setActionMode(null)
+    setIsStreamingAction(true)
+    setStreamedActionText('')
+
+    try {
+      const stream = await api.generation.regenerate(storyId, fragment.id, quickRegenerateInput)
+      const reader = stream.getReader()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += value
+        setStreamedActionText(accumulated)
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      handleActionComplete()
+    } catch {
+      setIsStreamingAction(false)
+      setStreamedActionText('')
+    }
   }
 
   const handleActionComplete = () => {
@@ -853,15 +886,21 @@ function ProseBlock({
             {variationIndex + 1}/{variationCount}
           </span>
           <button
-            onClick={() => switchVariation(1)}
-            disabled={!canNext || switchMutation.isPending}
+            onClick={() => {
+              if (canNext) {
+                switchVariation(1)
+                return
+              }
+              handleQuickRegenerate()
+            }}
+            disabled={(!canNext && !canQuickRegenerate) || switchMutation.isPending || isStreamingAction}
             data-component-id={`prose-${fragment.id}-variation-next`}
             className={`p-0.5 rounded transition-colors ${
-              canNext
+              (canNext || canQuickRegenerate)
                 ? 'text-muted-foreground/40 hover:text-muted-foreground'
                 : 'text-muted-foreground/10 cursor-default'
             }`}
-            title="Next variation"
+            title={canNext ? 'Next variation' : 'Regenerate from last prompt'}
           >
             <ChevronRight className="size-3.5" />
           </button>
