@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
 import { useTheme, useQuickSwitch } from '@/lib/theme'
-import { Button } from '@/components/ui/button'
-import { Sun, Moon, ChevronsLeftRight, RefreshCw, Loader2, Settings2, List, Shuffle, ExternalLink, Eye, EyeOff, Puzzle } from 'lucide-react'
+import { RefreshCw, Loader2, Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle } from 'lucide-react'
 import { useModelFetcher } from '@/components/settings/ProviderManager'
 
 interface SettingsPanelProps {
@@ -15,10 +14,91 @@ interface SettingsPanelProps {
   pluginSidebarVisibility?: Record<string, boolean>
 }
 
+type SettingsMutation = ReturnType<typeof useMutation<StoryMeta, Error, { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }>>
+
+function ToggleSwitch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      className={`relative shrink-0 h-[18px] w-[32px] rounded-full transition-colors ${
+        on ? 'bg-foreground' : 'bg-muted-foreground/20'
+      }`}
+      aria-label={label}
+    >
+      <span
+        className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-background transition-[left] duration-150 ${
+          on ? 'left-[16px]' : 'left-[2px]'
+        }`}
+      />
+    </button>
+  )
+}
+
+function SegmentedControl<T extends string>({ value, options, onChange, disabled }: {
+  value: T
+  options: { value: T; label: string }[]
+  onChange: (value: T) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex h-[26px] rounded-md border border-border/40 overflow-hidden">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          disabled={disabled}
+          className={`px-2.5 text-[11px] font-medium transition-colors ${
+            value === opt.value
+              ? 'bg-foreground text-background'
+              : 'bg-transparent text-muted-foreground/50 hover:text-foreground/70'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium text-foreground/80">{label}</p>
+        {description && <p className="text-[10px] text-muted-foreground/40 mt-0.5 leading-snug">{description}</p>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function NumberStepper({ value, min, max, onChange, disabled, suffix }: {
+  value: number; min: number; max: number; onChange: (v: number) => void; disabled?: boolean; suffix?: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => {
+          const v = parseInt(e.target.value, 10)
+          if (!isNaN(v) && v >= min && v <= max) onChange(v)
+        }}
+        className="w-14 h-[26px] px-2 text-[11px] font-mono text-center bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none"
+        disabled={disabled}
+      />
+      {suffix && <span className="text-[10px] text-muted-foreground/35">{suffix}</span>}
+    </div>
+  )
+}
+
 function ModelSelector({ story, globalConfig, updateMutation, onManageProviders }: {
   story: StoryMeta
   globalConfig: GlobalConfigSafe | null
-  updateMutation: ReturnType<typeof useMutation<StoryMeta, Error, { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }>>
+  updateMutation: SettingsMutation
   onManageProviders: () => void
 }) {
   const { models, fetching, error, fetchModels, reset } = useModelFetcher()
@@ -34,9 +114,7 @@ function ModelSelector({ story, globalConfig, updateMutation, onManageProviders 
   }
 
   const handleFetchModels = () => {
-    if (effectiveProviderId) {
-      fetchModels(effectiveProviderId)
-    }
+    if (effectiveProviderId) fetchModels(effectiveProviderId)
   }
 
   const defaultModel = story.settings.providerId
@@ -45,47 +123,40 @@ function ModelSelector({ story, globalConfig, updateMutation, onManageProviders 
       ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)?.defaultModel ?? ''
       : 'deepseek-chat'
 
-  const selectClass = "w-full h-7 px-2 text-xs bg-background border border-border/40 rounded-md focus:border-primary/30 focus:outline-none"
+  const inputClass = "w-full h-[26px] px-2 text-[11px] bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none"
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">LLM</label>
-        <button
-          type="button"
-          className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground flex items-center gap-1 transition-colors"
-          onClick={onManageProviders}
-        >
-          <Settings2 className="size-2.5" />
-          Manage providers
-        </button>
-      </div>
-      <div className="space-y-2">
-        <select
-          value={story.settings.providerId ?? ''}
-          onChange={(e) => handleProviderChange(e.target.value)}
-          className={selectClass}
-          disabled={updateMutation.isPending}
-        >
-          <option value="">
-            {globalConfig?.defaultProviderId
-              ? `${globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)?.name ?? 'Default'}`
-              : 'DeepSeek (env)'}
-          </option>
-          {(globalConfig?.providers ?? []).filter(p => p.id !== globalConfig?.defaultProviderId).map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+    <div className="rounded-lg border border-border/30">
+      <div className="px-3 py-2 space-y-2">
+        {/* Provider */}
         <div>
+          <label className="text-[10px] text-muted-foreground/40 mb-1 block">Provider</label>
+          <select
+            value={story.settings.providerId ?? ''}
+            onChange={(e) => handleProviderChange(e.target.value)}
+            className={inputClass}
+            disabled={updateMutation.isPending}
+          >
+            <option value="">
+              {globalConfig?.defaultProviderId
+                ? `${globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)?.name ?? 'Default'}`
+                : 'DeepSeek (env)'}
+            </option>
+            {(globalConfig?.providers ?? []).filter(p => p.id !== globalConfig?.defaultProviderId).map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Model */}
+        <div>
+          <label className="text-[10px] text-muted-foreground/40 mb-1 block">Model</label>
           <div className="flex gap-1.5">
             {models.length > 0 && !useCustomModel ? (
               <select
                 value={story.settings.modelId ?? ''}
-                onChange={(e) => {
-                  const value = e.target.value || null
-                  updateMutation.mutate({ modelId: value })
-                }}
-                className={selectClass + ' flex-1'}
+                onChange={(e) => updateMutation.mutate({ modelId: e.target.value || null })}
+                className={inputClass + ' flex-1'}
                 disabled={updateMutation.isPending}
               >
                 <option value="">{defaultModel || 'default model'}</option>
@@ -97,42 +168,48 @@ function ModelSelector({ story, globalConfig, updateMutation, onManageProviders 
               <input
                 type="text"
                 value={story.settings.modelId ?? ''}
-                onChange={(e) => {
-                  const value = e.target.value || null
-                  updateMutation.mutate({ modelId: value })
-                }}
+                onChange={(e) => updateMutation.mutate({ modelId: e.target.value || null })}
                 placeholder={defaultModel || 'model id'}
-                className={selectClass + ' flex-1'}
+                className={inputClass + ' flex-1'}
                 disabled={updateMutation.isPending}
               />
             )}
             {effectiveProviderId && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs shrink-0"
+              <button
                 onClick={handleFetchModels}
                 disabled={fetching}
+                className="h-[26px] w-[26px] shrink-0 flex items-center justify-center rounded-md border border-border/40 text-muted-foreground/50 hover:text-foreground/70 hover:bg-accent/30 transition-colors"
                 title="Fetch available models"
               >
                 {fetching ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-              </Button>
+              </button>
             )}
           </div>
           {models.length > 0 && (
             <button
               type="button"
-              className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground mt-1 underline"
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground mt-1.5 underline underline-offset-2"
               onClick={() => setUseCustomModel(!useCustomModel)}
             >
               {useCustomModel ? 'Use fetched models' : 'Type manually'}
             </button>
           )}
-          {error && (
-            <p className="text-[11px] text-destructive mt-1">{error}</p>
-          )}
+          {error && <p className="text-[10px] text-destructive mt-1">{error}</p>}
         </div>
       </div>
+
+      {/* Manage providers link */}
+      <button
+        type="button"
+        onClick={onManageProviders}
+        className="w-full flex items-center justify-between px-3 py-2 border-t border-border/20 text-[11px] text-muted-foreground/40 hover:text-foreground/60 hover:bg-accent/20 transition-colors rounded-b-lg"
+      >
+        <span className="flex items-center gap-1.5">
+          <Settings2 className="size-3" />
+          Manage providers
+        </span>
+        <ChevronRight className="size-3" />
+      </button>
     </div>
   )
 }
@@ -165,11 +242,6 @@ export function SettingsPanel({
     },
   })
 
-  const toggleFormat = () => {
-    const next = story.settings.outputFormat === 'plaintext' ? 'markdown' : 'plaintext'
-    updateMutation.mutate({ outputFormat: next })
-  }
-
   const togglePlugin = (pluginName: string) => {
     const enabled = story.settings.enabledPlugins
     const next = enabled.includes(pluginName)
@@ -182,181 +254,84 @@ export function SettingsPanel({
   const [quickSwitch, setQuickSwitch] = useQuickSwitch()
 
   return (
-    <div className="p-4 space-y-5">
-      {/* Theme */}
+    <div className="p-4 space-y-4">
+      {/* Appearance */}
       <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Theme</label>
-        <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            variant={theme === 'light' ? 'default' : 'outline'}
-            className="h-7 text-xs gap-1.5"
-            onClick={() => setTheme('light')}
-          >
-            <Sun className="size-3" />
-            Light
-          </Button>
-          <Button
-            size="sm"
-            variant={theme === 'dark' ? 'default' : 'outline'}
-            className="h-7 text-xs gap-1.5"
-            onClick={() => setTheme('dark')}
-          >
-            <Moon className="size-3" />
-            Dark
-          </Button>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Appearance</label>
+        <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+          <SettingRow label="Theme">
+            <SegmentedControl
+              value={theme}
+              options={[
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+              ]}
+              onChange={setTheme}
+            />
+          </SettingRow>
+          <SettingRow label="Quick switch" description="Show chevrons to swap between variations">
+            <ToggleSwitch on={quickSwitch} onToggle={() => setQuickSwitch(!quickSwitch)} label="Toggle quick switch" />
+          </SettingRow>
         </div>
       </div>
 
-      <div className="h-px bg-border/30" />
-
-      {/* Quick Switch */}
+      {/* Generation */}
       <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Quick Switch</label>
-        <p className="text-xs text-muted-foreground/60 mb-2">
-          Show chevrons on prose blocks to quickly switch between variations.
-        </p>
-        <Button
-          size="sm"
-          variant={quickSwitch ? 'default' : 'outline'}
-          className="h-7 text-xs gap-1.5"
-          onClick={() => setQuickSwitch(!quickSwitch)}
-        >
-          <ChevronsLeftRight className="size-3" />
-          {quickSwitch ? 'On' : 'Off'}
-        </Button>
-      </div>
-
-      <div className="h-px bg-border/30" />
-
-      {/* Output Format */}
-      <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Output Format</label>
-        <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            variant={story.settings.outputFormat === 'plaintext' ? 'default' : 'outline'}
-            className="h-7 text-xs"
-            onClick={toggleFormat}
-            disabled={updateMutation.isPending}
-          >
-            Plaintext
-          </Button>
-          <Button
-            size="sm"
-            variant={story.settings.outputFormat === 'markdown' ? 'default' : 'outline'}
-            className="h-7 text-xs"
-            onClick={toggleFormat}
-            disabled={updateMutation.isPending}
-          >
-            Markdown
-          </Button>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Generation</label>
+        <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+          <SettingRow label="Output format">
+            <SegmentedControl
+              value={story.settings.outputFormat}
+              options={[
+                { value: 'plaintext', label: 'Plain' },
+                { value: 'markdown', label: 'Markdown' },
+              ]}
+              onChange={(v) => updateMutation.mutate({ outputFormat: v })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
+          <SettingRow label="Context ordering" description="How pinned fragments are ordered">
+            <SegmentedControl
+              value={story.settings.contextOrderMode ?? 'simple'}
+              options={[
+                { value: 'simple', label: 'Simple' },
+                { value: 'advanced', label: 'Advanced' },
+              ]}
+              onChange={(v) => updateMutation.mutate({ contextOrderMode: v })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
+          <SettingRow label="Summarization" description="Positions back before summarizing">
+            <NumberStepper
+              value={story.settings.summarizationThreshold ?? 4}
+              min={0}
+              max={20}
+              onChange={(v) => updateMutation.mutate({ summarizationThreshold: v })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
+          <SettingRow label="Max steps" description="Tool-use rounds per generation">
+            <NumberStepper
+              value={story.settings.maxSteps ?? 10}
+              min={1}
+              max={50}
+              onChange={(v) => updateMutation.mutate({ maxSteps: v })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
         </div>
       </div>
-
-      <div className="h-px bg-border/30" />
-
-      {/* Summarization Threshold */}
-      <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">
-          Summarization Threshold
-        </label>
-        <p className="text-xs text-muted-foreground/60 mb-2">
-          Only summarize prose fragments that are at least this many positions back from the most recent.
-        </p>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            max={20}
-            value={story.settings.summarizationThreshold ?? 4}
-            onChange={(e) => {
-              const value = parseInt(e.target.value, 10)
-              if (!isNaN(value) && value >= 0 && value <= 20) {
-                updateMutation.mutate({ summarizationThreshold: value })
-              }
-            }}
-            className="w-16 h-7 px-2 text-sm bg-background border border-border/40 rounded-md focus:border-primary/30 focus:outline-none"
-            disabled={updateMutation.isPending}
-          />
-          <span className="text-xs text-muted-foreground/40">positions back</span>
-        </div>
-      </div>
-
-      <div className="h-px bg-border/30" />
-
-      {/* Max Steps */}
-      <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">
-          Max Steps
-        </label>
-        <p className="text-xs text-muted-foreground/60 mb-2">
-          Maximum number of tool-use rounds the LLM can take per generation.
-        </p>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={story.settings.maxSteps ?? 10}
-            onChange={(e) => {
-              const value = parseInt(e.target.value, 10)
-              if (!isNaN(value) && value >= 1 && value <= 50) {
-                updateMutation.mutate({ maxSteps: value })
-              }
-            }}
-            className="w-16 h-7 px-2 text-sm bg-background border border-border/40 rounded-md focus:border-primary/30 focus:outline-none"
-            disabled={updateMutation.isPending}
-          />
-          <span className="text-xs text-muted-foreground/40">steps</span>
-        </div>
-      </div>
-
-      <div className="h-px bg-border/30" />
-
-      {/* Context Ordering */}
-      <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">
-          Context Ordering
-        </label>
-        <p className="text-xs text-muted-foreground/60 mb-2">
-          Controls how pinned fragments are ordered in LLM context.
-        </p>
-        <div className="flex gap-1.5">
-          <Button
-            size="sm"
-            variant={(story.settings.contextOrderMode ?? 'simple') === 'simple' ? 'default' : 'outline'}
-            className="h-7 text-xs gap-1.5"
-            onClick={() => updateMutation.mutate({ contextOrderMode: 'simple' })}
-            disabled={updateMutation.isPending}
-          >
-            <List className="size-3" />
-            Simple
-          </Button>
-          <Button
-            size="sm"
-            variant={(story.settings.contextOrderMode ?? 'simple') === 'advanced' ? 'default' : 'outline'}
-            className="h-7 text-xs gap-1.5"
-            onClick={() => updateMutation.mutate({ contextOrderMode: 'advanced' })}
-            disabled={updateMutation.isPending}
-          >
-            <Shuffle className="size-3" />
-            Advanced
-          </Button>
-        </div>
-      </div>
-
-      <div className="h-px bg-border/30" />
 
       {/* LLM */}
-      <ModelSelector
-        story={story}
-        globalConfig={globalConfig ?? null}
-        updateMutation={updateMutation}
-        onManageProviders={onManageProviders}
-      />
-
-      <div className="h-px bg-border/30" />
+      <div>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">LLM</label>
+        <ModelSelector
+          story={story}
+          globalConfig={globalConfig ?? null}
+          updateMutation={updateMutation}
+          onManageProviders={onManageProviders}
+        />
+      </div>
 
       {/* Plugins */}
       <div>
