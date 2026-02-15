@@ -26,7 +26,13 @@ interface DetailPanelProps {
   onImportFragment?: () => void
   onExport?: () => void
   onDownloadStory?: () => void
-  enabledPanelPlugins: Array<{ name: string; title: string; mode?: 'react' | 'iframe'; url?: string }>
+  enabledPanelPlugins: Array<{
+    name: string
+    title: string
+    mode?: 'react' | 'iframe'
+    url?: string
+    icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string }
+  }>
 }
 
 const SECTION_TITLES: Record<string, string> = {

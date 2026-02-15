@@ -65,7 +65,8 @@ Create `plugin.json` in the plugin root:
   "name": "my-plugin",
   "panel": {
     "title": "My Plugin",
-    "entry": "ui/index.html"
+    "entry": "ui/index.html",
+    "icon": { "type": "lucide", "name": "Sparkles" }
   }
 }
 ```
@@ -75,6 +76,9 @@ Rules:
 - `name` (if provided) must match `manifest.name` from `entry.server.*`.
 - `panel.title` overrides the sidebar panel title.
 - `panel.entry` points to the HTML entry file relative to plugin root.
+- `panel.icon` can set sidebar icon:
+  - lucide: `{ "type": "lucide", "name": "Keyboard" }`
+  - svg: `{ "type": "svg", "src": "/api/plugins/my-plugin/ui/icon.svg" }`
 
 Errata serves panel assets at:
 

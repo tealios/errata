@@ -279,6 +279,9 @@ export interface PluginManifestInfo {
     title: string
     mode?: 'react' | 'iframe'
     url?: string
+    icon?:
+      | { type: 'lucide'; name: string }
+      | { type: 'svg'; src: string }
   }
 }
 
