@@ -14,6 +14,10 @@ import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
 import { componentId } from '@/lib/dom-ids'
+import {
+  deactivateAllClientPluginRuntimes,
+  syncClientPluginRuntimes,
+} from '@/lib/plugin-panels'
 import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
 import {
   parseErrataExport,
@@ -29,6 +33,7 @@ export const Route = createFileRoute('/story/$storyId')({
 
 function StoryEditorPage() {
   const { storyId } = Route.useParams()
+  const pluginSidebarPrefsKey = `errata:plugin-sidebar:${storyId}`
   const [activeSection, setActiveSection] = useState<SidebarSection>(null)
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
@@ -40,6 +45,8 @@ function StoryEditorPage() {
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importInitialData, setImportInitialData] = useState<ErrataExportData | null>(null)
   const [showExportPanel, setShowExportPanel] = useState(false)
+  const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
+  const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -63,6 +70,24 @@ function StoryEditorPage() {
     queryFn: () => api.plugins.list(),
   })
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = localStorage.getItem(pluginSidebarPrefsKey)
+      setPluginSidebarVisibility(raw ? JSON.parse(raw) : {})
+    } catch {
+      setPluginSidebarVisibility({})
+    }
+  }, [pluginSidebarPrefsKey])
+
+  const setPluginSidebarVisible = useCallback((pluginName: string, visible: boolean) => {
+    setPluginSidebarVisibility((prev) => {
+      const next = { ...prev, [pluginName]: visible }
+      localStorage.setItem(pluginSidebarPrefsKey, JSON.stringify(next))
+      return next
+    })
+  }, [pluginSidebarPrefsKey])
+
   const enabledPanelPlugins = useMemo(() => {
     if (!plugins || !story) return []
     const enabled = story.settings.enabledPlugins
@@ -73,9 +98,15 @@ function StoryEditorPage() {
         title: p.panel!.title,
         mode: p.panel?.mode,
         url: p.panel?.url,
+        showInSidebar: pluginSidebarVisibility[p.name] ?? (p.panel?.showInSidebar !== false),
         icon: p.panel?.icon,
       }))
-  }, [plugins, story])
+  }, [plugins, story, pluginSidebarVisibility])
+
+  const sidebarPanelPlugins = useMemo(
+    () => enabledPanelPlugins.filter((plugin) => plugin.showInSidebar !== false),
+    [enabledPanelPlugins],
+  )
 
   useEffect(() => {
     localStorage.setItem(`errata:last-accessed:${storyId}`, new Date().toISOString())
@@ -89,6 +120,17 @@ function StoryEditorPage() {
       document.title = previousTitle
     }
   }, [story?.name])
+
+  useEffect(() => {
+    if (!story) return
+    syncClientPluginRuntimes(story.settings.enabledPlugins ?? [], { storyId })
+  }, [story?.settings.enabledPlugins, storyId])
+
+  useEffect(() => {
+    return () => {
+      deactivateAllClientPluginRuntimes()
+    }
+  }, [])
 
   // Auto-show wizard when story has no fragments
   if (showWizard === null && allFragments !== undefined) {
@@ -122,6 +164,25 @@ function StoryEditorPage() {
     setSelectedFragment(null)
     setEditorMode('view')
   }
+
+  const handleSectionChange = useCallback((section: SidebarSection) => {
+    setPluginCloseReturnSection(null)
+    setActiveSection(section)
+  }, [])
+
+  const handleOpenPluginPanelFromSettings = useCallback((pluginName: string) => {
+    setPluginCloseReturnSection('settings')
+    setActiveSection(`plugin-${pluginName}`)
+  }, [])
+
+  const handleDetailPanelClose = useCallback(() => {
+    if (activeSection?.startsWith('plugin-') && pluginCloseReturnSection) {
+      setActiveSection(pluginCloseReturnSection)
+    } else {
+      setActiveSection(null)
+    }
+    setPluginCloseReturnSection(null)
+  }, [activeSection, pluginCloseReturnSection])
 
   const handleOpenImport = useCallback(() => {
     setImportInitialData(null)
@@ -243,8 +304,8 @@ function StoryEditorPage() {
         storyId={storyId}
         story={story}
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
-        enabledPanelPlugins={enabledPanelPlugins}
+        onSectionChange={handleSectionChange}
+        enabledPanelPlugins={sidebarPanelPlugins}
       />
 
       {/* Detail Panel */}
@@ -252,11 +313,14 @@ function StoryEditorPage() {
         storyId={storyId}
         story={story}
         section={activeSection}
-        onClose={() => setActiveSection(null)}
+        onClose={handleDetailPanelClose}
         onSelectFragment={handleSelectFragment}
         onCreateFragment={handleCreateFragment}
         selectedFragmentId={selectedFragment?.id}
         onManageProviders={() => setShowProviders(true)}
+        onOpenPluginPanel={handleOpenPluginPanelFromSettings}
+        onTogglePluginSidebar={setPluginSidebarVisible}
+        pluginSidebarVisibility={pluginSidebarVisibility}
         onLaunchWizard={() => setShowWizard(true)}
         onImportFragment={handleOpenImport}
         onExport={() => setShowExportPanel(true)}

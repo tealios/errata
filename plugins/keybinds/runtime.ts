@@ -71,12 +71,13 @@ function runAction(action: ActionId) {
 }
 
 let started = false
+let keydownHandler: ((e: KeyboardEvent) => void) | null = null
 
 export function startKeybindRuntime() {
   if (started || typeof window === 'undefined') return
   started = true
 
-  window.addEventListener('keydown', (e) => {
+  keydownHandler = (e: KeyboardEvent) => {
     if (isTypingTarget(e.target)) return
     const storyId = currentStoryIdFromLocation()
     if (!storyId) return
@@ -89,5 +90,16 @@ export function startKeybindRuntime() {
 
     e.preventDefault()
     runAction(hit)
-  })
+  }
+
+  window.addEventListener('keydown', keydownHandler)
+}
+
+export function stopKeybindRuntime() {
+  if (!started || typeof window === 'undefined') return
+  if (keydownHandler) {
+    window.removeEventListener('keydown', keydownHandler)
+  }
+  keydownHandler = null
+  started = false
 }

@@ -63,6 +63,7 @@ export interface PluginManifest {
     title: string
     mode?: 'react' | 'iframe'
     url?: string
+    showInSidebar?: boolean
     icon?:
       | { type: 'lucide'; name: string }
       | { type: 'svg'; src: string }
