@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
 import { useTheme, useQuickSwitch } from '@/lib/theme'
-import { RefreshCw, Loader2, Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle } from 'lucide-react'
-import { useModelFetcher } from '@/components/settings/ProviderManager'
+import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle } from 'lucide-react'
 
 interface SettingsPanelProps {
   storyId: string
@@ -14,7 +12,15 @@ interface SettingsPanelProps {
   pluginSidebarVisibility?: Record<string, boolean>
 }
 
-type SettingsMutation = ReturnType<typeof useMutation<StoryMeta, Error, { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }>>
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function pluralize(name: string): string {
+  const massNouns = ['prose', 'knowledge']
+  return massNouns.includes(name.toLowerCase()) ? name : `${name}s`
+}
 
 function ToggleSwitch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
   return (
@@ -95,122 +101,32 @@ function NumberStepper({ value, min, max, onChange, disabled, suffix }: {
   )
 }
 
-function ModelSelector({ story, globalConfig, updateMutation, onManageProviders }: {
-  story: StoryMeta
+function ProviderSelect({ value, globalConfig, onChange, disabled }: {
+  value: string | null
   globalConfig: GlobalConfigSafe | null
-  updateMutation: SettingsMutation
-  onManageProviders: () => void
+  onChange: (providerId: string | null) => void
+  disabled?: boolean
 }) {
-  const { models, fetching, error, fetchModels, reset } = useModelFetcher()
-  const [useCustomModel, setUseCustomModel] = useState(false)
-
-  const effectiveProviderId = story.settings.providerId ?? globalConfig?.defaultProviderId ?? null
-
-  const handleProviderChange = (value: string) => {
-    const providerId = value || null
-    updateMutation.mutate({ providerId, modelId: null })
-    reset()
-    setUseCustomModel(false)
-  }
-
-  const handleFetchModels = () => {
-    if (effectiveProviderId) fetchModels(effectiveProviderId)
-  }
-
-  const defaultModel = story.settings.providerId
-    ? globalConfig?.providers.find(p => p.id === story.settings.providerId)?.defaultModel ?? ''
-    : globalConfig?.defaultProviderId
-      ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)?.defaultModel ?? ''
-      : 'deepseek-chat'
-
-  const inputClass = "w-full h-[26px] px-2 text-[11px] bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none"
+  const defaultProvider = globalConfig?.defaultProviderId
+    ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)
+    : null
 
   return (
-    <div className="rounded-lg border border-border/30">
-      <div className="px-3 py-2 space-y-2">
-        {/* Provider */}
-        <div>
-          <label className="text-[10px] text-muted-foreground/40 mb-1 block">Provider</label>
-          <select
-            value={story.settings.providerId ?? ''}
-            onChange={(e) => handleProviderChange(e.target.value)}
-            className={inputClass}
-            disabled={updateMutation.isPending}
-          >
-            <option value="">
-              {globalConfig?.defaultProviderId
-                ? `${globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)?.name ?? 'Default'}`
-                : 'DeepSeek (env)'}
-            </option>
-            {(globalConfig?.providers ?? []).filter(p => p.id !== globalConfig?.defaultProviderId).map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Model */}
-        <div>
-          <label className="text-[10px] text-muted-foreground/40 mb-1 block">Model</label>
-          <div className="flex gap-1.5">
-            {models.length > 0 && !useCustomModel ? (
-              <select
-                value={story.settings.modelId ?? ''}
-                onChange={(e) => updateMutation.mutate({ modelId: e.target.value || null })}
-                className={inputClass + ' flex-1'}
-                disabled={updateMutation.isPending}
-              >
-                <option value="">{defaultModel || 'default model'}</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.id}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={story.settings.modelId ?? ''}
-                onChange={(e) => updateMutation.mutate({ modelId: e.target.value || null })}
-                placeholder={defaultModel || 'model id'}
-                className={inputClass + ' flex-1'}
-                disabled={updateMutation.isPending}
-              />
-            )}
-            {effectiveProviderId && (
-              <button
-                onClick={handleFetchModels}
-                disabled={fetching}
-                className="h-[26px] w-[26px] shrink-0 flex items-center justify-center rounded-md border border-border/40 text-muted-foreground/50 hover:text-foreground/70 hover:bg-accent/30 transition-colors"
-                title="Fetch available models"
-              >
-                {fetching ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-              </button>
-            )}
-          </div>
-          {models.length > 0 && (
-            <button
-              type="button"
-              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground mt-1.5 underline underline-offset-2"
-              onClick={() => setUseCustomModel(!useCustomModel)}
-            >
-              {useCustomModel ? 'Use fetched models' : 'Type manually'}
-            </button>
-          )}
-          {error && <p className="text-[10px] text-destructive mt-1">{error}</p>}
-        </div>
-      </div>
-
-      {/* Manage providers link */}
-      <button
-        type="button"
-        onClick={onManageProviders}
-        className="w-full flex items-center justify-between px-3 py-2 border-t border-border/20 text-[11px] text-muted-foreground/40 hover:text-foreground/60 hover:bg-accent/20 transition-colors rounded-b-lg"
-      >
-        <span className="flex items-center gap-1.5">
-          <Settings2 className="size-3" />
-          Manage providers
-        </span>
-        <ChevronRight className="size-3" />
-      </button>
-    </div>
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      className="w-full max-w-[140px] h-[26px] px-2 text-[11px] bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none truncate"
+      disabled={disabled}
+    >
+      <option value="">
+        {defaultProvider ? defaultProvider.name : 'DeepSeek (env)'}
+      </option>
+      {(globalConfig?.providers ?? [])
+        .filter(p => p.id !== globalConfig?.defaultProviderId)
+        .map((p) => (
+          <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+    </select>
   )
 }
 
@@ -234,8 +150,13 @@ export function SettingsPanel({
     queryFn: () => api.config.getProviders(),
   })
 
+  const { data: fragmentTypes } = useQuery({
+    queryKey: ['fragment-types', storyId],
+    queryFn: () => api.fragments.types(storyId),
+  })
+
   const updateMutation = useMutation({
-    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }) =>
+    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[] }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -252,6 +173,34 @@ export function SettingsPanel({
 
   const { theme, setTheme } = useTheme()
   const [quickSwitch, setQuickSwitch] = useQuickSwitch()
+  const enabledBuiltinTools = story.settings.enabledBuiltinTools ?? []
+  const builtinToolOptions = [
+    { name: 'getFragment', description: 'Get full content for any fragment by ID.' },
+    { name: 'listFragments', description: 'List fragments with id, type, name, description.' },
+    { name: 'searchFragments', description: 'Search text across fragments.' },
+    { name: 'listFragmentTypes', description: 'List all available fragment types.' },
+    ...((fragmentTypes ?? []).map((type) => {
+      const singular = capitalize(type.type)
+      const plural = capitalize(pluralize(type.type))
+      return [
+        {
+          name: `get${singular}`,
+          description: `Get the full content of a ${type.type} fragment.`,
+        },
+        {
+          name: `list${plural}`,
+          description: `List all ${type.type} fragments.`,
+        },
+      ]
+    }).flat()),
+  ]
+
+  const toggleBuiltinTool = (toolName: string) => {
+    const next = enabledBuiltinTools.includes(toolName)
+      ? enabledBuiltinTools.filter((name) => name !== toolName)
+      : [...enabledBuiltinTools, toolName]
+    updateMutation.mutate({ enabledBuiltinTools: next })
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -319,18 +268,76 @@ export function SettingsPanel({
               disabled={updateMutation.isPending}
             />
           </SettingRow>
+          <div className="px-3 py-2 border-t border-border/20">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <p className="text-[12px] font-medium text-foreground/80">Built-in tools</p>
+                <p className="text-[10px] text-muted-foreground/40 mt-0.5 leading-snug">Enable only the built-in tools you want passed to the model.</p>
+              </div>
+              <button
+                type="button"
+                className="text-[10px] text-muted-foreground/40 hover:text-foreground/60"
+                onClick={() => updateMutation.mutate({ enabledBuiltinTools: [] })}
+                disabled={updateMutation.isPending || enabledBuiltinTools.length === 0}
+              >
+                Disable all
+              </button>
+            </div>
+            <div className="space-y-1.5 max-h-40 overflow-auto pr-1">
+              {builtinToolOptions.map((tool) => {
+                const enabled = enabledBuiltinTools.includes(tool.name)
+                return (
+                  <div key={tool.name} className="flex items-center justify-between gap-3 rounded-md border border-border/20 px-2 py-1.5">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-mono text-foreground/80 truncate">{tool.name}</p>
+                      <p className="text-[10px] text-muted-foreground/35 truncate">{tool.description}</p>
+                    </div>
+                    <ToggleSwitch
+                      on={enabled}
+                      onToggle={() => toggleBuiltinTool(tool.name)}
+                      disabled={updateMutation.isPending}
+                      label={`Toggle ${tool.name}`}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* LLM */}
       <div>
         <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">LLM</label>
-        <ModelSelector
-          story={story}
-          globalConfig={globalConfig ?? null}
-          updateMutation={updateMutation}
-          onManageProviders={onManageProviders}
-        />
+        <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+          <SettingRow label="Generation" description="Provider for prose output">
+            <ProviderSelect
+              value={story.settings.providerId ?? null}
+              globalConfig={globalConfig ?? null}
+              onChange={(id) => updateMutation.mutate({ providerId: id, modelId: null })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
+          <SettingRow label="Librarian" description="Provider for background analysis">
+            <ProviderSelect
+              value={story.settings.librarianProviderId ?? null}
+              globalConfig={globalConfig ?? null}
+              onChange={(id) => updateMutation.mutate({ librarianProviderId: id, librarianModelId: null })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
+          <button
+            type="button"
+            onClick={onManageProviders}
+            className="w-full flex items-center justify-between px-3 py-2 text-[11px] text-muted-foreground/40 hover:text-foreground/60 hover:bg-accent/20 transition-colors rounded-b-lg"
+          >
+            <span className="flex items-center gap-1.5">
+              <Settings2 className="size-3" />
+              Manage providers
+            </span>
+            <ChevronRight className="size-3" />
+          </button>
+        </div>
       </div>
 
       {/* Plugins */}

@@ -55,6 +55,22 @@ export async function getProvider(dataDir: string, providerId: string): Promise<
   return config.providers.find((p) => p.id === providerId)
 }
 
+export async function duplicateProvider(dataDir: string, providerId: string): Promise<GlobalConfig> {
+  const config = await getGlobalConfig(dataDir)
+  const source = config.providers.find((p) => p.id === providerId)
+  if (!source) throw new Error(`Provider ${providerId} not found`)
+  const newId = `prov-${Date.now().toString(36)}`
+  const duplicate: ProviderConfig = {
+    ...source,
+    id: newId,
+    name: `${source.name} (copy)`,
+    createdAt: new Date().toISOString(),
+  }
+  config.providers.push(duplicate)
+  await saveGlobalConfig(dataDir, config)
+  return config
+}
+
 function maskApiKey(key: string): string {
   if (key.length <= 4) return '••••'
   return '••••' + key.slice(-4)

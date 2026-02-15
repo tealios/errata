@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ProviderConfigSafe } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Zap } from 'lucide-react'
+import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Zap, Copy } from 'lucide-react'
 
 const PRESETS = {
   deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
@@ -122,6 +122,11 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     setFetchError(null)
     setUseCustomModel(false)
   }
+
+  const duplicateMutation = useMutation({
+    mutationFn: (id: string) => api.config.duplicateProvider(id),
+    onSuccess: invalidate,
+  })
 
   const openEdit = (provider: ProviderConfigSafe) => {
     setEditingId(provider.id)
@@ -500,6 +505,9 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                   )}
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit" onClick={() => openEdit(p)}>
                     <Pencil className="size-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplicate" onClick={() => duplicateMutation.mutate(p.id)} disabled={duplicateMutation.isPending}>
+                    <Copy className="size-3.5" />
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" title="Delete" onClick={() => deleteMutation.mutate(p.id)}>
                     <Trash2 className="size-3.5" />

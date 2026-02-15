@@ -40,11 +40,16 @@ export interface ResolvedModel {
   }
 }
 
+export interface GetModelOptions {
+  role?: 'generation' | 'librarian'
+}
+
 /**
  * Resolve the model to use for a given story.
  * Resolution chain: story.settings.providerId -> globalConfig.defaultProviderId -> env-var DeepSeek fallback
  */
-export async function getModel(dataDir: string, storyId?: string): Promise<ResolvedModel> {
+export async function getModel(dataDir: string, storyId?: string, opts: GetModelOptions = {}): Promise<ResolvedModel> {
+  const role = opts.role ?? 'generation'
   // 1. Try to resolve from story settings
   let targetProviderId: string | null = null
   let targetModelId: string | null = null
@@ -52,8 +57,13 @@ export async function getModel(dataDir: string, storyId?: string): Promise<Resol
   if (storyId) {
     const story = await getStory(dataDir, storyId)
     if (story?.settings) {
-      targetProviderId = story.settings.providerId ?? null
-      targetModelId = story.settings.modelId ?? null
+      if (role === 'librarian') {
+        targetProviderId = story.settings.librarianProviderId ?? story.settings.providerId ?? null
+        targetModelId = story.settings.librarianModelId ?? story.settings.modelId ?? null
+      } else {
+        targetProviderId = story.settings.providerId ?? null
+        targetModelId = story.settings.modelId ?? null
+      }
     }
   }
 

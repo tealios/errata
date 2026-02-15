@@ -5,6 +5,7 @@ import {
   createFragment,
 } from '@/server/fragments/storage'
 import { addProseSection } from '@/server/fragments/prose-chain'
+import { addProseVariation } from '@/server/fragments/prose-chain'
 import { saveAnalysis } from '@/server/librarian/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 import { buildContext, buildContextState, type ContextBuildState } from '@/server/llm/context-builder'
@@ -416,5 +417,101 @@ describe('context-builder', () => {
     expect(user.content).toContain('Summary A Summary B')
     expect(user.content).not.toContain('Summary D')
     expect(user.content).not.toContain('Global summary with future info that should be excluded.')
+  })
+
+  it('omits summary when there are no summary updates before target time', async () => {
+    const story = makeStory({ summary: 'Future-only summary should not be used.' })
+    await createStory(dataDir, story)
+
+    const proseA = makeFragment({ id: 'pr-0001', type: 'prose', name: 'A', content: 'A', order: 1 })
+    const proseB = makeFragment({ id: 'pr-0002', type: 'prose', name: 'B', content: 'B', order: 2 })
+    const proseC = makeFragment({ id: 'pr-0003', type: 'prose', name: 'C', content: 'C', order: 3 })
+    await createFragment(dataDir, story.id, proseA)
+    await createFragment(dataDir, story.id, proseB)
+    await createFragment(dataDir, story.id, proseC)
+    await addProseSection(dataDir, story.id, proseA.id)
+    await addProseSection(dataDir, story.id, proseB.id)
+    await addProseSection(dataDir, story.id, proseC.id)
+
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-c',
+      createdAt: '2025-01-03T00:00:00.000Z',
+      fragmentId: 'pr-0003',
+      summaryUpdate: 'Only after A.',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+
+    const messages = await buildContext(dataDir, story.id, 'Regenerate A', {
+      proseBeforeFragmentId: 'pr-0001',
+      summaryBeforeFragmentId: 'pr-0001',
+      excludeFragmentId: 'pr-0001',
+    })
+    const user = messages.find((m) => m.role === 'user')!
+
+    expect(user.content).not.toContain('## Story Summary So Far')
+    expect(user.content).not.toContain('Only after A.')
+    expect(user.content).not.toContain('Future-only summary should not be used.')
+  })
+
+  it('uses section position for inactive variation when building summary before target', async () => {
+    const story = makeStory({ summary: 'Global summary should not leak in.' })
+    await createStory(dataDir, story)
+
+    const proseA = makeFragment({ id: 'pr-0001', type: 'prose', name: 'A', content: 'A', order: 1 })
+    const proseB = makeFragment({ id: 'pr-0002', type: 'prose', name: 'B', content: 'B', order: 2 })
+    const proseC = makeFragment({ id: 'pr-0003', type: 'prose', name: 'C', content: 'C', order: 3 })
+    const proseC2 = makeFragment({ id: 'pr-0006', type: 'prose', name: 'C2', content: 'C2', order: 4 })
+    await createFragment(dataDir, story.id, proseA)
+    await createFragment(dataDir, story.id, proseB)
+    await createFragment(dataDir, story.id, proseC)
+    await createFragment(dataDir, story.id, proseC2)
+    await addProseSection(dataDir, story.id, proseA.id)
+    await addProseSection(dataDir, story.id, proseB.id)
+    await addProseSection(dataDir, story.id, proseC.id)
+    await addProseVariation(dataDir, story.id, 2, proseC2.id)
+
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-a',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      fragmentId: 'pr-0001',
+      summaryUpdate: 'Summary A',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-b',
+      createdAt: '2025-01-02T00:00:00.000Z',
+      fragmentId: 'pr-0002',
+      summaryUpdate: 'Summary B',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-c2',
+      createdAt: '2025-01-03T00:00:00.000Z',
+      fragmentId: 'pr-0006',
+      summaryUpdate: 'Summary C2',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+
+    const messages = await buildContext(dataDir, story.id, 'Regenerate inactive C', {
+      proseBeforeFragmentId: 'pr-0003',
+      summaryBeforeFragmentId: 'pr-0003',
+      excludeFragmentId: 'pr-0003',
+    })
+    const user = messages.find((m) => m.role === 'user')!
+
+    expect(user.content).toContain('Summary A Summary B')
+    expect(user.content).not.toContain('Summary C2')
   })
 })

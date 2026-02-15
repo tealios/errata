@@ -1,7 +1,7 @@
 import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
-import { getActiveProseIds } from '../fragments/prose-chain'
+import { getActiveProseIds, findSectionIndex } from '../fragments/prose-chain'
 import { listAnalyses, getAnalysis } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 
@@ -60,6 +60,19 @@ async function buildSummaryBeforeFragment(
     .map((a) => a.summaryUpdate.trim())
 
   return updates.join(' ').trim()
+}
+
+async function resolveBeforeSectionIndex(
+  dataDir: string,
+  storyId: string,
+  targetFragmentId: string,
+  activeProseIds: string[],
+): Promise<number> {
+  const activeIndex = activeProseIds.indexOf(targetFragmentId)
+  if (activeIndex !== -1) return activeIndex
+
+  const sectionIndex = await findSectionIndex(dataDir, storyId, targetFragmentId)
+  return sectionIndex
 }
 
 /**
@@ -121,10 +134,15 @@ export async function buildContextState(
     requestLogger.debug('Prose chain loaded', { activeProseCount: activeProseIds.length })
 
     if (proseBeforeFragmentId) {
-      const beforeIndex = activeProseIds.indexOf(proseBeforeFragmentId)
-      if (beforeIndex !== -1) {
-        activeProseIds = activeProseIds.slice(0, beforeIndex)
-      }
+      const beforeIndex = await resolveBeforeSectionIndex(
+        dataDir,
+        storyId,
+        proseBeforeFragmentId,
+        activeProseIds,
+      )
+      activeProseIds = beforeIndex >= 0
+        ? activeProseIds.slice(0, beforeIndex)
+        : []
     }
 
     // Load the actual prose fragments from chain, excluding the specified fragment
@@ -164,10 +182,15 @@ export async function buildContextState(
   } else if (summaryBeforeFragmentId) {
     let summaryContextIds: string[] = []
     if (activeProseIds.length > 0) {
-      const beforeIndex = activeProseIds.indexOf(summaryBeforeFragmentId)
+      const beforeIndex = await resolveBeforeSectionIndex(
+        dataDir,
+        storyId,
+        summaryBeforeFragmentId,
+        activeProseIds,
+      )
       summaryContextIds = beforeIndex !== -1
         ? activeProseIds.slice(0, beforeIndex)
-        : activeProseIds
+        : []
     } else {
       const beforeFragment = await getFragment(dataDir, storyId, summaryBeforeFragmentId)
       if (beforeFragment) {

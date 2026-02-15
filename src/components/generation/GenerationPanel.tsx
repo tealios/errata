@@ -103,7 +103,7 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
             <>
               <div ref={outputRef} className="flex-1 overflow-auto px-6 py-6">
                 <div className="max-w-[38rem] mx-auto">
-                  <StreamMarkdown content={streamedText} streaming={isGenerating} />
+                  <StreamMarkdown content={streamedText} streaming={isGenerating} variant="prose" />
                 </div>
               </div>
               <div className="h-px bg-border/30" />

@@ -42,6 +42,7 @@ import {
   addProvider,
   updateProvider as updateProviderConfig,
   deleteProvider as deleteProviderConfig,
+  duplicateProvider as duplicateProviderConfig,
   getGlobalConfig,
   saveGlobalConfig,
   getProvider,
@@ -167,7 +168,7 @@ export function createApp(dataDir: string = DATA_DIR) {
         summary: '',
         createdAt: now,
         updatedAt: now,
-        settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+        settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [], enabledBuiltinTools: [] },
       }
       await createStory(dataDir, story)
       return story
@@ -275,8 +276,11 @@ export function createApp(dataDir: string = DATA_DIR) {
           ...(body.maxSteps !== undefined ? { maxSteps: body.maxSteps } : {}),
           ...(body.providerId !== undefined ? { providerId: body.providerId } : {}),
           ...(body.modelId !== undefined ? { modelId: body.modelId } : {}),
+          ...(body.librarianProviderId !== undefined ? { librarianProviderId: body.librarianProviderId } : {}),
+          ...(body.librarianModelId !== undefined ? { librarianModelId: body.librarianModelId } : {}),
           ...(body.contextOrderMode !== undefined ? { contextOrderMode: body.contextOrderMode } : {}),
           ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
+          ...(body.enabledBuiltinTools !== undefined ? { enabledBuiltinTools: body.enabledBuiltinTools } : {}),
         },
         updatedAt: new Date().toISOString(),
       }
@@ -290,8 +294,11 @@ export function createApp(dataDir: string = DATA_DIR) {
         maxSteps: t.Optional(t.Number()),
         providerId: t.Optional(t.Union([t.String(), t.Null()])),
         modelId: t.Optional(t.Union([t.String(), t.Null()])),
+        librarianProviderId: t.Optional(t.Union([t.String(), t.Null()])),
+        librarianModelId: t.Optional(t.Union([t.String(), t.Null()])),
         contextOrderMode: t.Optional(t.Union([t.Literal('simple'), t.Literal('advanced')])),
         fragmentOrder: t.Optional(t.Array(t.String())),
+        enabledBuiltinTools: t.Optional(t.Array(t.String())),
       }),
     })
 
@@ -897,8 +904,14 @@ export function createApp(dataDir: string = DATA_DIR) {
 
       // Merge fragment tools + plugin tools
       const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
+      const enabledBuiltinTools = story.settings.enabledBuiltinTools
+      const filteredFragmentTools = enabledBuiltinTools === undefined
+        ? fragmentTools
+        : Object.fromEntries(
+            Object.entries(fragmentTools).filter(([toolName]) => enabledBuiltinTools.includes(toolName)),
+          )
       const pluginTools = collectPluginTools(enabledPlugins, dataDir, params.storyId)
-      const tools = { ...fragmentTools, ...pluginTools }
+      const tools = { ...filteredFragmentTools, ...pluginTools }
       requestLogger.info('Tools prepared', { toolCount: Object.keys(tools).length })
 
       // Extract plugin tool descriptions for context (fragment tools are listed from registry)
@@ -1299,6 +1312,17 @@ export function createApp(dataDir: string = DATA_DIR) {
 
     .delete('/config/providers/:providerId', async ({ params }) => {
       const config = await deleteProviderConfig(dataDir, params.providerId)
+      return {
+        ...config,
+        providers: config.providers.map((p) => ({
+          ...p,
+          apiKey: '••••' + p.apiKey.slice(-4),
+        })),
+      }
+    })
+
+    .post('/config/providers/:providerId/duplicate', async ({ params }) => {
+      const config = await duplicateProviderConfig(dataDir, params.providerId)
       return {
         ...config,
         providers: config.providers.map((p) => ({

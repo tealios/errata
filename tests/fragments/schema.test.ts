@@ -105,6 +105,7 @@ describe('StoryMetaSchema', () => {
     expect(result.summary).toBe('')
     expect(result.settings.outputFormat).toBe('markdown')
     expect(result.settings.enabledPlugins).toEqual([])
+    expect(result.settings.enabledBuiltinTools).toEqual([])
   })
 
   it('accepts full story metadata', () => {

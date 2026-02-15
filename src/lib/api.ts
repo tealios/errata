@@ -31,8 +31,11 @@ export interface StoryMeta {
     maxSteps?: number
     providerId?: string | null
     modelId?: string | null
+    librarianProviderId?: string | null
+    librarianModelId?: string | null
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]
+    enabledBuiltinTools?: string[]
   }
 }
 
@@ -291,7 +294,7 @@ export const api = {
     list: () => apiFetch<PluginManifestInfo[]>('/plugins'),
   },
   settings: {
-    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[] }) =>
+    update: (storyId: string, data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[] }) =>
       apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify(data),
@@ -306,6 +309,8 @@ export const api = {
       apiFetch<GlobalConfigSafe>(`/config/providers/${providerId}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteProvider: (providerId: string) =>
       apiFetch<GlobalConfigSafe>(`/config/providers/${providerId}`, { method: 'DELETE' }),
+    duplicateProvider: (providerId: string) =>
+      apiFetch<GlobalConfigSafe>(`/config/providers/${providerId}/duplicate`, { method: 'POST' }),
     setDefaultProvider: (providerId: string | null) =>
       apiFetch<{ ok: boolean; defaultProviderId: string | null }>('/config/default-provider', {
         method: 'PATCH',

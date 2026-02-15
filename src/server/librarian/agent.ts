@@ -1,4 +1,4 @@
-import { generateObject, generateText } from 'ai'
+import { generateObject, generateText, Output } from 'ai'
 import { getModel } from '../llm/client'
 import { getStory, updateStory, listFragments, getFragment } from '../fragments/storage'
 import { getActiveProseIds } from '../fragments/prose-chain'
@@ -20,7 +20,8 @@ Rules:
 - contradictions: flag when the new prose contradicts established facts in the summary, character descriptions, or knowledge. Only flag clear contradictions, not ambiguities.
 - knowledgeSuggestions: suggest new fragments for important details introduced in the new prose that aren't already captured. Set type to "character" for new characters or "knowledge" for world-building details, locations, items, or facts.
 - timelineEvents: note significant events. "position" is relative to the previous prose: "before" if it's a flashback, "during" if concurrent, "after" if it follows sequentially.
-- If there are no contradictions, suggestions, or timeline events, use empty arrays.`
+- If there are no contradictions, suggestions, or timeline events, use empty arrays.
+- Return JSON only`
 
 const LibrarianAnalysisSchema = z.object({
   summaryUpdate: z.string(),
@@ -46,8 +47,11 @@ function isStructuredOutputUnsupportedError(error: unknown): boolean {
   const normalized = message.toLowerCase()
   return (
     normalized.includes('responseformat')
+    || normalized.includes('response_format')
     || normalized.includes('structuredoutputs')
     || normalized.includes('json response format schema')
+    || normalized.includes("must contain the word 'json'")
+    || normalized.includes('must contain the word "json"')
     || normalized.includes('no object generated')
     || normalized.includes('did not match schema')
   )
@@ -76,15 +80,17 @@ async function generateStructuredAnalysisWithFallback(args: {
   requestLogger: ReturnType<typeof logger.child>
 }) {
   try {
-    const result = await generateObject({
+    const result = await generateText({
       model: args.model,
       system: args.system,
       prompt: args.prompt,
-      schema: LibrarianAnalysisSchema,
+      output: Output.object({
+        schema: LibrarianAnalysisSchema,
+      }),
       headers: args.headers,
     })
 
-    return result.object
+    return result.output
   } catch (error) {
     if (!isStructuredOutputUnsupportedError(error)) {
       throw error
@@ -197,7 +203,7 @@ export async function runLibrarian(
   )
 
   // Resolve model for this story (with request config such as custom headers/user-agent)
-  const { model, modelId, providerId, config } = await getModel(dataDir, storyId)
+  const { model, modelId, providerId, config } = await getModel(dataDir, storyId, { role: 'librarian' })
 
   // Call the LLM
   requestLogger.info('Calling LLM for analysis...')

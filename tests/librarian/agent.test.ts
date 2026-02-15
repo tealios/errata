@@ -9,20 +9,18 @@ import { getState, getAnalysis, listAnalyses } from '@/server/librarian/storage'
 import { initProseChain, addProseSection } from '@/server/fragments/prose-chain'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
-// Mock the AI SDK generateObject
+// Mock the AI SDK generateText
 vi.mock('ai', async () => {
   const actual = await vi.importActual('ai')
   return {
     ...actual,
-    generateObject: vi.fn(),
     generateText: vi.fn(),
   }
 })
 
-import { generateObject, generateText } from 'ai'
+import { generateText } from 'ai'
 import { runLibrarian } from '@/server/librarian/agent'
 
-const mockedGenerateObject = vi.mocked(generateObject)
 const mockedGenerateText = vi.mocked(generateText)
 
 function makeStory(
@@ -85,19 +83,18 @@ function makeFragment(
 }
 
 function mockGenerateTextResponse(json: Record<string, unknown>) {
-  mockedGenerateObject.mockResolvedValue({
-    object: json,
-    reasoning: undefined,
-    reasoningDetails: [],
-    sources: [],
-    files: [],
-    steps: [],
-    toolCalls: [],
-    toolResults: [],
+  mockedGenerateText.mockResolvedValue({
+    text: JSON.stringify(json),
     finishReason: 'stop',
     usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
     request: {},
+    warnings: [],
+    files: [],
+    sources: [],
+    steps: [],
+    toolCalls: [],
+    toolResults: [],
   } as any)
 }
 
@@ -356,7 +353,19 @@ describe('librarian agent', () => {
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
-    mockedGenerateObject.mockRejectedValue(new Error('Invalid structured output'))
+    mockedGenerateText.mockResolvedValue({
+      text: 'this is not json',
+      finishReason: 'stop',
+      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+      response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
+      request: {},
+      warnings: [],
+      files: [],
+      sources: [],
+      steps: [],
+      toolCalls: [],
+      toolResults: [],
+    } as any)
 
     await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow()
   })
@@ -374,19 +383,18 @@ describe('librarian agent', () => {
       timelineEvents: [],
     }
 
-    mockedGenerateObject.mockResolvedValue({
-      object: parsed,
-      reasoning: undefined,
-      reasoningDetails: [],
-      sources: [],
-      files: [],
-      steps: [],
-      toolCalls: [],
-      toolResults: [],
+    mockedGenerateText.mockResolvedValue({
+      text: `\`\`\`json\n${JSON.stringify(parsed)}\n\`\`\``,
       finishReason: 'stop',
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
       response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
       request: {},
+      warnings: [],
+      files: [],
+      sources: [],
+      steps: [],
+      toolCalls: [],
+      toolResults: [],
     } as any)
 
     const analysis = await runLibrarian(dataDir, storyId, 'pr-0001')
@@ -407,20 +415,19 @@ describe('librarian agent', () => {
     )
   })
 
-  it('falls back to text JSON mode when structured output is unsupported', async () => {
+  it('parses JSON when response includes extra surrounding text', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
-    mockedGenerateObject.mockRejectedValue(new Error('The feature "responseFormat" is not supported. JSON response format schema is only supported with structuredOutputs'))
     mockedGenerateText.mockResolvedValue({
-      text: JSON.stringify({
+      text: `Here is the analysis:\n${JSON.stringify({
         summaryUpdate: 'Fallback worked.',
         mentionedCharacters: [],
         contradictions: [],
         knowledgeSuggestions: [],
         timelineEvents: [],
-      }),
+      })}\nDone.`,
       finishReason: 'stop',
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
       response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
@@ -438,15 +445,14 @@ describe('librarian agent', () => {
     expect(mockedGenerateText).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to text JSON mode when object generation fails schema matching', async () => {
+  it('throws when generated JSON does not match schema', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
-    mockedGenerateObject.mockRejectedValue(new Error('No object generated: response did not match schema.'))
     mockedGenerateText.mockResolvedValue({
       text: JSON.stringify({
-        summaryUpdate: 'Schema fallback worked.',
+        summaryUpdate: 123,
         mentionedCharacters: [],
         contradictions: [],
         knowledgeSuggestions: [],
@@ -464,8 +470,26 @@ describe('librarian agent', () => {
       toolResults: [],
     } as any)
 
+    await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow()
+  })
+
+  it('includes json instruction in prompt', async () => {
+    await createStory(dataDir, makeStory())
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    mockGenerateTextResponse({
+      summaryUpdate: 'Keyword prompt worked.',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+
     const analysis = await runLibrarian(dataDir, storyId, 'pr-0001')
-    expect(analysis.summaryUpdate).toBe('Schema fallback worked.')
+    expect(analysis.summaryUpdate).toBe('Keyword prompt worked.')
     expect(mockedGenerateText).toHaveBeenCalledTimes(1)
+    const call = mockedGenerateText.mock.calls[0]?.[0]
+    expect(call?.prompt).toContain('Return ONLY valid JSON')
   })
 })

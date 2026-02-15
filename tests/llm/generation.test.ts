@@ -5,6 +5,7 @@ import {
   createFragment,
   getFragment,
   listFragments,
+  updateStory,
 } from '@/server/fragments/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
@@ -172,6 +173,56 @@ describe('generation endpoint', () => {
     expect(callArgs.tools).not.toHaveProperty('listCharacters')
     // listFragmentTypes is always present
     expect(callArgs.tools).toHaveProperty('listFragmentTypes')
+  })
+
+  it('POST /stories/:storyId/generate disables built-in tools when setting is empty', async () => {
+    const story = makeStory()
+    story.settings.enabledBuiltinTools = []
+    await updateStory(dataDir, story)
+
+    mockedStreamText.mockReturnValue(
+      createMockStreamResult('Generated text.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Write something',
+        saveResult: false,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+
+    const callArgs = mockedStreamText.mock.calls[0][0]
+    expect(Object.keys(callArgs.tools ?? {})).toEqual([])
+  })
+
+  it('POST /stories/:storyId/generate enables only selected built-in tools', async () => {
+    const story = makeStory()
+    story.settings.enabledBuiltinTools = ['listFragmentTypes']
+    await updateStory(dataDir, story)
+
+    mockedStreamText.mockReturnValue(
+      createMockStreamResult('Generated text.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Write something',
+        saveResult: false,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+
+    const callArgs = mockedStreamText.mock.calls[0][0]
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
+    expect(callArgs.tools).not.toHaveProperty('listFragments')
+    expect(callArgs.tools).not.toHaveProperty('getFragment')
   })
 
   it('POST /stories/:storyId/generate saves result when saveResult=true', async () => {

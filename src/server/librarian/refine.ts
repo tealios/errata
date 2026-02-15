@@ -108,7 +108,7 @@ export async function refineFragment(
   const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
 
   // Resolve model
-  const { model, modelId } = await getModel(dataDir, storyId)
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
   requestLogger.info('Resolved model', { modelId })
 
   // Stream with write tools

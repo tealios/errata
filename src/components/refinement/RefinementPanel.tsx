@@ -119,7 +119,7 @@ export function RefinementPanel({
         {(isRefining || streamedText) && (
           <div ref={outputRef} className="max-h-[200px] overflow-auto">
             <div className="text-xs text-muted-foreground/70">
-              <StreamMarkdown content={streamedText} streaming={isRefining} />
+              <StreamMarkdown content={streamedText} streaming={isRefining} variant="prose" />
             </div>
           </div>
         )}
