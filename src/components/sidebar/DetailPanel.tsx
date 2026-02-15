@@ -24,6 +24,9 @@ interface DetailPanelProps {
   onManageProviders: () => void
   onLaunchWizard?: () => void
   onImportFragment?: () => void
+  onExport?: () => void
+  onDownloadStory?: () => void
+  enabledPanelPlugins: Array<{ name: string; title: string; mode?: 'react' | 'iframe'; url?: string }>
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -61,6 +64,9 @@ export function DetailPanel({
   onManageProviders,
   onLaunchWizard,
   onImportFragment,
+  onExport,
+  onDownloadStory,
+  enabledPanelPlugins,
 }: DetailPanelProps) {
   const open = !!section
   const [mounted, setMounted] = useState(open)
@@ -124,7 +130,7 @@ export function DetailPanel({
         <div className="flex-1 overflow-hidden" data-component-id="detail-panel-content">
           {activeSection === 'story-info' && (
             <ScrollArea className="h-full">
-              <StoryInfoPanel storyId={storyId} story={story} onLaunchWizard={onLaunchWizard} />
+              <StoryInfoPanel storyId={storyId} story={story} onLaunchWizard={onLaunchWizard} onExport={onExport} onDownloadStory={onDownloadStory} />
             </ScrollArea>
           )}
 
@@ -176,12 +182,23 @@ export function DetailPanel({
 
           {isPlugin && pluginName && (() => {
             const PanelComponent = getPluginPanel(pluginName)
+            const pluginPanel = enabledPanelPlugins.find((plugin) => plugin.name === pluginName)
             return PanelComponent ? (
               <ScrollArea className="h-full">
                 <div data-component-id={componentId('plugin', pluginName, 'panel-root')}>
                   <PanelComponent storyId={storyId} />
                 </div>
               </ScrollArea>
+            ) : pluginPanel?.mode === 'iframe' && pluginPanel.url ? (
+              <div className="h-full" data-component-id={componentId('plugin', pluginName, 'panel-root')}>
+                <iframe
+                  src={`${pluginPanel.url}?storyId=${encodeURIComponent(storyId)}`}
+                  title={`${pluginPanel.title} plugin panel`}
+                  className="h-full w-full border-0 bg-background"
+                  sandbox="allow-scripts allow-same-origin allow-forms"
+                  data-component-id={componentId('plugin', pluginName, 'panel-iframe')}
+                />
+              </div>
             ) : (
               <p className="p-4 text-sm text-muted-foreground">Plugin panel not found</p>
             )

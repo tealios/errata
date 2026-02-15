@@ -5,11 +5,16 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
+    "new:plugin": "bun scripts/new-plugin.mjs",
+    "build:binary": "bun scripts/build-binary.mjs",
+    "package:binary": "bun scripts/package-binary.mjs",
+    "release:binary": "bun run build:binary && bun run package:binary",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
+    "@tealios/errata-plugin-sdk": "file:packages/errata-plugin-sdk",
     "@ai-sdk/deepseek": "^2.0.20",
     "@ai-sdk/openai-compatible": "^2.0.30",
     "@ai-sdk/react": "^3.0.88",

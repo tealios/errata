@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { app } from '@/server/init'
+import { getApp } from '@/server/init'
 
-const handler = ({ request }: { request: Request }) => app.fetch(request)
+const handler = async ({ request }: { request: Request }) => {
+  const app = await getApp()
+  return app.fetch(request)
+}
 
 export const Route = createFileRoute('/api/$')({
   server: {

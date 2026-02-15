@@ -13,7 +13,6 @@ import { ProseChainView } from '@/components/prose/ProseChainView'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
-import { getPluginPanel } from '@/lib/plugin-panels'
 import { componentId } from '@/lib/dom-ids'
 import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
 import {
@@ -68,8 +67,13 @@ function StoryEditorPage() {
     if (!plugins || !story) return []
     const enabled = story.settings.enabledPlugins
     return plugins
-      .filter((p) => p.panel && enabled.includes(p.name) && getPluginPanel(p.name))
-      .map((p) => ({ name: p.name, title: p.panel!.title }))
+      .filter((p) => p.panel && enabled.includes(p.name))
+      .map((p) => ({
+        name: p.name,
+        title: p.panel!.title,
+        mode: p.panel?.mode,
+        url: p.panel?.url,
+      }))
   }, [plugins, story])
 
   // Auto-show wizard when story has no fragments
@@ -227,8 +231,6 @@ function StoryEditorPage() {
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         enabledPanelPlugins={enabledPanelPlugins}
-        onExport={() => setShowExportPanel(true)}
-        onDownloadStory={() => api.stories.exportAsZip(storyId)}
       />
 
       {/* Detail Panel */}
@@ -243,6 +245,9 @@ function StoryEditorPage() {
         onManageProviders={() => setShowProviders(true)}
         onLaunchWizard={() => setShowWizard(true)}
         onImportFragment={handleOpenImport}
+        onExport={() => setShowExportPanel(true)}
+        onDownloadStory={() => api.stories.exportAsZip(storyId)}
+        enabledPanelPlugins={enabledPanelPlugins}
       />
 
       {/* Main Content */}

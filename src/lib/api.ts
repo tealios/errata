@@ -193,7 +193,11 @@ export interface PluginManifestInfo {
   name: string
   version: string
   description: string
-  panel?: { title: string }
+  panel?: {
+    title: string
+    mode?: 'react' | 'iframe'
+    url?: string
+  }
 }
 
 export const api = {

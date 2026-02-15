@@ -1,0 +1,7 @@
+{
+  "name": "my-plugin",
+  "panel": {
+    "title": "My Plugin",
+    "entry": "ui/index.html"
+  }
+}

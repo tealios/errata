@@ -55,6 +55,7 @@ import {
   type ToolCallLog,
 } from './llm/generation-logs'
 import { pluginRegistry } from './plugins/registry'
+import { getRuntimePluginUi } from './plugins/runtime-ui'
 import {
   runBeforeContext,
   runBeforeGeneration,
@@ -71,8 +72,29 @@ import {
   saveAnalysis as saveLibrarianAnalysis,
 } from './librarian/storage'
 import type { StoryMeta, Fragment } from './fragments/schema'
+import { dirname, extname, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
+
+function contentTypeForPath(path: string): string {
+  const ext = extname(path).toLowerCase()
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8'
+    case '.css': return 'text/css; charset=utf-8'
+    case '.js': return 'application/javascript; charset=utf-8'
+    case '.json': return 'application/json; charset=utf-8'
+    case '.svg': return 'image/svg+xml'
+    case '.png': return 'image/png'
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg'
+    case '.gif': return 'image/gif'
+    case '.ico': return 'image/x-icon'
+    case '.woff': return 'font/woff'
+    case '.woff2': return 'font/woff2'
+    default: return 'application/octet-stream'
+  }
+}
 
 export function createApp(dataDir: string = DATA_DIR) {
   const logger = createLogger('api', { dataDir })
@@ -81,7 +103,52 @@ export function createApp(dataDir: string = DATA_DIR) {
 
     // --- Plugins ---
     .get('/plugins', () => {
-      return pluginRegistry.listAll().map((p) => p.manifest)
+      return pluginRegistry.listAll().map((p) => {
+        const runtimeUi = getRuntimePluginUi(p.manifest.name)
+        if (!runtimeUi) return p.manifest
+
+        return {
+          ...p.manifest,
+          panel: p.manifest.panel
+            ? {
+              ...p.manifest.panel,
+              mode: 'iframe',
+              url: `/api/plugins/${p.manifest.name}/ui/`,
+            }
+            : undefined,
+        }
+      })
+    })
+    .get('/plugins/:pluginName/ui/*', ({ params, set }) => {
+      const runtimeUi = getRuntimePluginUi(params.pluginName)
+      if (!runtimeUi) {
+        set.status = 404
+        return { error: 'Plugin UI not found' }
+      }
+
+      const requestedAsset = (params as Record<string, string>)['*'] ?? ''
+      const entryPath = resolve(runtimeUi.pluginRoot, runtimeUi.entryFile)
+      const baseDir = dirname(entryPath)
+      const targetPath = requestedAsset ? resolve(baseDir, requestedAsset) : entryPath
+
+      const normalizedRoot = runtimeUi.pluginRoot.replace(/\\/g, '/').toLowerCase()
+      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase()
+      if (!normalizedTarget.startsWith(`${normalizedRoot}/`) && normalizedTarget !== normalizedRoot) {
+        set.status = 403
+        return { error: 'Access denied' }
+      }
+
+      if (!existsSync(targetPath)) {
+        set.status = 404
+        return { error: 'Plugin asset not found' }
+      }
+
+      return new Response(Bun.file(targetPath), {
+        headers: {
+          'content-type': contentTypeForPath(targetPath),
+          'cache-control': 'no-cache',
+        },
+      })
     })
 
     // --- Story CRUD ---

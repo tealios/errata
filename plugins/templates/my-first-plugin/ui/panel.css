@@ -1,0 +1,33 @@
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  background: #fafafa;
+  color: #111827;
+}
+
+main {
+  padding: 12px;
+}
+
+h1 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+button {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: white;
+  cursor: pointer;
+}
+
+pre {
+  margin-top: 10px;
+  font-size: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px;
+  white-space: pre-wrap;
+}

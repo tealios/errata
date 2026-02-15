@@ -1,0 +1,17 @@
+{
+  "name": "@tealios/errata-plugin-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "peerDependencies": {
+    "ai": "^6.0.0",
+    "elysia": "^1.4.0"
+  }
+}

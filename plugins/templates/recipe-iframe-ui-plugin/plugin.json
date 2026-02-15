@@ -1,0 +1,7 @@
+{
+  "name": "iframe-ui-recipe",
+  "panel": {
+    "title": "Iframe UI",
+    "entry": "ui/index.html"
+  }
+}

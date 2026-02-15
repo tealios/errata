@@ -5,14 +5,16 @@
       .mark { fill: #e5ddd5; }
     }
   </style>
-  <!-- Primary petals (0°, 120°, 240°) -->
-  <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(0)"/>
-  <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(120)"/>
-  <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(240)"/>
-  <!-- Secondary petals (60°, 180°, 300°) — smaller -->
-  <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(60)"/>
-  <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(180)"/>
-  <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(300)"/>
-  <!-- Center dot -->
-  <circle class="mark" cx="16" cy="16" r="2.52"/>
+  <g transform="translate(-2.5, 0) scale(1.15)">
+    <!-- Primary petals (0°, 120°, 240°) -->
+    <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(0)"/>
+    <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(120)"/>
+    <path class="mark" d="M 0 -10.5 C 2.1 -6.8 2.1 -1.6 0 1 C -2.1 -1.6 -2.1 -6.8 0 -10.5 Z" transform="translate(16, 16) scale(1.5) rotate(240)"/>
+    <!-- Secondary petals (60°, 180°, 300°) — smaller -->
+    <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(60)"/>
+    <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(180)"/>
+    <path class="mark" d="M 0 -7.35 C 1.47 -4.76 1.47 -1.12 0 0.7 C -1.47 -1.12 -1.47 -4.76 0 -7.35 Z" transform="translate(16, 16) scale(1.5) rotate(300)"/>
+    <!-- Center dot -->
+    <circle class="mark" cx="16" cy="16" r="2.52"/>
+  </g>
 </svg>

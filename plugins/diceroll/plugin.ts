@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 import { t } from 'elysia'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { WritingPlugin } from '../../src/server/plugins/types'
+import type { WritingPlugin } from '@tealios/errata-plugin-sdk'
 
 interface LogEntry {
   type: 'should' | 'roll'

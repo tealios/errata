@@ -8,6 +8,11 @@ import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
 const config = defineConfig({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(
+      process.env.BUILD_VERSION ?? new Date().toISOString().slice(0, 10)
+    ),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

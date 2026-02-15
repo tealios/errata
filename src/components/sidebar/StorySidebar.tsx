@@ -27,8 +27,6 @@ import {
   Activity,
   ArrowUpDown,
   Archive,
-  Package,
-  Download,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 import { ErrataMark } from '@/components/ErrataLogo'
@@ -51,9 +49,7 @@ interface StorySidebarProps {
   story: StoryMeta | undefined
   activeSection: SidebarSection
   onSectionChange: (section: SidebarSection) => void
-  enabledPanelPlugins: Array<{ name: string; title: string }>
-  onExport?: () => void
-  onDownloadStory?: () => void
+  enabledPanelPlugins: Array<{ name: string; title: string; mode?: 'react' | 'iframe'; url?: string }>
 }
 
 const FRAGMENT_SECTIONS = [
@@ -67,8 +63,6 @@ export function StorySidebar({
   activeSection,
   onSectionChange,
   enabledPanelPlugins,
-  onExport,
-  onDownloadStory,
 }: StorySidebarProps) {
   const handleToggle = (section: SidebarSection) => {
     onSectionChange(activeSection === section ? null : section)
@@ -187,26 +181,6 @@ export function StorySidebar({
                   <Archive className="size-4" />
                   <span>Archive</span>
                   <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onExport?.()}
-                  tooltip="Export Fragments"
-                  data-component-id="sidebar-export-button"
-                >
-                  <Package className="size-4" />
-                  <span>Export</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onDownloadStory?.()}
-                  tooltip="Download Story"
-                  data-component-id="sidebar-download-story-button"
-                >
-                  <Download className="size-4" />
-                  <span>Download Story</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

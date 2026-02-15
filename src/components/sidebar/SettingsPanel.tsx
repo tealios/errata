@@ -378,6 +378,23 @@ export function SettingsPanel({ storyId, story, onManageProviders }: SettingsPan
           <p className="text-xs text-muted-foreground/40 italic">No plugins available</p>
         )}
       </div>
+
+      {/* Attribution */}
+      <div className="pt-4 mt-2 border-t border-border/20">
+        <p className="text-[10px] text-muted-foreground/30 text-center leading-relaxed">
+          Errata v{__BUILD_VERSION__}
+          <br />
+          Built by{' '}
+          <a
+            href="https://github.com/nokusukun"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-muted-foreground/50 transition-colors"
+          >
+            nokusukun
+          </a>
+        </p>
+      </div>
     </div>
   )
 }

@@ -18,7 +18,8 @@ Errata now supports two plugin sources:
 
 2. **External runtime plugins** (optional)
    - Loaded from disk at startup when `PLUGIN_DIR` is set.
-   - Loaded server-side only.
+   - Server features load at runtime.
+   - Optional UI can be served by Errata via `plugin.json` + iframe panel.
 
 Code references:
 
@@ -44,9 +45,50 @@ Example layout:
 external-plugins/
   my-plugin/
     entry.server.ts
+    plugin.json
+    ui/
+      index.html
+      panel.css
+      panel.js
   dice-tools/
     plugin.js
 ```
+
+## Runtime UI Panels via plugin.json (Iframe)
+
+External plugins can define a panel UI without being in the frontend build.
+
+Create `plugin.json` in the plugin root:
+
+```json
+{
+  "name": "my-plugin",
+  "panel": {
+    "title": "My Plugin",
+    "entry": "ui/index.html"
+  }
+}
+```
+
+Rules:
+
+- `name` (if provided) must match `manifest.name` from `entry.server.*`.
+- `panel.title` overrides the sidebar panel title.
+- `panel.entry` points to the HTML entry file relative to plugin root.
+
+Errata serves panel assets at:
+
+- `GET /api/plugins/:pluginName/ui/` (entry HTML)
+- `GET /api/plugins/:pluginName/ui/*` (relative assets)
+
+The app renders these panels in an iframe for enabled plugins.
+
+Code references:
+
+- `src/server/plugins/loader.ts`
+- `src/server/plugins/runtime-ui.ts`
+- `src/server/api.ts`
+- `src/components/sidebar/DetailPanel.tsx`
 
 ## Duplicate Plugin Names and Override Behavior
 
@@ -71,25 +113,14 @@ Startup logs now include plugin loading results:
 
 This helps verify what actually got mounted in production.
 
-## Important Limitation: UI Panels for External Plugins
+## UI Modes and Limits
 
-External runtime plugins are currently **server-only**.
+External runtime plugin UI currently supports **iframe mode** via `plugin.json`.
 
-Why:
+- Good for: standalone HTML/CSS/JS plugin UIs loaded at runtime.
+- Not supported (for external plugins): runtime React component mounting into host bundle.
 
-- Client panels are discovered at build time via `import.meta.glob('../../plugins/*/entry.client.ts', { eager: true })`.
-- That means only plugins present at build time can contribute sidebar panels in the frontend bundle.
-
-What still works for external runtime plugins:
-
-- server routes
-- server tools
-- server hooks
-- server fragment types
-
-What does not automatically work:
-
-- dynamic client panel mounting for plugins added after build
+Bundled plugins can still use `entry.client.ts` React panels discovered at build time.
 
 ## Standalone Binary Workflow
 
@@ -106,27 +137,66 @@ set PLUGIN_EXTERNAL_OVERRIDE=1
 errata.exe
 ```
 
+Example plugin panel URL when enabled:
+
+- `http://localhost:3000/api/plugins/my-plugin/ui/`
+
 Run example (Linux/macOS):
 
 ```bash
 PLUGIN_DIR=/opt/errata/plugins PLUGIN_EXTERNAL_OVERRIDE=1 ./errata
 ```
 
+## Build + Package Commands (Current)
+
+Use the project scripts instead of calling `bun build --compile` directly:
+
+```bash
+bun run build:binary
+```
+
+Build output:
+
+- `dist/errata*.exe`
+- `dist/public/` (required at runtime for static assets)
+
+Create a distributable zip:
+
+```bash
+bun run package:binary
+```
+
+Output:
+
+- `dist/errata-bundle.zip` (binary + required `public/` + README)
+
+Full release flow:
+
+```bash
+bun run release:binary
+```
+
+Why this is required:
+
+- Nitro output expects static assets from `public/`.
+- The binary wrapper remaps virtual Bun paths so runtime asset reads resolve to `dist/public`.
+
 ## Packaging Notes
 
 - Keep `DEEPSEEK_API_KEY` and other secrets in environment variables.
 - Keep story data external via `DATA_DIR`.
 - Use external plugins only from trusted sources (runtime code execution risk).
+- External iframe panels are sandboxed (`allow-scripts allow-same-origin allow-forms`).
 
-## Suggested Build Command
+## Startup Directory Bootstrapping
 
-Use Bun compile mode for a deployable executable:
+On startup, Errata now creates missing base directories automatically:
 
-```bash
-bun build --compile --minify --bytecode src/standalone/server.ts --outfile dist/errata
-```
+- `DATA_DIR`
+- `DATA_DIR/stories`
+- `PLUGIN_DIR` (if set)
 
-If your entrypoint differs, replace `src/standalone/server.ts` with your server entry.
+This removes the need to pre-create empty folders on fresh installs.
 
 ## Security Considerations
 
