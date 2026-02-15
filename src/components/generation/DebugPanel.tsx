@@ -4,7 +4,6 @@ import { api, type GenerationLog, type GenerationLogSummary } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { X, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface DebugPanelProps {
@@ -277,8 +276,8 @@ function OutputTab({ log }: { log: GenerationLog }) {
           {log.generatedText.length.toLocaleString()} chars
         </span>
       </div>
-      <div className="bg-card/30 rounded-lg p-6 border border-border/20">
-        <StreamMarkdown content={log.generatedText} />
+      <div className="prose-content whitespace-pre-wrap bg-card/30 rounded-lg p-6 border border-border/20">
+        {log.generatedText}
       </div>
     </div>
   )

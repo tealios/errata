@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { DebugPanel } from './DebugPanel'
 import { Send, Eye, Square, Bug, ArrowLeft } from 'lucide-react'
 
@@ -103,7 +102,12 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
             <>
               <div ref={outputRef} className="flex-1 overflow-auto px-6 py-6">
                 <div className="max-w-[38rem] mx-auto">
-                  <StreamMarkdown content={streamedText} streaming={isGenerating} />
+                  <div className="prose-content whitespace-pre-wrap">
+                    {streamedText}
+                  </div>
+                  {isGenerating && (
+                    <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+                  )}
                 </div>
               </div>
               <div className="h-px bg-border/30" />

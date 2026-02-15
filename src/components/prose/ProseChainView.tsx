@@ -4,7 +4,6 @@ import { api, type Fragment } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -28,7 +27,6 @@ export function ProseChainView({
   // State for streaming generation
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
-  const [fragmentCountBeforeGeneration, setFragmentCountBeforeGeneration] = useState<number | null>(null)
   const [followGeneration, setFollowGeneration] = useState(() => {
     if (typeof window === 'undefined') return true
     const saved = localStorage.getItem(FOLLOW_GENERATION_KEY)
@@ -92,23 +90,19 @@ export function ProseChainView({
 
   // Clear streamed text once fragments update (new prose was saved)
   useEffect(() => {
-    if (!isGenerating && streamedText && fragmentCountBeforeGeneration !== null) {
-      // Check if a new fragment was added (count increased) or if the last fragment's content matches
-      const currentCount = orderedFragments.length
+    if (!isGenerating && streamedText) {
+      // Check if the last fragment's content matches our streamed text
+      // or if a new fragment was added while we were generating
       const lastFragment = orderedFragments[orderedFragments.length - 1]
-      
-      // Clear if fragment count increased (new fragment added) or content matches
-      if (currentCount > fragmentCountBeforeGeneration ||
-          (lastFragment && lastFragment.content === streamedText)) {
+      if (lastFragment && (lastFragment.content === streamedText || lastFragment.meta?.generatedFrom)) {
         // Give a small delay so the transition is smooth
         const timeout = setTimeout(() => {
           setStreamedText('')
-          setFragmentCountBeforeGeneration(null)
         }, 100)
         return () => clearTimeout(timeout)
       }
     }
-  }, [orderedFragments, isGenerating, streamedText, fragmentCountBeforeGeneration])
+  }, [orderedFragments, isGenerating, streamedText])
 
   // Track which prose block is currently visible
   useEffect(() => {
@@ -181,7 +175,12 @@ export function ProseChainView({
             <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300" data-component-id="prose-streaming-block">
               {/* Match prose block styling - no border, minimal background */}
               <div className="rounded-lg p-4 -mx-4 bg-card/30">
-                <StreamMarkdown content={streamedText} streaming={isGenerating} />
+                <div className="prose-content whitespace-pre-wrap">
+                  {streamedText}
+                  {isGenerating && (
+                    <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+                  )}
+                </div>
 
                 {/* Minimal generating indicator matching prose metadata bar style */}
                 {isGenerating && (
@@ -202,7 +201,6 @@ export function ProseChainView({
             onGenerationStart={() => {
               setIsGenerating(true)
               setStreamedText('')
-              setFragmentCountBeforeGeneration(orderedFragments.length)
             }}
             onGenerationStream={(text) => setStreamedText(text)}
             onGenerationComplete={() => {
@@ -893,13 +891,15 @@ function ProseBlock({
         className="text-left w-full rounded-lg p-4 -mx-4 transition-colors duration-150 hover:bg-card/40 cursor-pointer"
         data-component-id={`prose-${fragment.id}-select`}
       >
-        <StreamMarkdown
-          content={(isStreamingAction || streamedActionText)
+        <div className="prose-content whitespace-pre-wrap">
+          {(isStreamingAction || streamedActionText)
             ? streamedActionText || ''
             : fragment.content
           }
-          streaming={isStreamingAction}
-        />
+          {isStreamingAction && (
+            <span className="inline-block w-0.5 h-[1.1em] bg-primary/60 animate-pulse ml-px align-text-bottom" />
+          )}
+        </div>
 
         {/* Metadata bar — visible on hover */}
         <div className="flex items-center gap-2 mt-3 pt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
