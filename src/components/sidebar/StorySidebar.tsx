@@ -222,7 +222,7 @@ export function StorySidebar({
         {/* Agent Activity */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
-            Agent
+            Helpers
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
