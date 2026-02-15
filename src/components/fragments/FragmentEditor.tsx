@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check } from 'lucide-react'
+import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check, Sparkles } from 'lucide-react'
+import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { copyFragmentToClipboard } from '@/lib/fragment-clipboard'
 import { CropDialog } from '@/components/fragments/CropDialog'
 
@@ -43,6 +44,7 @@ export function FragmentEditor({
   const [type, setType] = useState(createType ?? 'prose')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [showRefine, setShowRefine] = useState(false)
 
   // Fetch live fragment data so sticky/placement updates are reflected immediately
   const { data: liveFragment } = useQuery({
@@ -70,19 +72,22 @@ export function FragmentEditor({
     return map
   }, [_imageFragments, _iconFragments])
 
+  // Sync local state from the source fragment (prop or live query data).
+  // Uses liveFragment so that external updates (e.g. refinement agent) are reflected.
+  const sourceFragment = liveFragment ?? fragmentProp
   useEffect(() => {
-    if (fragmentProp) {
-      setName(fragmentProp.name)
-      setDescription(fragmentProp.description)
-      setContent(fragmentProp.content)
-      setType(fragmentProp.type)
+    if (sourceFragment) {
+      setName(sourceFragment.name)
+      setDescription(sourceFragment.description)
+      setContent(sourceFragment.content)
+      setType(sourceFragment.type)
     } else {
       setName(prefill?.name ?? '')
       setDescription(prefill?.description ?? '')
       setContent(prefill?.content ?? '')
       setType(createType ?? 'prose')
     }
-  }, [fragmentProp, createType, prefill])
+  }, [sourceFragment, createType, prefill])
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
@@ -234,6 +239,17 @@ export function FragmentEditor({
               {copied ? 'Copied' : 'Copy'}
             </Button>
           )}
+          {fragment && !fragment.archived && mode !== 'create' && fragment.type !== 'prose' && fragment.type !== 'image' && fragment.type !== 'icon' && (
+            <Button
+              size="sm"
+              variant={showRefine ? 'secondary' : 'ghost'}
+              className="h-7 text-xs gap-1"
+              onClick={() => setShowRefine(!showRefine)}
+            >
+              <Sparkles className="size-3" />
+              Refine
+            </Button>
+          )}
           {fragment && (
             <Button
               size="sm"
@@ -309,6 +325,20 @@ export function FragmentEditor({
           </Button>
         </div>
       </div>
+
+      {showRefine && fragment && (
+        <div className="px-6 py-3 border-b border-border/30">
+          <RefinementPanel
+            storyId={storyId}
+            fragmentId={fragment.id}
+            fragmentName={fragment.name}
+            onComplete={() => {
+              invalidate()
+            }}
+            onClose={() => setShowRefine(false)}
+          />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-auto">
         <div className="px-6 py-5 space-y-4">

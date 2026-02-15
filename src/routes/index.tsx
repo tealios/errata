@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, useRef } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,32 @@ function StoryListPage() {
     queryKey: ['stories'],
     queryFn: api.stories.list,
   })
+
+  const sortedStories = useMemo(() => {
+    if (!stories) return []
+
+    const withAccess = stories.map((story) => {
+      const raw = typeof window !== 'undefined'
+        ? localStorage.getItem(`errata:last-accessed:${story.id}`)
+        : null
+      const lastAccessed = raw ? Date.parse(raw) : Number.NaN
+      return {
+        story,
+        lastAccessed: Number.isFinite(lastAccessed) ? lastAccessed : null,
+      }
+    })
+
+    return withAccess
+      .sort((a, b) => {
+        if (a.lastAccessed !== null && b.lastAccessed !== null) {
+          return b.lastAccessed - a.lastAccessed
+        }
+        if (a.lastAccessed !== null) return -1
+        if (b.lastAccessed !== null) return 1
+        return Date.parse(b.story.updatedAt) - Date.parse(a.story.updatedAt)
+      })
+      .map((entry) => entry.story)
+  }, [stories])
 
   const createMutation = useMutation({
     mutationFn: api.stories.create,
@@ -192,7 +218,7 @@ function StoryListPage() {
         )}
 
         <div className="space-y-2" data-component-id="story-list">
-          {stories?.map((story) => (
+          {sortedStories.map((story) => (
             <StoryCard
               key={story.id}
               story={story}
@@ -249,6 +275,9 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
       to="/story/$storyId"
       params={{ storyId: story.id }}
       className="group block"
+      onClick={() => {
+        localStorage.setItem(`errata:last-accessed:${story.id}`, new Date().toISOString())
+      }}
     >
       <div
         className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150"

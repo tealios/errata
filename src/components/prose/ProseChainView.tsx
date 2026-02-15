@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronLeft, ChevronRight, Trash2, List } from 'lucide-react'
 import { useQuickSwitch } from '@/lib/theme'
 
@@ -22,9 +23,17 @@ export function ProseChainView({
   onSelectFragment,
   onDebugLog,
 }: ProseChainViewProps) {
+  const FOLLOW_GENERATION_KEY = 'errata:follow-generation'
   // State for streaming generation
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
+  const [followGeneration, setFollowGeneration] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem(FOLLOW_GENERATION_KEY)
+    if (saved === '0') return false
+    if (saved === '1') return true
+    return true
+  })
   const [activeIndex, setActiveIndex] = useState(0)
   const [quickSwitch] = useQuickSwitch()
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -64,15 +73,20 @@ export function ProseChainView({
     ) || null
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(FOLLOW_GENERATION_KEY, followGeneration ? '1' : '0')
+  }, [followGeneration])
+
   // Scroll to bottom when streaming new content
   useEffect(() => {
-    if (streamedText && scrollAreaRef.current) {
+    if (followGeneration && isGenerating && streamedText && scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight
       }
     }
-  }, [streamedText])
+  }, [streamedText, followGeneration, isGenerating])
 
   // Clear streamed text once fragments update (new prose was saved)
   useEffect(() => {
@@ -178,7 +192,6 @@ export function ProseChainView({
           <InlineGenerationInput
             storyId={storyId}
             isGenerating={isGenerating}
-            streamedText={streamedText}
             onGenerationStart={() => {
               setIsGenerating(true)
               setStreamedText('')
@@ -192,6 +205,8 @@ export function ProseChainView({
             onGenerationError={() => {
               setIsGenerating(false)
             }}
+            followGeneration={followGeneration}
+            onToggleFollowGeneration={() => setFollowGeneration((value) => !value)}
           />
         </div>
       </ScrollArea>
@@ -219,8 +234,20 @@ function ProseOutlinePanel({
   activeIndex: number
   onJump: (index: number) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const OUTLINE_OPEN_KEY = 'errata:passages-panel-open'
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem(OUTLINE_OPEN_KEY)
+    if (saved === '0') return false
+    if (saved === '1') return true
+    return true
+  })
   const activeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(OUTLINE_OPEN_KEY, open ? '1' : '0')
+  }, [open])
 
   // Scroll the active item into view when panel opens or active changes
   useEffect(() => {
@@ -310,7 +337,8 @@ function ProseOutlinePanel({
 interface InlineGenerationInputProps {
   storyId: string
   isGenerating: boolean
-  streamedText: string
+  followGeneration: boolean
+  onToggleFollowGeneration: () => void
   onGenerationStart: () => void
   onGenerationStream: (text: string) => void
   onGenerationComplete: () => void
@@ -320,6 +348,8 @@ interface InlineGenerationInputProps {
 function InlineGenerationInput({
   storyId,
   isGenerating,
+  followGeneration,
+  onToggleFollowGeneration,
   onGenerationStart,
   onGenerationStream,
   onGenerationComplete,
@@ -446,8 +476,75 @@ function InlineGenerationInput({
 
         {/* Bottom toolbar */}
         <div className="flex items-center justify-between px-3 pb-2.5 pt-0.5">
-          {/* Left: Write button + shortcut hint */}
+          {/* Left: Model selector + Follow toggle */}
+          <div className="flex items-center gap-2">
+            {globalConfig && (
+              <div className="relative group/model">
+                <select
+                  data-component-id="inline-generation-provider-select"
+                  value={story?.settings.providerId ?? ''}
+                  onChange={(e) => {
+                    const providerId = e.target.value || null
+                    providerMutation.mutate({ providerId, modelId: null })
+                  }}
+                  disabled={providerMutation.isPending || isGenerating}
+                  className="text-[10px] text-muted-foreground/40 bg-muted/40 hover:bg-muted/70 border border-border/20 hover:border-border/40 rounded-md outline-none cursor-pointer transition-all duration-200 appearance-none pl-2 pr-5 py-1 font-mono max-w-[180px] truncate disabled:opacity-30 disabled:cursor-default focus:ring-1 focus:ring-primary/20 focus:border-primary/30"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                  title={modelLabel ?? undefined}
+                >
+                  {(() => {
+                    const providers = globalConfig.providers.filter(p => p.enabled)
+                    const defaultProvider = globalConfig.defaultProviderId
+                      ? providers.find(p => p.id === globalConfig.defaultProviderId)
+                      : null
+                    return (
+                      <>
+                        <option value="">
+                          {defaultProvider
+                            ? `${defaultProvider.defaultModel}`
+                            : `deepseek-chat`}
+                        </option>
+                        {providers
+                          .filter(p => p.id !== globalConfig.defaultProviderId)
+                          .map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.defaultModel}
+                            </option>
+                          ))}
+                      </>
+                    )
+                  })()}
+                </select>
+              </div>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={followGeneration ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-xs rounded-lg"
+                  onClick={onToggleFollowGeneration}
+                  data-component-id="inline-generation-follow-toggle"
+                >
+                  {followGeneration ? 'Follow' : 'Fixed'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {followGeneration
+                  ? 'Auto-scrolls to follow new text as it generates'
+                  : 'Scroll stays in place during generation'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Right: Write/Stop button + shortcut hint */}
           <div className="flex items-center gap-2.5">
+            {!isGenerating && (
+              <span className="text-[10px] text-muted-foreground/30 font-sans select-none">
+                Ctrl+Enter
+              </span>
+            )}
             {isGenerating ? (
               <Button
                 variant="outline"
@@ -471,53 +568,7 @@ function InlineGenerationInput({
                 Write
               </Button>
             )}
-            {!isGenerating && (
-              <span className="text-[10px] text-muted-foreground/30 font-sans select-none">
-                Ctrl+Enter
-              </span>
-            )}
           </div>
-
-          {/* Right: Model selector */}
-          {globalConfig && (
-            <div className="relative group/model">
-              <select
-                data-component-id="inline-generation-provider-select"
-                value={story?.settings.providerId ?? ''}
-                onChange={(e) => {
-                  const providerId = e.target.value || null
-                  providerMutation.mutate({ providerId, modelId: null })
-                }}
-                disabled={providerMutation.isPending || isGenerating}
-                className="text-[10px] text-muted-foreground/40 bg-muted/40 hover:bg-muted/70 border border-border/20 hover:border-border/40 rounded-md outline-none cursor-pointer transition-all duration-200 appearance-none pl-2 pr-5 py-1 font-mono max-w-[180px] truncate disabled:opacity-30 disabled:cursor-default focus:ring-1 focus:ring-primary/20 focus:border-primary/30"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
-                title={modelLabel ?? undefined}
-              >
-                {(() => {
-                  const providers = globalConfig.providers.filter(p => p.enabled)
-                  const defaultProvider = globalConfig.defaultProviderId
-                    ? providers.find(p => p.id === globalConfig.defaultProviderId)
-                    : null
-                  return (
-                    <>
-                      <option value="">
-                        {defaultProvider
-                          ? `${defaultProvider.defaultModel}`
-                          : `deepseek-chat`}
-                      </option>
-                      {providers
-                        .filter(p => p.id !== globalConfig.defaultProviderId)
-                        .map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.defaultModel}
-                          </option>
-                        ))}
-                    </>
-                  )
-                })()}
-              </select>
-            </div>
-          )}
         </div>
       </div>
     </div>

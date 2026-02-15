@@ -20,6 +20,7 @@ export interface LibrarianAnalysis {
     description: string
     content: string
     accepted?: boolean
+    createdFragmentId?: string
   }>
   timelineEvents: Array<{
     event: string
@@ -140,4 +141,58 @@ export async function saveState(
   const dir = librarianDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
   await writeFile(statePath(dataDir, storyId), JSON.stringify(state, null, 2), 'utf-8')
+}
+
+// --- Chat history ---
+
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+  reasoning?: string
+}
+
+export interface ChatHistory {
+  messages: ChatHistoryMessage[]
+  updatedAt: string
+}
+
+function chatHistoryPath(dataDir: string, storyId: string): string {
+  return join(librarianDir(dataDir, storyId), 'chat-history.json')
+}
+
+export async function getChatHistory(
+  dataDir: string,
+  storyId: string,
+): Promise<ChatHistory> {
+  const path = chatHistoryPath(dataDir, storyId)
+  if (!existsSync(path)) {
+    return { messages: [], updatedAt: new Date().toISOString() }
+  }
+  const raw = await readFile(path, 'utf-8')
+  return JSON.parse(raw) as ChatHistory
+}
+
+export async function saveChatHistory(
+  dataDir: string,
+  storyId: string,
+  messages: ChatHistoryMessage[],
+): Promise<void> {
+  const dir = librarianDir(dataDir, storyId)
+  await mkdir(dir, { recursive: true })
+  const history: ChatHistory = {
+    messages,
+    updatedAt: new Date().toISOString(),
+  }
+  await writeFile(chatHistoryPath(dataDir, storyId), JSON.stringify(history, null, 2), 'utf-8')
+}
+
+export async function clearChatHistory(
+  dataDir: string,
+  storyId: string,
+): Promise<void> {
+  const path = chatHistoryPath(dataDir, storyId)
+  if (existsSync(path)) {
+    const { unlink } = await import('node:fs/promises')
+    await unlink(path)
+  }
 }

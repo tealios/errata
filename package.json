@@ -14,7 +14,6 @@
     "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
-    "@tealios/errata-plugin-sdk": "file:packages/errata-plugin-sdk",
     "@ai-sdk/deepseek": "^2.0.20",
     "@ai-sdk/openai-compatible": "^2.0.30",
     "@ai-sdk/react": "^3.0.88",
@@ -28,6 +27,7 @@
     "@tanstack/react-router-ssr-query": "^1.131.7",
     "@tanstack/react-start": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
+    "@tealios/errata-plugin-sdk": "file:packages/errata-plugin-sdk",
     "ai": "^6.0.86",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -39,6 +39,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",

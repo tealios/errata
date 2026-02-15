@@ -96,6 +96,7 @@ export interface LibrarianAnalysis {
     description: string
     content: string
     accepted?: boolean
+    createdFragmentId?: string
   }>
   timelineEvents: Array<{
     event: string
@@ -107,6 +108,16 @@ export interface LibrarianState {
   lastAnalyzedFragmentId: string | null
   recentMentions: Record<string, string[]>
   timeline: Array<{ event: string; fragmentId: string }>
+}
+
+export interface LibrarianAcceptSuggestionResponse {
+  analysis: LibrarianAnalysis
+  createdFragmentId: string | null
+}
+
+export interface ChatHistory {
+  messages: Array<{ role: 'user' | 'assistant'; content: string; reasoning?: string }>
+  updatedAt: string
 }
 
 export interface ProviderConfigSafe {
@@ -185,6 +196,77 @@ async function fetchStream(
         return
       }
       controller.enqueue(decoder.decode(value, { stream: true }))
+    },
+  })
+}
+
+// --- Chat Event Stream (NDJSON) ---
+
+export type ChatEvent =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }
+  | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
+  | { type: 'tool-result'; id: string; toolName: string; result: unknown }
+  | { type: 'finish'; finishReason: string; stepCount: number }
+
+/**
+ * Fetches an NDJSON event stream and returns a ReadableStream of parsed ChatEvent objects.
+ */
+async function fetchEventStream(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ReadableStream<ChatEvent>> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error ?? `API error: ${res.status}`)
+  }
+  if (!res.body) {
+    throw new Error('No response body')
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  return new ReadableStream<ChatEvent>({
+    async pull(controller) {
+      while (true) {
+        // Try to extract a complete line from the buffer
+        const newlineIdx = buffer.indexOf('\n')
+        if (newlineIdx !== -1) {
+          const line = buffer.slice(0, newlineIdx).trim()
+          buffer = buffer.slice(newlineIdx + 1)
+          if (line) {
+            try {
+              controller.enqueue(JSON.parse(line) as ChatEvent)
+            } catch {
+              // Skip malformed lines
+            }
+          }
+          return
+        }
+
+        // Read more data
+        const { done, value } = await reader.read()
+        if (done) {
+          // Process any remaining buffer
+          const remaining = buffer.trim()
+          if (remaining) {
+            try {
+              controller.enqueue(JSON.parse(remaining) as ChatEvent)
+            } catch {
+              // Skip malformed
+            }
+          }
+          controller.close()
+          return
+        }
+        buffer += decoder.decode(value, { stream: true })
+      }
     },
   })
 }
@@ -373,7 +455,15 @@ export const api = {
     getAnalysis: (storyId: string, id: string) =>
       apiFetch<LibrarianAnalysis>(`/stories/${storyId}/librarian/analyses/${id}`),
     acceptSuggestion: (storyId: string, analysisId: string, index: number) =>
-      apiFetch<LibrarianAnalysis>(`/stories/${storyId}/librarian/analyses/${analysisId}/suggestions/${index}/accept`, { method: 'POST' }),
+      apiFetch<LibrarianAcceptSuggestionResponse>(`/stories/${storyId}/librarian/analyses/${analysisId}/suggestions/${index}/accept`, { method: 'POST' }),
+    refine: (storyId: string, fragmentId: string, instructions?: string) =>
+      fetchStream(`/stories/${storyId}/librarian/refine`, { fragmentId, instructions }),
+    chat: (storyId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+      fetchEventStream(`/stories/${storyId}/librarian/chat`, { messages }),
+    getChatHistory: (storyId: string) =>
+      apiFetch<ChatHistory>(`/stories/${storyId}/librarian/chat`),
+    clearChatHistory: (storyId: string) =>
+      apiFetch<{ ok: boolean }>(`/stories/${storyId}/librarian/chat`, { method: 'DELETE' }),
   },
   proseChain: {
     get: (storyId: string) =>

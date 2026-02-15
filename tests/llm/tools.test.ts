@@ -98,9 +98,33 @@ describe('LLM tools', () => {
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
       expect(tools).toHaveProperty('listFragmentTypes')
       // Write tools present
+      expect(tools).toHaveProperty('createFragment')
       expect(tools).toHaveProperty('updateFragment')
       expect(tools).toHaveProperty('editFragment')
       expect(tools).toHaveProperty('deleteFragment')
+    })
+  })
+
+  describe('createFragment (write)', () => {
+    it('creates a new fragment in storage', async () => {
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      const result = await tools.createFragment.execute(
+        {
+          type: 'knowledge',
+          name: 'Moon Ritual',
+          description: 'How moon magic works',
+          content: 'Moon ritual requires silver ash and river water.',
+        },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      expect(result.ok).toBe(true)
+      expect(result.id).toMatch(/^kn-/)
+
+      const created = await getFragment(dataDir, storyId, result.id)
+      expect(created).toBeTruthy()
+      expect(created?.type).toBe('knowledge')
+      expect(created?.name).toBe('Moon Ritual')
     })
   })
 

@@ -76,6 +76,10 @@ function StoryEditorPage() {
       }))
   }, [plugins, story])
 
+  useEffect(() => {
+    localStorage.setItem(`errata:last-accessed:${storyId}`, new Date().toISOString())
+  }, [storyId])
+
   // Auto-show wizard when story has no fragments
   if (showWizard === null && allFragments !== undefined) {
     if (allFragments.length === 0) {

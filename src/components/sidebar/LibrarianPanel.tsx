@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   AlertTriangle,
   Lightbulb,
@@ -17,20 +18,69 @@ import {
   ChevronRight,
   Plus,
   Check,
+  Sparkles,
+  Wrench,
+  MessageSquare,
+  Activity,
 } from 'lucide-react'
+import { RefinementPanel } from '@/components/refinement/RefinementPanel'
+import { LibrarianChat } from '@/components/librarian/LibrarianChat'
 
 interface LibrarianPanelProps {
   storyId: string
-  onCreateFragment?: (type: string, prefill?: { name: string; description: string; content: string }) => void
 }
 
-export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProps) {
+export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
+  return (
+    <Tabs defaultValue="chat" className="h-full flex flex-col gap-0">
+      <div className="px-3 pt-2 shrink-0">
+        <TabsList className="w-full h-8">
+          <TabsTrigger value="chat" className="text-xs gap-1 flex-1">
+            <MessageSquare className="size-3" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="text-xs gap-1 flex-1">
+            <Activity className="size-3" />
+            Activity
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
+        <LibrarianChat storyId={storyId} />
+      </TabsContent>
+
+      <TabsContent value="activity" className="flex-1 min-h-0 mt-0">
+        <ActivityContent storyId={storyId} />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function ActivityContent({ storyId }: LibrarianPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [refineTarget, setRefineTarget] = useState<{ fragmentId: string; fragmentName: string; instructions?: string } | null>(null)
 
   const { data: characters } = useQuery({
     queryKey: ['fragments', storyId, 'character'],
     queryFn: () => api.fragments.list(storyId, 'character'),
   })
+
+  const { data: guidelines } = useQuery({
+    queryKey: ['fragments', storyId, 'guideline'],
+    queryFn: () => api.fragments.list(storyId, 'guideline'),
+  })
+
+  const { data: knowledge } = useQuery({
+    queryKey: ['fragments', storyId, 'knowledge'],
+    queryFn: () => api.fragments.list(storyId, 'knowledge'),
+  })
+
+  const refinableFragments = [
+    ...(characters ?? []),
+    ...(guidelines ?? []),
+    ...(knowledge ?? []),
+  ].filter((f) => !f.archived)
 
   const charName = (id: string) => characters?.find((c) => c.id === id)?.name ?? id
 
@@ -139,6 +189,47 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
 
         <div className="h-px bg-border/30" />
 
+        {/* Refine Fragment */}
+        <div>
+          <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 flex items-center gap-1">
+            <Sparkles className="size-3" />
+            Refine Fragment
+          </h4>
+          {refineTarget ? (
+            <RefinementPanel
+              storyId={storyId}
+              fragmentId={refineTarget.fragmentId}
+              fragmentName={refineTarget.fragmentName}
+              onComplete={() => setRefineTarget(null)}
+              onClose={() => setRefineTarget(null)}
+            />
+          ) : (
+            <div className="space-y-2">
+              {refinableFragments.length > 0 ? (
+                <select
+                  className="w-full rounded-md border border-border/40 bg-transparent px-2 py-1.5 text-xs"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const f = refinableFragments.find((f) => f.id === e.target.value)
+                    if (f) {
+                      setRefineTarget({ fragmentId: f.id, fragmentName: f.name })
+                    }
+                  }}
+                >
+                  <option value="" disabled>Select a fragment to refine...</option>
+                  {refinableFragments.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name} ({f.type})</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-muted-foreground/40 italic">No refinable fragments. Create characters, guidelines, or knowledge first.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="h-px bg-border/30" />
+
         {/* Analyses list */}
         <div>
           <h4 className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2">
@@ -153,8 +244,11 @@ export function LibrarianPanel({ storyId, onCreateFragment }: LibrarianPanelProp
                 expanded={expandedId === summary.id}
                 analysis={expandedId === summary.id ? expandedAnalysis ?? null : null}
                 onToggle={() => setExpandedId(expandedId === summary.id ? null : summary.id)}
-                onCreateFragment={onCreateFragment}
+                onRefineFragment={(fragmentId, fragmentName, instructions) =>
+                  setRefineTarget({ fragmentId, fragmentName, instructions })
+                }
                 charName={charName}
+                refinableFragments={refinableFragments}
               />
             ))}
           </div>
@@ -170,16 +264,18 @@ function AnalysisItem({
   expanded,
   analysis,
   onToggle,
-  onCreateFragment,
+  onRefineFragment,
   charName,
+  refinableFragments,
 }: {
   storyId: string
   summary: LibrarianAnalysisSummary
   expanded: boolean
   analysis: LibrarianAnalysis | null
   onToggle: () => void
-  onCreateFragment?: (type: string, prefill?: { name: string; description: string; content: string }) => void
+  onRefineFragment?: (fragmentId: string, fragmentName: string, instructions: string) => void
   charName: (id: string) => string
+  refinableFragments?: Array<{ id: string; name: string; type: string }>
 }) {
   const queryClient = useQueryClient()
   const date = new Date(summary.createdAt)
@@ -189,17 +285,14 @@ function AnalysisItem({
     mutationFn: (index: number) =>
       api.librarian.acceptSuggestion(storyId, summary.id, index),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['librarian-analyses', storyId] })
       queryClient.invalidateQueries({ queryKey: ['librarian-analysis', storyId, summary.id] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
     },
   })
 
   const handleAcceptSuggestion = (s: LibrarianAnalysis['knowledgeSuggestions'][number], index: number) => {
     acceptMutation.mutate(index)
-    onCreateFragment?.(s.type ?? 'knowledge', {
-      name: s.name,
-      description: s.description,
-      content: s.content,
-    })
   }
 
   return (
@@ -248,16 +341,46 @@ function AnalysisItem({
           {analysis.contradictions.length > 0 && (
             <div className="space-y-1">
               <span className="font-medium text-destructive/80">Contradictions:</span>
-              {analysis.contradictions.map((c, i) => (
-                <div key={i} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
-                  <p>{c.description}</p>
-                  {c.fragmentIds.length > 0 && (
-                    <p className="text-muted-foreground/50 mt-0.5">
-                      Related: {c.fragmentIds.join(', ')}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {analysis.contradictions.map((c, i) => {
+                const fixableId = c.fragmentIds.find((fid) =>
+                  refinableFragments?.some((rf) => rf.id === fid)
+                )
+                const fixableFragment = fixableId
+                  ? refinableFragments?.find((rf) => rf.id === fixableId)
+                  : null
+                return (
+                  <div key={i} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
+                    <div className="flex items-start justify-between gap-1">
+                      <div>
+                        <p>{c.description}</p>
+                        {c.fragmentIds.length > 0 && (
+                          <p className="text-muted-foreground/50 mt-0.5">
+                            Related: {c.fragmentIds.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      {fixableFragment && onRefineFragment && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] gap-1 shrink-0 text-destructive/70 hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRefineFragment(
+                              fixableFragment.id,
+                              fixableFragment.name,
+                              `Fix this contradiction: ${c.description}`,
+                            )
+                          }}
+                        >
+                          <Wrench className="size-3" />
+                          Fix
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -286,7 +409,7 @@ function AnalysisItem({
                     </div>
                     <p className="text-muted-foreground/60">{s.description}</p>
                   </div>
-                  {onCreateFragment && !s.accepted && (
+                  {!s.accepted && (
                     <Button
                       size="icon"
                       variant="ghost"

@@ -64,12 +64,17 @@ import {
 } from './plugins/hooks'
 import { collectPluginTools } from './plugins/tools'
 import { triggerLibrarian } from './librarian/scheduler'
+import { refineFragment } from './librarian/refine'
+import { librarianChat } from './librarian/chat'
 import { exportStoryAsZip, importStoryFromZip } from './story-archive'
 import {
   getState as getLibrarianState,
   listAnalyses as listLibrarianAnalyses,
   getAnalysis as getLibrarianAnalysis,
   saveAnalysis as saveLibrarianAnalysis,
+  getChatHistory as getLibrarianChatHistory,
+  saveChatHistory as saveLibrarianChatHistory,
+  clearChatHistory as clearLibrarianChatHistory,
 } from './librarian/storage'
 import type { StoryMeta, Fragment } from './fragments/schema'
 import { dirname, extname, resolve } from 'node:path'
@@ -313,7 +318,6 @@ export function createApp(dataDir: string = DATA_DIR) {
         updatedAt: now,
         order: 0,
         meta: {},
-        archived: false,
       }
       await createFragment(dataDir, params.storyId, fragment)
       return fragment
@@ -411,7 +415,8 @@ export function createApp(dataDir: string = DATA_DIR) {
         set.status = 404
         return { error: 'Fragment not found' }
       }
-      if (!fragment.archived) {
+      const isArchived = Boolean((fragment as Fragment & { archived?: boolean }).archived)
+      if (!isArchived) {
         set.status = 422
         return { error: 'Fragment must be archived before deletion' }
       }
@@ -603,9 +608,183 @@ export function createApp(dataDir: string = DATA_DIR) {
         set.status = 422
         return { error: 'Invalid suggestion index' }
       }
+
+      const suggestion = analysis.knowledgeSuggestions[index]
+      let createdFragmentId: string | null = suggestion.createdFragmentId ?? null
+
+      if (!suggestion.accepted || !createdFragmentId) {
+        createdFragmentId = generateFragmentId(suggestion.type)
+        const now = new Date().toISOString()
+        const fragment: Fragment = {
+          id: createdFragmentId,
+          type: suggestion.type,
+          name: suggestion.name,
+          description: suggestion.description.slice(0, 50),
+          content: suggestion.content,
+          tags: [],
+          refs: [],
+          sticky: registry.getType(suggestion.type)?.stickyByDefault ?? false,
+          placement: 'user',
+          createdAt: now,
+          updatedAt: now,
+          order: 0,
+          meta: {
+            source: 'librarian-suggestion',
+            analysisId: analysis.id,
+            suggestionIndex: index,
+          },
+        }
+        await createFragment(dataDir, params.storyId, fragment)
+      }
+
       analysis.knowledgeSuggestions[index].accepted = true
+      analysis.knowledgeSuggestions[index].createdFragmentId = createdFragmentId
       await saveLibrarianAnalysis(dataDir, params.storyId, analysis)
-      return analysis
+      return {
+        analysis,
+        createdFragmentId,
+      }
+    })
+
+    // --- Librarian Refine ---
+    .post('/stories/:storyId/librarian/refine', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId })
+      requestLogger.info('Refinement request started', { fragmentId: body.fragmentId })
+
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const fragment = await getFragment(dataDir, params.storyId, body.fragmentId)
+      if (!fragment) {
+        set.status = 404
+        return { error: 'Fragment not found' }
+      }
+
+      if (fragment.type === 'prose') {
+        set.status = 422
+        return { error: 'Cannot refine prose fragments. Use the generation refine mode instead.' }
+      }
+
+      try {
+        const { textStream, completion } = await refineFragment(dataDir, params.storyId, {
+          fragmentId: body.fragmentId,
+          instructions: body.instructions,
+          maxSteps: story.settings.maxSteps ?? 5,
+        })
+
+        // Log completion in background
+        completion.then((result) => {
+          requestLogger.info('Refinement completed', {
+            fragmentId: body.fragmentId,
+            stepCount: result.stepCount,
+            finishReason: result.finishReason,
+            toolCallCount: result.toolCalls.length,
+          })
+        }).catch((err) => {
+          requestLogger.error('Refinement completion error', { error: err instanceof Error ? err.message : String(err) })
+        })
+
+        // Encode text stream to bytes
+        const encoder = new TextEncoder()
+        const encodedStream = textStream.pipeThrough(new TransformStream<string, Uint8Array>({
+          transform(chunk, controller) {
+            controller.enqueue(encoder.encode(chunk))
+          }
+        }))
+
+        return new Response(encodedStream, {
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        })
+      } catch (err) {
+        requestLogger.error('Refinement failed', { error: err instanceof Error ? err.message : String(err) })
+        set.status = 500
+        return { error: err instanceof Error ? err.message : 'Refinement failed' }
+      }
+    }, {
+      body: t.Object({
+        fragmentId: t.String(),
+        instructions: t.Optional(t.String()),
+      }),
+    })
+
+    // --- Librarian Chat ---
+    .get('/stories/:storyId/librarian/chat', async ({ params }) => {
+      return getLibrarianChatHistory(dataDir, params.storyId)
+    })
+
+    .delete('/stories/:storyId/librarian/chat', async ({ params }) => {
+      await clearLibrarianChatHistory(dataDir, params.storyId)
+      return { ok: true }
+    })
+
+    .post('/stories/:storyId/librarian/chat', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId })
+      requestLogger.info('Librarian chat request', { messageCount: body.messages.length })
+
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      if (!body.messages.length) {
+        set.status = 422
+        return { error: 'At least one message is required' }
+      }
+
+      try {
+        const { eventStream, completion } = await librarianChat(dataDir, params.storyId, {
+          messages: body.messages,
+          maxSteps: story.settings.maxSteps ?? 10,
+        })
+
+        // Persist chat history after completion (in background)
+        completion.then(async (result) => {
+          requestLogger.info('Librarian chat completed', {
+            stepCount: result.stepCount,
+            finishReason: result.finishReason,
+            toolCallCount: result.toolCalls.length,
+          })
+          // Save full conversation (user messages + assistant response)
+          const fullHistory = [
+            ...body.messages,
+            {
+              role: 'assistant' as const,
+              content: result.text,
+              ...(result.reasoning ? { reasoning: result.reasoning } : {}),
+            },
+          ]
+          await saveLibrarianChatHistory(dataDir, params.storyId, fullHistory)
+        }).catch((err) => {
+          requestLogger.error('Librarian chat completion error', { error: err instanceof Error ? err.message : String(err) })
+        })
+
+        // Encode NDJSON event stream to bytes
+        const encoder = new TextEncoder()
+        const encodedStream = eventStream.pipeThrough(new TransformStream<string, Uint8Array>({
+          transform(chunk, controller) {
+            controller.enqueue(encoder.encode(chunk))
+          }
+        }))
+
+        return new Response(encodedStream, {
+          headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+        })
+      } catch (err) {
+        requestLogger.error('Librarian chat failed', { error: err instanceof Error ? err.message : String(err) })
+        set.status = 500
+        return { error: err instanceof Error ? err.message : 'Chat failed' }
+      }
+    }, {
+      body: t.Object({
+        messages: t.Array(t.Object({
+          role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+          content: t.String(),
+        })),
+      }),
     })
 
     // --- Fragment Revert ---

@@ -1,4 +1,4 @@
-import { generateObject } from 'ai'
+import { generateObject, generateText } from 'ai'
 import { getModel } from '../llm/client'
 import { getStory, updateStory, listFragments, getFragment } from '../fragments/storage'
 import { getActiveProseIds } from '../fragments/prose-chain'
@@ -40,6 +40,69 @@ const LibrarianAnalysisSchema = z.object({
     position: z.union([z.literal('before'), z.literal('during'), z.literal('after')]),
   })),
 })
+
+function isStructuredOutputUnsupportedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('responseformat')
+    || normalized.includes('structuredoutputs')
+    || normalized.includes('json response format schema')
+  )
+}
+
+function extractJsonObject(text: string): string {
+  const trimmed = text.trim()
+
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  if (fenced?.[1]) return fenced[1].trim()
+
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    return trimmed.slice(start, end + 1)
+  }
+
+  return trimmed
+}
+
+async function generateStructuredAnalysisWithFallback(args: {
+  model: Awaited<ReturnType<typeof getModel>>['model']
+  system: string
+  prompt: string
+  headers: Record<string, string>
+  requestLogger: ReturnType<typeof logger.child>
+}) {
+  try {
+    const result = await generateObject({
+      model: args.model,
+      system: args.system,
+      prompt: args.prompt,
+      schema: LibrarianAnalysisSchema,
+      headers: args.headers,
+    })
+
+    return result.object
+  } catch (error) {
+    if (!isStructuredOutputUnsupportedError(error)) {
+      throw error
+    }
+
+    args.requestLogger.warn('Provider does not support schema responseFormat; falling back to JSON text mode')
+
+    const fallbackPrompt = `${args.prompt}\n\nReturn ONLY valid JSON with keys: summaryUpdate, mentionedCharacters, contradictions, knowledgeSuggestions, timelineEvents.`
+    const textResult = await generateText({
+      model: args.model,
+      system: args.system,
+      prompt: fallbackPrompt,
+      headers: args.headers,
+    })
+
+    const rawJson = extractJsonObject(textResult.text)
+    const parsedJson = JSON.parse(rawJson)
+    return LibrarianAnalysisSchema.parse(parsedJson)
+  }
+}
 
 function buildUserPrompt(
   summary: string,
@@ -137,15 +200,17 @@ export async function runLibrarian(
   // Call the LLM
   requestLogger.info('Calling LLM for analysis...')
   const llmStartTime = Date.now()
-  const result = await generateObject({
+  const requestHeaders = {
+    ...config.headers,
+    'User-Agent': config.headers['User-Agent'] ?? 'errata-librarian/1.0',
+  }
+
+  const parsed = await generateStructuredAnalysisWithFallback({
     model,
     system: SYSTEM_PROMPT,
     prompt: userPrompt,
-    schema: LibrarianAnalysisSchema,
-    headers: {
-      ...config.headers,
-      'User-Agent': config.headers['User-Agent'] ?? 'errata-librarian/1.0',
-    },
+    headers: requestHeaders,
+    requestLogger,
   })
   const llmDurationMs = Date.now() - llmStartTime
   requestLogger.info('LLM analysis completed', {
@@ -154,11 +219,9 @@ export async function runLibrarian(
     modelId,
     providerName: config.providerName,
     baseURL: config.baseURL,
-    headers: Object.keys(config.headers),
+    headers: Object.keys(requestHeaders),
   })
 
-  // Structured output (validated by schema)
-  const parsed = result.object
   requestLogger.debug('Analysis parsed', {
     mentionedCharacters: parsed.mentionedCharacters.length,
     contradictions: parsed.contradictions.length,

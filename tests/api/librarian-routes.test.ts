@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createTempDir } from '../setup'
 import { createApp } from '@/server/api'
-import { createStory } from '@/server/fragments/storage'
+import { createStory, getFragment } from '@/server/fragments/storage'
 import {
   saveAnalysis,
   saveState,
@@ -184,7 +184,7 @@ describe('librarian API routes', () => {
   })
 
   describe('POST /stories/:storyId/librarian/analyses/:analysisId/suggestions/:index/accept', () => {
-    it('marks a suggestion as accepted', async () => {
+    it('marks a suggestion as accepted and creates a fragment', async () => {
       await saveAnalysis(dataDir, storyId, makeAnalysis({
         id: 'analysis-accept',
         knowledgeSuggestions: [
@@ -200,8 +200,14 @@ describe('librarian API routes', () => {
       )
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.knowledgeSuggestions[0].accepted).toBe(true)
-      expect(data.knowledgeSuggestions[1].accepted).toBeUndefined()
+      expect(data.analysis.knowledgeSuggestions[0].accepted).toBe(true)
+      expect(data.analysis.knowledgeSuggestions[1].accepted).toBeUndefined()
+      expect(data.createdFragmentId).toBeTruthy()
+
+      const created = await getFragment(dataDir, storyId, data.createdFragmentId)
+      expect(created).toBeTruthy()
+      expect(created?.name).toBe('Dragon Lore')
+      expect(created?.type).toBe('knowledge')
     })
 
     it('returns 404 for non-existent analysis', async () => {

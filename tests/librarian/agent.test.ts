@@ -15,13 +15,15 @@ vi.mock('ai', async () => {
   return {
     ...actual,
     generateObject: vi.fn(),
+    generateText: vi.fn(),
   }
 })
 
-import { generateObject } from 'ai'
+import { generateObject, generateText } from 'ai'
 import { runLibrarian } from '@/server/librarian/agent'
 
 const mockedGenerateObject = vi.mocked(generateObject)
+const mockedGenerateText = vi.mocked(generateText)
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
   const now = new Date().toISOString()
@@ -387,5 +389,36 @@ describe('librarian agent', () => {
     await expect(runLibrarian(dataDir, storyId, 'pr-missing')).rejects.toThrow(
       'Fragment pr-missing not found',
     )
+  })
+
+  it('falls back to text JSON mode when structured output is unsupported', async () => {
+    await createStory(dataDir, makeStory())
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    mockedGenerateObject.mockRejectedValue(new Error('The feature "responseFormat" is not supported. JSON response format schema is only supported with structuredOutputs'))
+    mockedGenerateText.mockResolvedValue({
+      text: JSON.stringify({
+        summaryUpdate: 'Fallback worked.',
+        mentionedCharacters: [],
+        contradictions: [],
+        knowledgeSuggestions: [],
+        timelineEvents: [],
+      }),
+      finishReason: 'stop',
+      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+      response: { id: 'test', modelId: 'test', timestamp: new Date(), headers: {} },
+      request: {},
+      warnings: [],
+      files: [],
+      sources: [],
+      steps: [],
+      toolCalls: [],
+      toolResults: [],
+    } as any)
+
+    const analysis = await runLibrarian(dataDir, storyId, 'pr-0001')
+    expect(analysis.summaryUpdate).toBe('Fallback worked.')
+    expect(mockedGenerateText).toHaveBeenCalledTimes(1)
   })
 })

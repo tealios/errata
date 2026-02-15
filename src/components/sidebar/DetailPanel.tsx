@@ -38,7 +38,7 @@ const SECTION_TITLES: Record<string, string> = {
   archive: 'Archive',
   'context-order': 'Context Order',
   settings: 'Settings',
-  'agent-activity': 'Agent Activity',
+  'agent-activity': 'Librarian',
 }
 
 const SECTION_TO_TYPE: Record<string, string> = {
@@ -107,7 +107,7 @@ export function DetailPanel({
     ? pluginName ?? 'Plugin'
     : SECTION_TITLES[activeSection] ?? activeSection
 
-  const panelWidth = activeSection === 'agent-activity' ? 400 : activeSection === 'story-info' ? 440 : activeSection === 'settings' ? 400 : activeSection === 'context-order' ? 380 : activeSection === 'archive' ? 340 : 340
+  const panelWidth = activeSection === 'agent-activity' ? 480 : activeSection === 'story-info' ? 440 : activeSection === 'settings' ? 400 : activeSection === 'context-order' ? 380 : activeSection === 'archive' ? 340 : 340
 
   return (
     <div
@@ -145,12 +145,7 @@ export function DetailPanel({
           )}
 
           {activeSection === 'agent-activity' && (
-            <LibrarianPanel
-              storyId={storyId}
-              onCreateFragment={(type, prefill) => {
-                onCreateFragment(type, prefill)
-              }}
-            />
+            <LibrarianPanel storyId={storyId} />
           )}
 
           {activeSection === 'archive' && (
