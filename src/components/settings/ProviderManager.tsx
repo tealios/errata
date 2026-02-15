@@ -85,13 +85,13 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['global-config'] })
 
   const addMutation = useMutation({
-    mutationFn: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string }) =>
+    mutationFn: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string; customHeaders?: Record<string, string> }) =>
       api.config.addProvider(data),
     onSuccess: () => { invalidate(); closeForm() },
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name?: string; baseURL?: string; apiKey?: string; defaultModel?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; baseURL?: string; apiKey?: string; defaultModel?: string; customHeaders?: Record<string, string> } }) =>
       api.config.updateProvider(id, data),
     onSuccess: () => { invalidate(); closeForm() },
   })

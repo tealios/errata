@@ -107,7 +107,7 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
   }, [allFragmentsQuery.data, proseChainQuery.data, genLogsQuery.data])
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name: string; description: string }) =>
+    mutationFn: (data: { name: string; description: string; summary?: string }) =>
       api.stories.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })

@@ -436,7 +436,7 @@ function AnalysisItem({
     },
   })
 
-  const handleAcceptSuggestion = (s: LibrarianAnalysis['knowledgeSuggestions'][number], index: number) => {
+  const handleAcceptSuggestion = (_suggestion: LibrarianAnalysis['knowledgeSuggestions'][number], index: number) => {
     acceptMutation.mutate(index)
   }
 

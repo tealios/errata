@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useTheme } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
@@ -424,14 +424,13 @@ function ProviderSetupStep({
   onBack: () => void
   onSkip: () => void
 }) {
-  const queryClient = useQueryClient()
   const card = PROVIDER_CARDS[preset]
   const accent = ACCENT_COLORS[card.accent]
 
   const [apiKey, setApiKey] = useState('')
-  const [baseURL, setBaseURL] = useState(card.baseURL)
-  const [defaultModel, setDefaultModel] = useState(card.defaultModel)
-  const [name, setName] = useState(card.name || '')
+  const [baseURL, setBaseURL] = useState<string>(card.baseURL)
+  const [defaultModel, setDefaultModel] = useState<string>(card.defaultModel)
+  const [name, setName] = useState<string>(card.name || '')
 
   const [fetchedModels, setFetchedModels] = useState<Array<{ id: string; owned_by?: string }>>([])
   const [fetchingModels, setFetchingModels] = useState(false)
@@ -454,6 +453,7 @@ function ProviderSetupStep({
       baseURL: string
       apiKey: string
       defaultModel: string
+      customHeaders?: Record<string, string>
     }) => api.config.addProvider(data),
     onSuccess: () => {
       // Don't invalidate yet — let the celebration screen show first.
