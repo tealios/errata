@@ -80,6 +80,15 @@ function StoryEditorPage() {
     localStorage.setItem(`errata:last-accessed:${storyId}`, new Date().toISOString())
   }, [storyId])
 
+  useEffect(() => {
+    if (!story?.name) return
+    const previousTitle = document.title
+    document.title = story.name
+    return () => {
+      document.title = previousTitle
+    }
+  }, [story?.name])
+
   // Auto-show wizard when story has no fragments
   if (showWizard === null && allFragments !== undefined) {
     if (allFragments.length === 0) {
