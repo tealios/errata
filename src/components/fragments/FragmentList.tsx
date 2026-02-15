@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Plus, Pin, GripVertical, FileDown } from 'lucide-react'
 
 interface FragmentListProps {
@@ -168,30 +169,49 @@ export function FragmentList({
         />
         <div className="flex items-center justify-between">
           <div className="flex gap-0.5">
-            {(['order', 'name', 'newest', 'oldest'] as SortMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setSort(mode)}
-                data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'sort', mode)}
-                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                  sort === mode
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground/50 hover:text-muted-foreground'
-                }`}
-              >
-                {mode}
-              </button>
+            {([
+              { mode: 'order' as SortMode, tip: 'Sort by manual order' },
+              { mode: 'name' as SortMode, tip: 'Sort alphabetically' },
+              { mode: 'newest' as SortMode, tip: 'Sort by newest first' },
+              { mode: 'oldest' as SortMode, tip: 'Sort by oldest first' },
+            ]).map(({ mode, tip }) => (
+              <Tooltip key={mode}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setSort(mode)}
+                    data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'sort', mode)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                      sort === mode
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-muted-foreground/50 hover:text-muted-foreground'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{tip}</TooltipContent>
+              </Tooltip>
             ))}
           </div>
           <div className="flex gap-0.5">
             {onImport && (
-              <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onImport} title="Import fragment" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'import-button')}>
-                <FileDown className="size-3.5" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onImport} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'import-button')}>
+                    <FileDown className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Import from clipboard or file</TooltipContent>
+              </Tooltip>
             )}
-            <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'create-button')}>
-              <Plus className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="size-6 text-muted-foreground/50 hover:text-foreground" onClick={onCreateNew} data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'create-button')}>
+                  <Plus className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Create new fragment</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

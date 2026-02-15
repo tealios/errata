@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Download, Package, Wand2 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 interface StoryInfoPanelProps {
   storyId: string
@@ -223,44 +224,32 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
       <div className="mx-5 border-t border-border/40" />
 
       {/* Actions */}
-      <div className="px-5 py-4 flex gap-1.5">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs gap-1.5"
+      <div className="px-5 py-4 grid grid-cols-2 gap-1.5">
+        <ActionTile
+          icon={Pencil}
+          label="Edit"
+          description="Name, description & summary"
           onClick={() => setEditing(true)}
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs gap-1.5"
+        />
+        <ActionTile
+          icon={Package}
+          label="Export"
+          description="Fragments as JSON"
           onClick={() => onExport?.()}
-        >
-          <Package className="size-3" />
-          Export
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs gap-1.5"
+        />
+        <ActionTile
+          icon={Download}
+          label="Download"
+          description="Full story as one file"
           onClick={() => onDownloadStory?.()}
-        >
-          <Download className="size-3" />
-          Download
-        </Button>
+        />
         {onLaunchWizard && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1.5"
+          <ActionTile
+            icon={Wand2}
+            label="Wizard"
+            description="Guided story setup"
             onClick={onLaunchWizard}
-          >
-            <Wand2 className="size-3" />
-            Wizard
-          </Button>
+          />
         )}
       </div>
     </div>
@@ -285,6 +274,21 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   )
 }
 
+function ActionTile({ icon: Icon, label, description, onClick }: { icon: LucideIcon; label: string; description: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-start gap-2.5 rounded-md border border-border/40 px-3 py-2.5 text-left transition-colors hover:bg-accent/40 hover:border-border/60"
+    >
+      <Icon className="size-3.5 mt-0.5 text-muted-foreground/50 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium leading-none text-foreground/80">{label}</p>
+        <p className="text-[10px] text-muted-foreground/40 mt-1 leading-tight">{description}</p>
+      </div>
+    </button>
+  )
+}
+
 function SummarySection({ summary }: { summary: string | undefined }) {
   const [expanded, setExpanded] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -293,7 +297,7 @@ function SummarySection({ summary }: { summary: string | undefined }) {
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
-    const maxH = window.innerHeight * 0.5
+    const maxH = window.innerHeight * 0.2
     setOverflows(el.scrollHeight > maxH)
   }, [summary])
 
@@ -313,7 +317,7 @@ function SummarySection({ summary }: { summary: string | undefined }) {
         <div
           ref={contentRef}
           className="overflow-hidden transition-[max-height] duration-300 ease-out"
-          style={{ maxHeight: expanded ? 'none' : '50vh' }}
+          style={{ maxHeight: expanded ? 'none' : '20vh' }}
         >
           <p className="text-[13px] leading-relaxed mt-1.5 text-foreground/80 font-prose whitespace-pre-wrap">{summary}</p>
         </div>

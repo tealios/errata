@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProseActionInput } from '@/components/prose/ProseActionInput'
 import { VariationSwitcher } from '@/components/prose/VariationSwitcher'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronLeft, ChevronRight, Trash2, List } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, Loader2, PenLine, Bug, ChevronLeft, ChevronRight, Trash2, List, ChevronsDown } from 'lucide-react'
 import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
@@ -133,6 +133,12 @@ export function ProseChainView({
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
+  const scrollToBottom = useCallback(() => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
+  }, [])
+
   return (
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
@@ -217,6 +223,7 @@ export function ProseChainView({
           fragments={orderedFragments}
           activeIndex={activeIndex}
           onJump={scrollToIndex}
+          onScrollToBottom={scrollToBottom}
         />
       )}
     </div>
@@ -229,10 +236,12 @@ function ProseOutlinePanel({
   fragments,
   activeIndex,
   onJump,
+  onScrollToBottom,
 }: {
   fragments: Fragment[]
   activeIndex: number
   onJump: (index: number) => void
+  onScrollToBottom: () => void
 }) {
   const OUTLINE_OPEN_KEY = 'errata:passages-panel-open'
   const [open, setOpen] = useState(() => {
@@ -243,6 +252,7 @@ function ProseOutlinePanel({
     return true
   })
   const activeRef = useRef<HTMLButtonElement>(null)
+  const collapsedActiveRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -254,6 +264,9 @@ function ProseOutlinePanel({
     if (open && activeRef.current) {
       activeRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }
+    if (!open && collapsedActiveRef.current) {
+      collapsedActiveRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
   }, [open, activeIndex])
 
   // Extract a short preview from fragment content
@@ -264,71 +277,142 @@ function ProseOutlinePanel({
 
   return (
     <>
-      {/* Toggle button — fixed to right edge */}
-      <button
-        onClick={() => setOpen(!open)}
-        data-component-id="prose-outline-toggle"
-        className={`absolute right-3 top-4 z-20 flex items-center justify-center size-7 rounded-md transition-all duration-200 ${
-          open
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-accent/50'
-        }`}
-        title="Outline"
-      >
-        <List className="size-3.5" />
-      </button>
-
       {/* Outline panel */}
       <div
         data-component-id="prose-outline-panel"
         className={`absolute right-0 top-0 bottom-0 z-10 flex flex-col border-l border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-250 ease-out ${
           open
             ? 'w-56 opacity-100 translate-x-0'
-            : 'w-0 opacity-0 translate-x-4 pointer-events-none'
+            : 'w-7 opacity-100 translate-x-0'
         }`}
         style={{ willChange: 'width, opacity, transform' }}
       >
-        {/* Header */}
-        <div className="shrink-0 px-4 pt-14 pb-3">
-          <h3 className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/40 font-medium">
-            Passages
-          </h3>
-        </div>
-
-        {/* Scrollable list */}
-        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-2 pb-4">
-          {fragments.map((fragment, idx) => {
-            const isActive = idx === activeIndex
-            return (
+        {/* Toggle button — always inside the panel */}
+        <div className={`shrink-0 flex pt-4 pb-2 ${open ? 'px-3' : 'justify-center'}`}>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
-                key={fragment.id}
-                ref={isActive ? activeRef : undefined}
-                data-component-id={`prose-outline-item-${idx}`}
-                onClick={() => {
-                  onJump(idx)
-                }}
-                className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition-colors duration-100 group/item ${
-                  isActive
-                    ? 'bg-accent/70'
-                    : 'hover:bg-accent/40'
+                onClick={() => setOpen(!open)}
+                data-component-id="prose-outline-toggle"
+                className={`flex items-center justify-center size-7 rounded-md transition-all duration-200 ${
+                  open
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-accent/50'
                 }`}
               >
-                <span className={`block text-[10px] font-mono mb-0.5 ${
-                  isActive ? 'text-primary/70' : 'text-muted-foreground/25'
-                }`}>
-                  {idx + 1}
-                </span>
-                <span className={`block text-[11px] leading-snug font-prose ${
-                  isActive
-                    ? 'text-foreground/80'
-                    : 'text-muted-foreground/45 group-hover/item:text-muted-foreground/65'
-                }`}>
-                  {preview(fragment.content)}
-                </span>
+                <List className="size-3.5" />
               </button>
-            )
-          })}
+            </TooltipTrigger>
+            <TooltipContent side="left">{open ? 'Collapse outline' : 'Expand outline'}</TooltipContent>
+          </Tooltip>
         </div>
+
+        {open ? (
+          /* --- Expanded view --- */
+          <>
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3">
+              <h3 className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/40 font-medium">
+                Passages
+              </h3>
+            </div>
+
+            {/* Scrollable list */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-2 pb-2">
+              {fragments.map((fragment, idx) => {
+                const isActive = idx === activeIndex
+                return (
+                  <button
+                    key={fragment.id}
+                    ref={isActive ? activeRef : undefined}
+                    data-component-id={`prose-outline-item-${idx}`}
+                    onClick={() => onJump(idx)}
+                    className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition-colors duration-100 group/item ${
+                      isActive
+                        ? 'bg-accent/70'
+                        : 'hover:bg-accent/40'
+                    }`}
+                  >
+                    <span className={`block text-[10px] font-mono mb-0.5 ${
+                      isActive ? 'text-primary/70' : 'text-muted-foreground/25'
+                    }`}>
+                      {idx + 1}
+                    </span>
+                    <span className={`block text-[11px] leading-snug font-prose ${
+                      isActive
+                        ? 'text-foreground/80'
+                        : 'text-muted-foreground/45 group-hover/item:text-muted-foreground/65'
+                    }`}>
+                      {preview(fragment.content)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Scroll to bottom */}
+            <div className="shrink-0 px-2 pb-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onScrollToBottom}
+                    data-component-id="prose-outline-scroll-bottom"
+                    className="w-full flex items-center justify-center gap-1.5 rounded-md py-1.5 text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-accent/40 transition-colors"
+                  >
+                    <ChevronsDown className="size-3.5" />
+                    <span className="text-[10px]">Bottom</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Scroll to bottom</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
+        ) : (
+          /* --- Collapsed rail view --- */
+          <>
+            {/* Dot indicators */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 flex flex-col items-center py-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+              {fragments.map((_, idx) => {
+                const isActive = idx === activeIndex
+                return (
+                  <Tooltip key={idx}>
+                    <TooltipTrigger asChild>
+                      <button
+                        ref={isActive ? collapsedActiveRef : undefined}
+                        onClick={() => onJump(idx)}
+                        data-component-id={`prose-outline-dot-${idx}`}
+                        className="shrink-0 flex items-center justify-center w-7 h-5 group/dot"
+                      >
+                        <span className={`block rounded-full transition-all duration-150 ${
+                          isActive
+                            ? 'w-3 h-3 bg-primary/60'
+                            : 'w-2 h-2 bg-muted-foreground/15 group-hover/dot:w-3 group-hover/dot:h-3 group-hover/dot:bg-muted-foreground/35'
+                        }`} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="text-[10px]">{idx + 1}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
+
+            {/* Scroll to bottom */}
+            <div className="shrink-0 flex justify-center pb-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onScrollToBottom}
+                    data-component-id="prose-outline-scroll-bottom"
+                    className="flex items-center justify-center w-7 h-6 rounded-md text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-accent/40 transition-colors"
+                  >
+                    <ChevronsDown className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Scroll to bottom</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
+        )}
       </div>
     </>
   )
