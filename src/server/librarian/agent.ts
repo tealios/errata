@@ -120,6 +120,7 @@ async function generateStructuredAnalysisWithFallback(args: {
     const textResult = await textAgent.generate({
       prompt: fallbackPrompt,
       headers: args.headers,
+      timeoutMs: 120000, // allow more time for the model to self-correct and produce valid JSON
     })
 
     args.requestLogger.debug('Raw LLM output for fallback', { text: textResult.text })

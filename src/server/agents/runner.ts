@@ -179,7 +179,7 @@ export async function invokeAgent<TOutput = unknown>(args: {
   const options: Required<AgentCallOptions> = {
     maxDepth: args.options?.maxDepth ?? 3,
     maxCalls: args.options?.maxCalls ?? 20,
-    timeoutMs: args.options?.timeoutMs ?? 120000,
+    timeoutMs: args.options?.timeoutMs ?? 60000 * 5, 
   }
 
   const runtime: RuntimeState = {

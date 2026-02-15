@@ -31,9 +31,9 @@ import {
   Book,
   Hash,
   PenLine,
+  Home,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
-import { ErrataMark } from '@/components/ErrataLogo'
 
 export type SidebarSection =
   | 'story-info'
@@ -105,7 +105,7 @@ export function StorySidebar({
       <SidebarHeader>
         <div className="flex items-center justify-between px-2 py-1.5" data-component-id="story-sidebar-header">
           <Link to="/" className="flex items-center gap-1.5 truncate hover:opacity-80 transition-opacity" title="Back to stories">
-            <ErrataMark size={16} className="shrink-0 opacity-60" />
+            <Home className="size-4 shrink-0 opacity-60" />
             <span className="font-display text-base italic truncate group-data-[collapsible=icon]:hidden">
               {story?.name ?? 'Errata'}
             </span>

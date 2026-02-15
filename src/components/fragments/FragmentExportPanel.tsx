@@ -173,7 +173,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
       </div>
 
       {/* Fragment groups */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="px-6 py-4 space-y-6">
           {Object.entries(grouped).map(([type, fragments]) => {
             const config = TYPE_CONFIG[type]
