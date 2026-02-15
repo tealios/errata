@@ -277,12 +277,10 @@ function ProseOutlinePanel({
       {/* Outline panel */}
       <div
         data-component-id="prose-outline-panel"
-        className={`absolute right-0 top-0 bottom-0 z-10 flex flex-col border-l border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-250 ease-out ${
-          open
-            ? 'w-56 opacity-100 translate-x-0'
-            : 'w-7 opacity-100 translate-x-0'
+        className={`shrink-0 flex flex-col border-l border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-250 ease-out overflow-hidden ${
+          open ? 'w-56' : 'w-7'
         }`}
-        style={{ willChange: 'width, opacity, transform' }}
+        style={{ willChange: 'width' }}
       >
         {/* Toggle button — always inside the panel */}
         <div className={`shrink-0 flex pt-4 pb-2 ${open ? 'px-3' : 'justify-center'}`}>

@@ -32,23 +32,27 @@ interface LibrarianPanelProps {
   storyId: string
 }
 
-const LIBRARIAN_TAB_STORAGE_KEY = 'errata.librarian.activeTab'
+function tabStorageKey(storyId: string): string {
+  return `errata.librarian.activeTab.${storyId}`
+}
+
+function readSavedTab(storyId: string): 'chat' | 'activity' {
+  if (typeof window === 'undefined') return 'chat'
+  const saved = window.localStorage.getItem(tabStorageKey(storyId))
+  return saved === 'activity' ? 'activity' : 'chat'
+}
 
 export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
-  const [activeTab, setActiveTab] = useState<'chat' | 'activity'>('chat')
+  const [activeTab, setActiveTab] = useState<'chat' | 'activity'>(() => readSavedTab(storyId))
+
+  useEffect(() => {
+    setActiveTab(readSavedTab(storyId))
+  }, [storyId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const saved = window.localStorage.getItem(LIBRARIAN_TAB_STORAGE_KEY)
-    if (saved === 'chat' || saved === 'activity') {
-      setActiveTab(saved)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(LIBRARIAN_TAB_STORAGE_KEY, activeTab)
-  }, [activeTab])
+    window.localStorage.setItem(tabStorageKey(storyId), activeTab)
+  }, [activeTab, storyId])
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'activity')} className="h-full flex flex-col gap-0">
