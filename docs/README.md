@@ -6,6 +6,8 @@
   - Runtime plugin loading model, binary build/package workflow, and deployment notes.
 - `docs/component-ids.md`
   - Frontend `data-component-id` contract for extensibility and automation.
+- `docs/publishing-plugin-sdk.md`
+  - How to publish `@tealios/errata-plugin-sdk` manually and via GitHub Actions.
 
 Related:
 

@@ -73,6 +73,7 @@ function StoryEditorPage() {
         title: p.panel!.title,
         mode: p.panel?.mode,
         url: p.panel?.url,
+        icon: p.panel?.icon,
       }))
   }, [plugins, story])
 

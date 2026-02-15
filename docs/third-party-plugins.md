@@ -47,7 +47,10 @@ const plugin: WritingPlugin = definePlugin({
     name: 'my-plugin',
     version: '0.1.0',
     description: 'Example external plugin',
-    panel: { title: 'My Plugin' },
+    panel: {
+      title: 'My Plugin',
+      icon: { type: 'lucide', name: 'Sparkles' },
+    },
   },
   // Optional server capabilities:
   // fragmentTypes, tools, routes, hooks
@@ -81,7 +84,8 @@ If you want a sidebar panel without rebuilding the frontend bundle, add `plugin.
   "name": "my-plugin",
   "panel": {
     "title": "My Plugin",
-    "entry": "ui/index.html"
+    "entry": "ui/index.html",
+    "icon": { "type": "lucide", "name": "Sparkles" }
   }
 }
 ```
@@ -90,7 +94,27 @@ Rules:
 
 - `name` must match `manifest.name` when provided.
 - `panel.entry` is relative to the plugin root.
+- `panel.icon` is optional and supports:
+  - `{ "type": "lucide", "name": "Sparkles" }`
+  - `{ "type": "svg", "src": "/api/plugins/my-plugin/ui/icon.svg" }`
 - The entry file should be HTML and can reference local CSS/JS files.
+
+### Plugin Icons
+
+You can define plugin icons either in `manifest.panel.icon` or `plugin.json.panel.icon`.
+
+- `lucide` icons use the icon name.
+- `svg` icons use a URL for the icon source.
+
+Current built-in lucide name support in sidebar:
+
+- `Sparkles`
+- `Keyboard`
+- `Wrench`
+- `Book`
+- `Hash`
+
+Unknown/missing icons fall back to `Sparkles`.
 
 Errata serves plugin UI from:
 

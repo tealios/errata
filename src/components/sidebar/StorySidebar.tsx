@@ -27,6 +27,10 @@ import {
   Activity,
   ArrowUpDown,
   Archive,
+  Keyboard,
+  Wrench,
+  Book,
+  Hash,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 import { ErrataMark } from '@/components/ErrataLogo'
@@ -49,7 +53,34 @@ interface StorySidebarProps {
   story: StoryMeta | undefined
   activeSection: SidebarSection
   onSectionChange: (section: SidebarSection) => void
-  enabledPanelPlugins: Array<{ name: string; title: string; mode?: 'react' | 'iframe'; url?: string }>
+  enabledPanelPlugins: Array<{
+    name: string
+    title: string
+    mode?: 'react' | 'iframe'
+    url?: string
+    icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string }
+  }>
+}
+
+const LUCIDE_ICON_MAP = {
+  Sparkles,
+  Keyboard,
+  Wrench,
+  Book,
+  Hash,
+} as const
+
+function PluginIcon({ icon }: { icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string } }) {
+  if (icon?.type === 'svg' && icon.src) {
+    return <img src={icon.src} alt="" className="size-4 object-contain" />
+  }
+  if (icon?.type === 'lucide' && icon.name) {
+    const Lucide = LUCIDE_ICON_MAP[icon.name as keyof typeof LUCIDE_ICON_MAP]
+    if (Lucide) {
+      return <Lucide className="size-4" />
+    }
+  }
+  return <Sparkles className="size-4" />
 }
 
 const FRAGMENT_SECTIONS = [
@@ -205,7 +236,7 @@ export function StorySidebar({
                         tooltip={plugin.title}
                         data-component-id={componentId('sidebar-plugin', plugin.name)}
                       >
-                        <Sparkles className="size-4" />
+                        <PluginIcon icon={plugin.icon} />
                         <span>{plugin.title}</span>
                         <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
                       </SidebarMenuButton>

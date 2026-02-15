@@ -10,6 +10,9 @@ const SERVER_ENTRY_CANDIDATES = ['entry.server.ts', 'entry.server.js', 'plugin.t
 interface PluginJsonPanel {
   title?: string
   entry?: string
+  icon?:
+    | { type?: 'lucide'; name?: string }
+    | { type?: 'svg'; src?: string }
 }
 
 interface PluginJson {
@@ -75,7 +78,24 @@ export async function loadPlugin(
       }
 
       if (pluginJson.panel?.title) {
-        plugin.manifest.panel = { title: pluginJson.panel.title }
+        plugin.manifest.panel = {
+          ...plugin.manifest.panel,
+          title: pluginJson.panel.title,
+        }
+      }
+
+      const icon = pluginJson.panel?.icon
+      if (icon?.type === 'lucide' && icon.name) {
+        plugin.manifest.panel = {
+          ...plugin.manifest.panel,
+          icon: { type: 'lucide', name: icon.name },
+        }
+      }
+      if (icon?.type === 'svg' && icon.src) {
+        plugin.manifest.panel = {
+          ...plugin.manifest.panel,
+          icon: { type: 'svg', src: icon.src },
+        }
       }
 
       if (pluginJson.panel?.entry) {
