@@ -9,6 +9,16 @@ export interface ClipboardAttachment {
   boundary?: BoundaryBox
 }
 
+export interface FragmentExportEntry {
+  type: string
+  name: string
+  description: string
+  content: string
+  tags: string[]
+  sticky: boolean
+  attachments?: ClipboardAttachment[]
+}
+
 export interface FragmentClipboardData {
   _errata: 'fragment'
   version: 1
@@ -25,6 +35,17 @@ export interface FragmentClipboardData {
   attachments?: ClipboardAttachment[]
 }
 
+export interface FragmentBundleData {
+  _errata: 'fragment-bundle'
+  version: 1
+  source: string
+  exportedAt: string
+  storyName?: string
+  fragments: FragmentExportEntry[]
+}
+
+export type ErrataExportData = FragmentClipboardData | FragmentBundleData
+
 const SOURCE_KEY = 'errata-source-id'
 
 export function getSourceId(): string {
@@ -37,11 +58,10 @@ export function getSourceId(): string {
   return id
 }
 
-export function serializeFragment(
+function collectAttachments(
   fragment: Fragment,
   mediaById?: Map<string, Fragment>,
-): string {
-  // Collect attached images/icons via visualRefs
+): ClipboardAttachment[] {
   const attachments: ClipboardAttachment[] = []
   if (mediaById) {
     const refs = parseVisualRefs(fragment.meta)
@@ -58,6 +78,14 @@ export function serializeFragment(
       }
     }
   }
+  return attachments
+}
+
+export function serializeFragment(
+  fragment: Fragment,
+  mediaById?: Map<string, Fragment>,
+): string {
+  const attachments = collectAttachments(fragment, mediaById)
 
   const data: FragmentClipboardData = {
     _errata: 'fragment',
@@ -77,6 +105,35 @@ export function serializeFragment(
   return JSON.stringify(data, null, 2)
 }
 
+export function serializeBundle(
+  fragments: Fragment[],
+  mediaById?: Map<string, Fragment>,
+  storyName?: string,
+): string {
+  const entries: FragmentExportEntry[] = fragments.map((fragment) => {
+    const attachments = collectAttachments(fragment, mediaById)
+    return {
+      type: fragment.type,
+      name: fragment.name,
+      description: fragment.description,
+      content: fragment.content,
+      tags: fragment.tags,
+      sticky: fragment.sticky,
+      ...(attachments.length > 0 ? { attachments } : {}),
+    }
+  })
+
+  const data: FragmentBundleData = {
+    _errata: 'fragment-bundle',
+    version: 1,
+    source: getSourceId(),
+    exportedAt: new Date().toISOString(),
+    ...(storyName ? { storyName } : {}),
+    fragments: entries,
+  }
+  return JSON.stringify(data, null, 2)
+}
+
 export function parseFragmentClipboard(text: string): FragmentClipboardData | null {
   try {
     const data = JSON.parse(text)
@@ -87,6 +144,24 @@ export function parseFragmentClipboard(text: string): FragmentClipboardData | nu
   } catch {
     return null
   }
+}
+
+export function parseBundleClipboard(text: string): FragmentBundleData | null {
+  try {
+    const data = JSON.parse(text)
+    if (data?._errata !== 'fragment-bundle' || data?.version !== 1) return null
+    if (!Array.isArray(data.fragments) || data.fragments.length === 0) return null
+    for (const f of data.fragments) {
+      if (!f || typeof f.type !== 'string' || typeof f.name !== 'string' || typeof f.content !== 'string') return null
+    }
+    return data as FragmentBundleData
+  } catch {
+    return null
+  }
+}
+
+export function parseErrataExport(text: string): ErrataExportData | null {
+  return parseFragmentClipboard(text) ?? parseBundleClipboard(text)
 }
 
 export async function copyFragmentToClipboard(
@@ -104,4 +179,25 @@ export async function readFragmentFromClipboard(): Promise<FragmentClipboardData
   } catch {
     return null
   }
+}
+
+export function downloadExportFile(json: string, filename: string): void {
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsText(file)
+  })
 }
