@@ -27,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "elysia": "^1.4.25",
+    "fflate": "^0.8.2",
     "lucide-react": "^0.564.0",
     "nitro": "npm:nitro-nightly@latest",
     "openapi-types": "^12.1.3",

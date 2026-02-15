@@ -28,6 +28,7 @@ import {
   ArrowUpDown,
   Archive,
   Package,
+  Download,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 import { ErrataMark } from '@/components/ErrataLogo'
@@ -52,6 +53,7 @@ interface StorySidebarProps {
   onSectionChange: (section: SidebarSection) => void
   enabledPanelPlugins: Array<{ name: string; title: string }>
   onExport?: () => void
+  onDownloadStory?: () => void
 }
 
 const FRAGMENT_SECTIONS = [
@@ -66,6 +68,7 @@ export function StorySidebar({
   onSectionChange,
   enabledPanelPlugins,
   onExport,
+  onDownloadStory,
 }: StorySidebarProps) {
   const handleToggle = (section: SidebarSection) => {
     onSectionChange(activeSection === section ? null : section)
@@ -194,6 +197,16 @@ export function StorySidebar({
                 >
                   <Package className="size-4" />
                   <span>Export</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onDownloadStory?.()}
+                  tooltip="Download Story"
+                  data-component-id="sidebar-download-story-button"
+                >
+                  <Download className="size-4" />
+                  <span>Download Story</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

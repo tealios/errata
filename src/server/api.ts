@@ -63,6 +63,7 @@ import {
 } from './plugins/hooks'
 import { collectPluginTools } from './plugins/tools'
 import { triggerLibrarian } from './librarian/scheduler'
+import { exportStoryAsZip, importStoryFromZip } from './story-archive'
 import {
   getState as getLibrarianState,
   listAnalyses as listLibrarianAnalyses,
@@ -144,6 +145,45 @@ export function createApp(dataDir: string = DATA_DIR) {
     .delete('/stories/:storyId', async ({ params }) => {
       await deleteStory(dataDir, params.storyId)
       return { ok: true }
+    })
+
+    // --- Story Export/Import ---
+    .get('/stories/:storyId/export', async ({ params, query, set }) => {
+      try {
+        const includeLogs = (query as Record<string, string>).includeLogs === 'true'
+        const includeLibrarian = (query as Record<string, string>).includeLibrarian === 'true'
+        const { buffer, filename } = await exportStoryAsZip(dataDir, params.storyId, {
+          includeLogs,
+          includeLibrarian,
+        })
+        return new Response(buffer.buffer as ArrayBuffer, {
+          headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="${filename}"`,
+          },
+        })
+      } catch (err) {
+        set.status = 404
+        return { error: err instanceof Error ? err.message : 'Export failed' }
+      }
+    })
+
+    .post('/stories/import', async ({ request, set }) => {
+      try {
+        const formData = await request.formData()
+        const file = formData.get('file')
+        if (!file || !(file instanceof File)) {
+          set.status = 400
+          return { error: 'No file provided' }
+        }
+        const arrayBuffer = await file.arrayBuffer()
+        const zipBuffer = new Uint8Array(arrayBuffer)
+        const newStory = await importStoryFromZip(dataDir, zipBuffer)
+        return newStory
+      } catch (err) {
+        set.status = 422
+        return { error: err instanceof Error ? err.message : 'Import failed' }
+      }
     })
 
     // --- Story Settings ---

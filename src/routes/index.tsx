@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe } from 'lucide-react'
+import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { ErrataLogo } from '@/components/ErrataLogo'
 
@@ -20,9 +21,12 @@ export const Route = createFileRoute('/')({ component: StoryListPage })
 
 function StoryListPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [importing, setImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const { data: stories, isLoading } = useQuery({
     queryKey: ['stories'],
@@ -57,6 +61,23 @@ function StoryListPage() {
   const [manualWizard, setManualWizard] = useState(false)
   const showOnboarding = manualWizard || (!configLoading && globalConfig && globalConfig.providers.length === 0 && !onboardingDismissed)
 
+  const handleImportStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const newStory = await api.stories.importFromZip(file)
+      await queryClient.invalidateQueries({ queryKey: ['stories'] })
+      navigate({ to: '/story/$storyId', params: { storyId: newStory.id } })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+      // Reset input so same file can be re-selected
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }
+
   if (showOnboarding) {
     return (
       <OnboardingWizard
@@ -77,6 +98,25 @@ function StoryListPage() {
           <div>
             <h1><ErrataLogo variant="full" size={28} /></h1>
           </div>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5"
+              disabled={importing}
+              onClick={() => importInputRef.current?.click()}
+              data-component-id="story-import-button"
+            >
+              <Upload className="size-3.5" />
+              {importing ? 'Importing...' : 'Import Story'}
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={handleImportStory}
+            />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5" variant={'ghost'} data-component-id="story-create-open">
@@ -126,6 +166,7 @@ function StoryListPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </header>
 
