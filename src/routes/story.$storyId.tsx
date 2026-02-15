@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { api, type Fragment } from '@/lib/api'
 import type { FragmentPrefill } from '@/components/fragments/FragmentEditor'
 import { Button } from '@/components/ui/button'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { FragmentEditor } from '@/components/fragments/FragmentEditor'
+import { FragmentExportPanel } from '@/components/fragments/FragmentExportPanel'
 import { DebugPanel } from '@/components/generation/DebugPanel'
 import { ProviderPanel } from '@/components/settings/ProviderManager'
 import { ProseChainView } from '@/components/prose/ProseChainView'
@@ -15,7 +16,12 @@ import { DetailPanel } from '@/components/sidebar/DetailPanel'
 import { getPluginPanel } from '@/lib/plugin-panels'
 import { componentId } from '@/lib/dom-ids'
 import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
-import { parseFragmentClipboard, type FragmentClipboardData } from '@/lib/fragment-clipboard'
+import {
+  parseErrataExport,
+  readFileAsText,
+  type ErrataExportData,
+} from '@/lib/fragment-clipboard'
+import { Upload } from 'lucide-react'
 import '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
@@ -33,7 +39,10 @@ function StoryEditorPage() {
   const [debugLogId, setDebugLogId] = useState<string | null>(null)
   const [showProviders, setShowProviders] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
-  const [importInitialData, setImportInitialData] = useState<FragmentClipboardData | null>(null)
+  const [importInitialData, setImportInitialData] = useState<ErrataExportData | null>(null)
+  const [showExportPanel, setShowExportPanel] = useState(false)
+  const [fileDragOver, setFileDragOver] = useState(false)
+  const dragCounter = useRef(0)
 
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', storyId],
@@ -101,7 +110,7 @@ function StoryEditorPage() {
     setShowImportDialog(true)
   }, [])
 
-  // Listen for paste events — if a fragment is on clipboard, offer to import
+  // Listen for paste events — if errata data is on clipboard, offer to import
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       // Don't intercept paste inside inputs/textareas/contenteditable
@@ -111,7 +120,7 @@ function StoryEditorPage() {
       const text = e.clipboardData?.getData('text/plain')
       if (!text) return
 
-      const parsed = parseFragmentClipboard(text)
+      const parsed = parseErrataExport(text)
       if (parsed) {
         e.preventDefault()
         setImportInitialData(parsed)
@@ -121,6 +130,72 @@ function StoryEditorPage() {
 
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
+  }, [])
+
+  // Global drag-and-drop for .json file import
+  useEffect(() => {
+    const hasJsonFile = (e: DragEvent) => {
+      if (!e.dataTransfer) return false
+      // Check types for files
+      for (let i = 0; i < e.dataTransfer.types.length; i++) {
+        if (e.dataTransfer.types[i] === 'Files') return true
+      }
+      return false
+    }
+
+    const handleDragEnter = (e: DragEvent) => {
+      if (!hasJsonFile(e)) return
+      e.preventDefault()
+      dragCounter.current++
+      if (dragCounter.current === 1) {
+        setFileDragOver(true)
+      }
+    }
+
+    const handleDragLeave = (e: DragEvent) => {
+      if (!hasJsonFile(e)) return
+      e.preventDefault()
+      dragCounter.current--
+      if (dragCounter.current === 0) {
+        setFileDragOver(false)
+      }
+    }
+
+    const handleDragOver = (e: DragEvent) => {
+      if (!hasJsonFile(e)) return
+      e.preventDefault()
+    }
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault()
+      dragCounter.current = 0
+      setFileDragOver(false)
+
+      const file = e.dataTransfer?.files[0]
+      if (!file) return
+
+      try {
+        const text = await readFileAsText(file)
+        const parsed = parseErrataExport(text)
+        if (parsed) {
+          setImportInitialData(parsed)
+          setShowImportDialog(true)
+        }
+      } catch {
+        // Not a valid file, ignore
+      }
+    }
+
+    document.addEventListener('dragenter', handleDragEnter)
+    document.addEventListener('dragleave', handleDragLeave)
+    document.addEventListener('dragover', handleDragOver)
+    document.addEventListener('drop', handleDrop)
+    return () => {
+      document.removeEventListener('dragenter', handleDragEnter)
+      document.removeEventListener('dragleave', handleDragLeave)
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('drop', handleDrop)
+    }
   }, [])
 
   if (isLoading) {
@@ -152,6 +227,7 @@ function StoryEditorPage() {
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         enabledPanelPlugins={enabledPanelPlugins}
+        onExport={() => setShowExportPanel(true)}
       />
 
       {/* Detail Panel */}
@@ -198,6 +274,15 @@ function StoryEditorPage() {
             <ProviderPanel onClose={() => setShowProviders(false)} />
           </div>
         )}
+        {showExportPanel && (
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-export-panel">
+            <FragmentExportPanel
+              storyId={storyId}
+              storyName={story.name}
+              onClose={() => setShowExportPanel(false)}
+            />
+          </div>
+        )}
         {isEditingFragment && (
           <div className="absolute inset-0 z-30 bg-background" data-component-id={componentId('overlay-fragment-editor', editorMode)}>
             <FragmentEditor
@@ -212,6 +297,17 @@ function StoryEditorPage() {
           </div>
         )}
       </SidebarInset>
+
+      {/* Global file drag-drop overlay */}
+      {fileDragOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 px-16 py-12">
+            <Upload className="size-8 text-primary/50" />
+            <p className="text-sm font-medium text-primary/70">Drop .json file to import</p>
+            <p className="text-xs text-muted-foreground/50">Errata fragment or bundle</p>
+          </div>
+        </div>
+      )}
 
       <FragmentImportDialog
         storyId={storyId}

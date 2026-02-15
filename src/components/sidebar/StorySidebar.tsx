@@ -27,6 +27,7 @@ import {
   Activity,
   ArrowUpDown,
   Archive,
+  Package,
 } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
 import { ErrataMark } from '@/components/ErrataLogo'
@@ -50,6 +51,7 @@ interface StorySidebarProps {
   activeSection: SidebarSection
   onSectionChange: (section: SidebarSection) => void
   enabledPanelPlugins: Array<{ name: string; title: string }>
+  onExport?: () => void
 }
 
 const FRAGMENT_SECTIONS = [
@@ -63,6 +65,7 @@ export function StorySidebar({
   activeSection,
   onSectionChange,
   enabledPanelPlugins,
+  onExport,
 }: StorySidebarProps) {
   const handleToggle = (section: SidebarSection) => {
     onSectionChange(activeSection === section ? null : section)
@@ -181,6 +184,16 @@ export function StorySidebar({
                   <Archive className="size-4" />
                   <span>Archive</span>
                   <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onExport?.()}
+                  tooltip="Export Fragments"
+                  data-component-id="sidebar-export-button"
+                >
+                  <Package className="size-4" />
+                  <span>Export</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
