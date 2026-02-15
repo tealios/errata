@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check, Sparkles } from 'lucide-react'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { copyFragmentToClipboard } from '@/lib/fragment-clipboard'
@@ -224,105 +225,144 @@ export function FragmentEditor({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {fragment && mode !== 'create' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs gap-1"
-              onClick={async () => {
-                await copyFragmentToClipboard(fragment, mediaById)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-              data-component-id={fragmentComponentId(fragment, 'copy-clipboard')}
-            >
-              {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1"
+                  onClick={async () => {
+                    await copyFragmentToClipboard(fragment, mediaById)
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  }}
+                  data-component-id={fragmentComponentId(fragment, 'copy-clipboard')}
+                >
+                  {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy fragment to clipboard</TooltipContent>
+            </Tooltip>
           )}
           {fragment && !fragment.archived && mode !== 'create' && fragment.type !== 'prose' && fragment.type !== 'image' && fragment.type !== 'icon' && (
-            <Button
-              size="sm"
-              variant={showRefine ? 'secondary' : 'ghost'}
-              className="h-7 text-xs gap-1"
-              onClick={() => setShowRefine(!showRefine)}
-            >
-              <Sparkles className="size-3" />
-              Refine
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={showRefine ? 'secondary' : 'ghost'}
+                  className="h-7 text-xs gap-1"
+                  onClick={() => setShowRefine(!showRefine)}
+                >
+                  <Sparkles className="size-3" />
+                  Refine
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Refine this fragment with Librarian</TooltipContent>
+            </Tooltip>
           )}
           {fragment && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs gap-1"
-              onClick={() => stickyMutation.mutate(!fragment.sticky)}
-              disabled={stickyMutation.isPending}
-              data-component-id={fragmentComponentId(fragment, 'sticky-toggle')}
-            >
-              <Pin className="size-3" />
-              {fragment.sticky ? 'Unpin' : 'Pin'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => stickyMutation.mutate(!fragment.sticky)}
+                  disabled={stickyMutation.isPending}
+                  data-component-id={fragmentComponentId(fragment, 'sticky-toggle')}
+                >
+                  <Pin className="size-3" />
+                  {fragment.sticky ? 'Unpin' : 'Pin'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{fragment.sticky ? 'Remove from context' : 'Always include in context'}</TooltipContent>
+            </Tooltip>
           )}
           {fragment && fragment.sticky && fragment.type !== 'prose' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs gap-1"
-              onClick={() => placementMutation.mutate(fragment.placement === 'system' ? 'user' : 'system')}
-              disabled={placementMutation.isPending}
-              title={`Context placement: ${fragment.placement === 'system' ? 'system message' : 'user message'}`}
-              data-component-id={fragmentComponentId(fragment, 'placement-toggle')}
-            >
-              {fragment.placement === 'system' ? <Monitor className="size-3" /> : <User className="size-3" />}
-              {fragment.placement === 'system' ? 'System' : 'User'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => placementMutation.mutate(fragment.placement === 'system' ? 'user' : 'system')}
+                  disabled={placementMutation.isPending}
+                  data-component-id={fragmentComponentId(fragment, 'placement-toggle')}
+                >
+                  {fragment.placement === 'system' ? <Monitor className="size-3" /> : <User className="size-3" />}
+                  {fragment.placement === 'system' ? 'System' : 'User'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{fragment.placement === 'system' ? 'Placed in system context' : 'Placed in user context'}</TooltipContent>
+            </Tooltip>
           )}
           {fragment && !fragment.archived && mode !== 'create' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                if (confirm('Archive this fragment?')) {
-                  archiveMutation.mutate()
-                }
-              }}
-              disabled={archiveMutation.isPending}
-            >
-              <Archive className="size-3" />
-              Archive
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    if (confirm('Archive this fragment?')) {
+                      archiveMutation.mutate()
+                    }
+                  }}
+                  disabled={archiveMutation.isPending}
+                >
+                  <Archive className="size-3" />
+                  Archive
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Move to archive</TooltipContent>
+            </Tooltip>
           )}
           {fragment && fragment.archived && mode !== 'create' && (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs gap-1"
-                onClick={() => restoreMutation.mutate()}
-                disabled={restoreMutation.isPending}
-              >
-                <Undo2 className="size-3" />
-                Restore
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs gap-1 text-destructive/70 hover:text-destructive"
-                onClick={() => {
-                  if (confirm('Permanently delete this fragment? This cannot be undone.')) {
-                    deleteMutation.mutate()
-                  }
-                }}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="size-3" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => restoreMutation.mutate()}
+                    disabled={restoreMutation.isPending}
+                  >
+                    <Undo2 className="size-3" />
+                    Restore
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Restore from archive</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs gap-1 text-destructive/70 hover:text-destructive"
+                    onClick={() => {
+                      if (confirm('Permanently delete this fragment? This cannot be undone.')) {
+                        deleteMutation.mutate()
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Permanently delete</TooltipContent>
+              </Tooltip>
             </>
           )}
-          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose} data-component-id="fragment-editor-close">
-            <X className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose} data-component-id="fragment-editor-close">
+                <X className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Close</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
