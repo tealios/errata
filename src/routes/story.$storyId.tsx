@@ -228,6 +228,7 @@ function StoryEditorPage() {
         onSectionChange={setActiveSection}
         enabledPanelPlugins={enabledPanelPlugins}
         onExport={() => setShowExportPanel(true)}
+        onDownloadStory={() => api.stories.exportAsZip(storyId)}
       />
 
       {/* Detail Panel */}

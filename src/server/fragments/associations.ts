@@ -19,7 +19,7 @@ export async function getAssociations(
   return AssociationsSchema.parse(JSON.parse(raw))
 }
 
-async function saveAssociations(
+export async function saveAssociations(
   dataDir: string,
   storyId: string,
   assoc: Associations
