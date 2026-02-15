@@ -7,6 +7,7 @@ const plugin: WritingPlugin = {
     description: 'Configurable keyboard shortcuts for prose navigation and panels',
     panel: {
       title: 'Keybinds',
+      showInSidebar: false,
       icon: { type: 'lucide', name: 'Keyboard' },
     },
   },

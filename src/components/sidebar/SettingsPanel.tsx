@@ -3,13 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
 import { useTheme, useQuickSwitch } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
-import { Sun, Moon, ChevronsLeftRight, RefreshCw, Loader2, Settings2, List, Shuffle } from 'lucide-react'
+import { Sun, Moon, ChevronsLeftRight, RefreshCw, Loader2, Settings2, List, Shuffle, ExternalLink, Eye, EyeOff, Puzzle } from 'lucide-react'
 import { useModelFetcher } from '@/components/settings/ProviderManager'
 
 interface SettingsPanelProps {
   storyId: string
   story: StoryMeta
   onManageProviders: () => void
+  onOpenPluginPanel?: (pluginName: string) => void
+  onTogglePluginSidebar?: (pluginName: string, visible: boolean) => void
+  pluginSidebarVisibility?: Record<string, boolean>
 }
 
 function ModelSelector({ story, globalConfig, updateMutation, onManageProviders }: {
@@ -134,7 +137,14 @@ function ModelSelector({ story, globalConfig, updateMutation, onManageProviders 
   )
 }
 
-export function SettingsPanel({ storyId, story, onManageProviders }: SettingsPanelProps) {
+export function SettingsPanel({
+  storyId,
+  story,
+  onManageProviders,
+  onOpenPluginPanel,
+  onTogglePluginSidebar,
+  pluginSidebarVisibility,
+}: SettingsPanelProps) {
   const queryClient = useQueryClient()
 
   const { data: plugins } = useQuery({
@@ -350,32 +360,82 @@ export function SettingsPanel({ storyId, story, onManageProviders }: SettingsPan
 
       {/* Plugins */}
       <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Plugins</label>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-3 block">Plugins</label>
         {plugins && plugins.length > 0 ? (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {plugins.map((plugin) => {
               const isEnabled = story.settings.enabledPlugins.includes(plugin.name)
+              const isSidebarVisible = (pluginSidebarVisibility?.[plugin.name]) ?? (plugin.panel?.showInSidebar !== false)
               return (
-                <div key={plugin.name} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{plugin.name}</p>
-                    <p className="text-xs text-muted-foreground/50">{plugin.description}</p>
+                <div
+                  key={plugin.name}
+                  className={`rounded-lg border transition-colors ${
+                    isEnabled
+                      ? 'border-border/60 bg-accent/20'
+                      : 'border-border/30 bg-transparent'
+                  }`}
+                >
+                  {/* Main row: toggle + info */}
+                  <div className="flex items-start gap-3 px-3 py-2.5">
+                    <button
+                      onClick={() => togglePlugin(plugin.name)}
+                      disabled={updateMutation.isPending}
+                      className={`mt-0.5 relative shrink-0 h-[18px] w-[32px] rounded-full transition-colors ${
+                        isEnabled
+                          ? 'bg-foreground'
+                          : 'bg-muted-foreground/20'
+                      }`}
+                      aria-label={`${isEnabled ? 'Disable' : 'Enable'} ${plugin.name}`}
+                    >
+                      <span
+                        className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-background transition-[left] duration-150 ${
+                          isEnabled ? 'left-[16px]' : 'left-[2px]'
+                        }`}
+                      />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium leading-tight text-foreground/85">{plugin.name}</p>
+                      <p className="text-[11px] text-muted-foreground/45 mt-0.5 leading-snug">{plugin.description}</p>
+                    </div>
+                    <span className={`text-[9px] uppercase tracking-widest mt-1 shrink-0 ${
+                      isEnabled ? 'text-foreground/50' : 'text-muted-foreground/25'
+                    }`}>
+                      v{plugin.version}
+                    </span>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={isEnabled ? 'default' : 'outline'}
-                    className="h-7 text-xs"
-                    onClick={() => togglePlugin(plugin.name)}
-                    disabled={updateMutation.isPending}
-                  >
-                    {isEnabled ? 'On' : 'Off'}
-                  </Button>
+
+                  {/* Panel actions — only when enabled and has a panel */}
+                  {isEnabled && plugin.panel && (
+                    <div className="flex items-center gap-1 px-3 pb-2.5 pt-0">
+                      {onOpenPluginPanel && (
+                        <button
+                          onClick={() => onOpenPluginPanel(plugin.name)}
+                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground/50 hover:text-foreground/70 hover:bg-accent/40 transition-colors"
+                        >
+                          <ExternalLink className="size-3" />
+                          Open panel
+                        </button>
+                      )}
+                      {onTogglePluginSidebar && (
+                        <button
+                          onClick={() => onTogglePluginSidebar(plugin.name, !isSidebarVisible)}
+                          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground/50 hover:text-foreground/70 hover:bg-accent/40 transition-colors"
+                        >
+                          {isSidebarVisible ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                          {isSidebarVisible ? 'Visible in sidebar' : 'Hidden from sidebar'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground/40 italic">No plugins available</p>
+          <div className="flex flex-col items-center py-6 text-center">
+            <Puzzle className="size-5 text-muted-foreground/20 mb-2" />
+            <p className="text-[11px] text-muted-foreground/35">No plugins available</p>
+          </div>
         )}
       </div>
 
@@ -386,12 +446,12 @@ export function SettingsPanel({ storyId, story, onManageProviders }: SettingsPan
           <br />
           Built by{' '}
           <a
-            href="https://github.com/nokusukun"
+            href="https://github.com/tealios"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-muted-foreground/50 transition-colors"
           >
-            nokusukun
+            Tealios
           </a>
         </p>
       </div>

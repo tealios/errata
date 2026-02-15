@@ -529,7 +529,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
             rel="noopener noreferrer"
             className="text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors underline underline-offset-2"
           >
-            nokusukun
+            Tealios
           </a>
         </span>
       </div>

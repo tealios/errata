@@ -22,6 +22,9 @@ interface DetailPanelProps {
   onCreateFragment: (type: string, prefill?: { name: string; description: string; content: string }) => void
   selectedFragmentId?: string
   onManageProviders: () => void
+  onOpenPluginPanel?: (pluginName: string) => void
+  onTogglePluginSidebar?: (pluginName: string, visible: boolean) => void
+  pluginSidebarVisibility?: Record<string, boolean>
   onLaunchWizard?: () => void
   onImportFragment?: () => void
   onExport?: () => void
@@ -31,6 +34,7 @@ interface DetailPanelProps {
     title: string
     mode?: 'react' | 'iframe'
     url?: string
+    showInSidebar?: boolean
     icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string }
   }>
 }
@@ -68,6 +72,9 @@ export function DetailPanel({
   onCreateFragment,
   selectedFragmentId,
   onManageProviders,
+  onOpenPluginPanel,
+  onTogglePluginSidebar,
+  pluginSidebarVisibility,
   onLaunchWizard,
   onImportFragment,
   onExport,
@@ -142,7 +149,14 @@ export function DetailPanel({
 
           {activeSection === 'settings' && (
             <ScrollArea className="h-full">
-              <SettingsPanel storyId={storyId} story={story} onManageProviders={onManageProviders} />
+              <SettingsPanel
+                storyId={storyId}
+                story={story}
+                onManageProviders={onManageProviders}
+                onOpenPluginPanel={onOpenPluginPanel}
+                onTogglePluginSidebar={onTogglePluginSidebar}
+                pluginSidebarVisibility={pluginSidebarVisibility}
+              />
             </ScrollArea>
           )}
 

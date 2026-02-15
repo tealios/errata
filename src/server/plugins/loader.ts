@@ -10,6 +10,7 @@ const SERVER_ENTRY_CANDIDATES = ['entry.server.ts', 'entry.server.js', 'plugin.t
 interface PluginJsonPanel {
   title?: string
   entry?: string
+  showInSidebar?: boolean
   icon?:
     | { type?: 'lucide'; name?: string }
     | { type?: 'svg'; src?: string }
@@ -81,6 +82,13 @@ export async function loadPlugin(
         plugin.manifest.panel = {
           ...plugin.manifest.panel,
           title: pluginJson.panel.title,
+        }
+      }
+
+      if (typeof pluginJson.panel?.showInSidebar === 'boolean') {
+        plugin.manifest.panel = {
+          ...plugin.manifest.panel,
+          showInSidebar: pluginJson.panel.showInSidebar,
         }
       }
 
