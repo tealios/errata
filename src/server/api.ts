@@ -36,7 +36,7 @@ import {
 } from './fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
-import { buildContextState, assembleMessages } from './llm/context-builder'
+import { buildContextState, createDefaultBlocks, compileBlocks } from './llm/context-builder'
 import { createFragmentTools } from './llm/tools'
 import { getModel } from './llm/client'
 import { createWriterAgent } from './llm/writer-agent'
@@ -62,6 +62,7 @@ import { pluginRegistry } from './plugins/registry'
 import { getRuntimePluginUi } from './plugins/runtime-ui'
 import {
   runBeforeContext,
+  runBeforeBlocks,
   runBeforeGeneration,
   runAfterGeneration,
   runAfterSave,
@@ -1001,7 +1002,9 @@ export function createApp(dataDir: string = DATA_DIR) {
         pluginName: pluginToolOrigins[name],
       }))
 
-      let messages = assembleMessages(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
+      let blocks = createDefaultBlocks(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
+      blocks = await runBeforeBlocks(enabledPlugins, blocks)
+      let messages = compileBlocks(blocks)
       messages = await runBeforeGeneration(enabledPlugins, messages)
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 

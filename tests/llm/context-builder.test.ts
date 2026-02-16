@@ -8,7 +8,21 @@ import { addProseSection } from '@/server/fragments/prose-chain'
 import { addProseVariation } from '@/server/fragments/prose-chain'
 import { saveAnalysis } from '@/server/librarian/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
-import { buildContext, buildContextState, type ContextBuildState } from '@/server/llm/context-builder'
+import {
+  buildContext,
+  buildContextState,
+  assembleMessages,
+  createDefaultBlocks,
+  compileBlocks,
+  findBlock,
+  replaceBlockContent,
+  removeBlock,
+  insertBlockBefore,
+  insertBlockAfter,
+  reorderBlock,
+  type ContextBuildState,
+  type ContextBlock,
+} from '@/server/llm/context-builder'
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
   const now = new Date().toISOString()
@@ -620,5 +634,274 @@ describe('context-builder', () => {
 
     expect(state.proseFragments.length).toBe(1)
     expect(state.proseFragments[0].id).toBe('pr-0003')
+  })
+})
+
+describe('context blocks', () => {
+  let dataDir: string
+  let cleanup: () => Promise<void>
+
+  beforeEach(async () => {
+    const tmp = await createTempDir()
+    dataDir = tmp.path
+    cleanup = tmp.cleanup
+  })
+
+  afterEach(async () => {
+    await cleanup()
+  })
+
+  describe('createDefaultBlocks', () => {
+    it('returns expected block IDs for a basic state', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue the story')
+      const blocks = createDefaultBlocks(state)
+
+      const ids = blocks.map(b => b.id)
+      expect(ids).toContain('instructions')
+      expect(ids).toContain('tools')
+      expect(ids).toContain('story-info')
+      expect(ids).toContain('summary')
+      expect(ids).toContain('author-input')
+    })
+
+    it('assigns correct roles to blocks', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      const systemIds = blocks.filter(b => b.role === 'system').map(b => b.id)
+      const userIds = blocks.filter(b => b.role === 'user').map(b => b.id)
+
+      expect(systemIds).toContain('instructions')
+      expect(systemIds).toContain('tools')
+      expect(userIds).toContain('story-info')
+      expect(userIds).toContain('author-input')
+    })
+
+    it('omits summary block when summary is empty', async () => {
+      const story = makeStory({ summary: '' })
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'summary')).toBeUndefined()
+    })
+
+    it('omits prose block when no prose fragments', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'prose')).toBeUndefined()
+    })
+
+    it('creates prose block when prose fragments exist', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'pr-0001', type: 'prose', name: 'Ch1', content: 'Hello world.', order: 1,
+      }))
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      const prose = findBlock(blocks, 'prose')
+      expect(prose).toBeDefined()
+      expect(prose!.role).toBe('user')
+      expect(prose!.content).toContain('Hello world.')
+    })
+
+    it('creates shortlist blocks for non-sticky fragments', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'gl-0001', type: 'guideline', name: 'Tone', description: 'Tone rules',
+        content: 'Write darkly.', sticky: false,
+      }))
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'kn-0001', type: 'knowledge', name: 'Lore', description: 'World lore',
+        content: 'Magic exists.', sticky: false,
+      }))
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'shortlist-guidelines')).toBeDefined()
+      expect(findBlock(blocks, 'shortlist-knowledge')).toBeDefined()
+    })
+
+    it('omits shortlist blocks when no non-sticky fragments of that type', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'shortlist-guidelines')).toBeUndefined()
+      expect(findBlock(blocks, 'shortlist-knowledge')).toBeUndefined()
+      expect(findBlock(blocks, 'shortlist-characters')).toBeUndefined()
+    })
+
+    it('all blocks have source "builtin"', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      for (const block of blocks) {
+        expect(block.source).toBe('builtin')
+      }
+    })
+  })
+
+  describe('compileBlocks', () => {
+    it('groups blocks by role and produces system + user messages', () => {
+      const blocks: ContextBlock[] = [
+        { id: 'a', role: 'system', content: 'System A', order: 100, source: 'builtin' },
+        { id: 'b', role: 'user', content: 'User B', order: 100, source: 'builtin' },
+      ]
+
+      const messages = compileBlocks(blocks)
+      expect(messages).toHaveLength(2)
+      expect(messages[0].role).toBe('system')
+      expect(messages[0].content).toBe('System A')
+      expect(messages[1].role).toBe('user')
+      expect(messages[1].content).toBe('User B')
+    })
+
+    it('sorts blocks by order within each role', () => {
+      const blocks: ContextBlock[] = [
+        { id: 'b', role: 'user', content: 'Second', order: 200, source: 'builtin' },
+        { id: 'a', role: 'user', content: 'First', order: 100, source: 'builtin' },
+        { id: 'c', role: 'user', content: 'Third', order: 300, source: 'builtin' },
+      ]
+
+      const messages = compileBlocks(blocks)
+      expect(messages).toHaveLength(1)
+      expect(messages[0].content).toBe('First\nSecond\nThird')
+    })
+
+    it('omits role when no blocks of that role exist', () => {
+      const blocks: ContextBlock[] = [
+        { id: 'a', role: 'user', content: 'User only', order: 100, source: 'builtin' },
+      ]
+
+      const messages = compileBlocks(blocks)
+      expect(messages).toHaveLength(1)
+      expect(messages[0].role).toBe('user')
+    })
+
+    it('returns empty array for empty blocks', () => {
+      expect(compileBlocks([])).toEqual([])
+    })
+  })
+
+  describe('block manipulation', () => {
+    const blocks: ContextBlock[] = [
+      { id: 'a', role: 'system', content: 'Alpha', order: 100, source: 'builtin' },
+      { id: 'b', role: 'system', content: 'Beta', order: 200, source: 'builtin' },
+      { id: 'c', role: 'user', content: 'Gamma', order: 100, source: 'builtin' },
+    ]
+
+    it('findBlock returns the matching block', () => {
+      expect(findBlock(blocks, 'b')).toEqual(blocks[1])
+    })
+
+    it('findBlock returns undefined for missing id', () => {
+      expect(findBlock(blocks, 'missing')).toBeUndefined()
+    })
+
+    it('replaceBlockContent replaces content of target block', () => {
+      const result = replaceBlockContent(blocks, 'b', 'New Beta')
+      expect(findBlock(result, 'b')!.content).toBe('New Beta')
+      // Original unchanged
+      expect(findBlock(blocks, 'b')!.content).toBe('Beta')
+    })
+
+    it('removeBlock removes the target block', () => {
+      const result = removeBlock(blocks, 'b')
+      expect(result).toHaveLength(2)
+      expect(findBlock(result, 'b')).toBeUndefined()
+    })
+
+    it('insertBlockBefore inserts before target', () => {
+      const newBlock: ContextBlock = { id: 'x', role: 'system', content: 'X', order: 150, source: 'test' }
+      const result = insertBlockBefore(blocks, 'b', newBlock)
+      expect(result).toHaveLength(4)
+      const ids = result.map(b => b.id)
+      expect(ids).toEqual(['a', 'x', 'b', 'c'])
+    })
+
+    it('insertBlockBefore appends when target not found', () => {
+      const newBlock: ContextBlock = { id: 'x', role: 'system', content: 'X', order: 150, source: 'test' }
+      const result = insertBlockBefore(blocks, 'missing', newBlock)
+      expect(result).toHaveLength(4)
+      expect(result[result.length - 1].id).toBe('x')
+    })
+
+    it('insertBlockAfter inserts after target', () => {
+      const newBlock: ContextBlock = { id: 'x', role: 'system', content: 'X', order: 150, source: 'test' }
+      const result = insertBlockAfter(blocks, 'a', newBlock)
+      expect(result).toHaveLength(4)
+      const ids = result.map(b => b.id)
+      expect(ids).toEqual(['a', 'x', 'b', 'c'])
+    })
+
+    it('insertBlockAfter appends when target not found', () => {
+      const newBlock: ContextBlock = { id: 'x', role: 'system', content: 'X', order: 150, source: 'test' }
+      const result = insertBlockAfter(blocks, 'missing', newBlock)
+      expect(result).toHaveLength(4)
+      expect(result[result.length - 1].id).toBe('x')
+    })
+
+    it('reorderBlock changes the order of target block', () => {
+      const result = reorderBlock(blocks, 'a', 999)
+      expect(findBlock(result, 'a')!.order).toBe(999)
+      // Original unchanged
+      expect(findBlock(blocks, 'a')!.order).toBe(100)
+    })
+  })
+
+  describe('fidelity', () => {
+    it('assembleMessages matches compileBlocks(createDefaultBlocks(...))', async () => {
+      const story = makeStory()
+      await createStory(dataDir, story)
+
+      // Add some fragments for a realistic context
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'gl-0001', type: 'guideline', name: 'Tone', description: 'Tone rules',
+        content: 'Write in a dark style.', sticky: true,
+      }))
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'ch-0001', type: 'character', name: 'Hero', description: 'Main character',
+        content: 'A brave warrior.', sticky: true,
+      }))
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'kn-0001', type: 'knowledge', name: 'Lore', description: 'World lore',
+        content: 'Dragons exist.', sticky: false,
+      }))
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'pr-0001', type: 'prose', name: 'Ch1', content: 'The story begins.', order: 1,
+      }))
+      await createFragment(dataDir, story.id, makeFragment({
+        id: 'pr-0002', type: 'prose', name: 'Ch2', content: 'The adventure continues.', order: 2,
+      }))
+
+      const state = await buildContextState(dataDir, story.id, 'Make the dragon appear')
+
+      const fromAssemble = assembleMessages(state)
+      const fromBlocks = compileBlocks(createDefaultBlocks(state))
+
+      expect(fromBlocks).toEqual(fromAssemble)
+    })
   })
 })

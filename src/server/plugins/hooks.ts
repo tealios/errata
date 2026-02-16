@@ -1,5 +1,5 @@
 import type { WritingPlugin, GenerationResult } from './types'
-import type { ContextBuildState, ContextMessage } from '../llm/context-builder'
+import type { ContextBuildState, ContextBlock, ContextMessage } from '../llm/context-builder'
 import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 
@@ -24,6 +24,29 @@ export async function runBeforeContext(
       result = await plugin.hooks.beforeContext(result)
       const durationMs = Date.now() - startTime
       requestLogger.debug(`beforeContext completed for plugin: ${plugin.manifest.name}`, { durationMs })
+    }
+  }
+  return result
+}
+
+export async function runBeforeBlocks(
+  plugins: WritingPlugin[],
+  blocks: ContextBlock[],
+): Promise<ContextBlock[]> {
+  if (plugins.length === 0) {
+    return blocks
+  }
+
+  logger.info(`Running beforeBlocks hooks for ${plugins.length} plugin(s)`)
+
+  let result = blocks
+  for (const plugin of plugins) {
+    if (plugin.hooks?.beforeBlocks) {
+      const startTime = Date.now()
+      logger.debug(`Running beforeBlocks for plugin: ${plugin.manifest.name}`)
+      result = await plugin.hooks.beforeBlocks(result)
+      const durationMs = Date.now() - startTime
+      logger.debug(`beforeBlocks completed for plugin: ${plugin.manifest.name}`, { durationMs })
     }
   }
   return result

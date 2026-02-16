@@ -22,6 +22,44 @@ export interface ContextMessage {
   content: string
 }
 
+export interface ContextBlock {
+  id: string
+  role: 'system' | 'user'
+  content: string
+  order: number
+  source: 'builtin' | string
+}
+
+// --- Block manipulation utilities (pure, immutable) ---
+
+export function findBlock(blocks: ContextBlock[], id: string): ContextBlock | undefined {
+  return blocks.find(b => b.id === id)
+}
+
+export function replaceBlockContent(blocks: ContextBlock[], id: string, content: string): ContextBlock[] {
+  return blocks.map(b => b.id === id ? { ...b, content } : b)
+}
+
+export function removeBlock(blocks: ContextBlock[], id: string): ContextBlock[] {
+  return blocks.filter(b => b.id !== id)
+}
+
+export function insertBlockBefore(blocks: ContextBlock[], targetId: string, block: ContextBlock): ContextBlock[] {
+  const idx = blocks.findIndex(b => b.id === targetId)
+  if (idx === -1) return [...blocks, block]
+  return [...blocks.slice(0, idx), block, ...blocks.slice(idx)]
+}
+
+export function insertBlockAfter(blocks: ContextBlock[], targetId: string, block: ContextBlock): ContextBlock[] {
+  const idx = blocks.findIndex(b => b.id === targetId)
+  if (idx === -1) return [...blocks, block]
+  return [...blocks.slice(0, idx + 1), block, ...blocks.slice(idx + 1)]
+}
+
+export function reorderBlock(blocks: ContextBlock[], id: string, newOrder: number): ContextBlock[] {
+  return blocks.map(b => b.id === id ? { ...b, order: newOrder } : b)
+}
+
 const DEFAULT_PROSE_LIMIT = 10
 const logger = createLogger('context-builder')
 
@@ -348,13 +386,11 @@ function renderAdvancedOrder(fragments: Fragment[], fragmentOrder: string[]): st
 }
 
 /**
- * Assembles the final LLM message array from the context state.
- * This is the second step — called after hook modifications.
+ * Creates the default context blocks from the context state.
+ * Each section of the LLM prompt becomes a discrete, addressable block.
+ * Blocks can be manipulated (find, replace, remove, insert, reorder) before compilation.
  */
-export function assembleMessages(state: ContextBuildState, opts: AssembleOptions = {}): ContextMessage[] {
-  const requestLogger = logger.child({ storyId: state.story.id })
-  requestLogger.info('Assembling messages...')
-
+export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOptions = {}): ContextBlock[] {
   const {
     story,
     proseFragments,
@@ -392,112 +428,210 @@ export function assembleMessages(state: ContextBuildState, opts: AssembleOptions
     }
   }
 
-  // Shortlists (always go in user message)
-  const shortlistParts: string[] = []
-  if (guidelineShortlist.length > 0) {
-    shortlistParts.push('\n[@section=Available Guidelines]\n## Available Guidelines use getFragment tool to retrieve full content')
-    for (const g of guidelineShortlist) {
-      shortlistParts.push(`- ${g.id}: ${g.name} — ${g.description}`)
-    }
-  }
-  if (knowledgeShortlist.length > 0) {
-    shortlistParts.push('\n[@section=Available Knowledge]\n## Available Knowledge use getFragment tool to retrieve full content')
-    for (const k of knowledgeShortlist) {
-      shortlistParts.push(`- ${k.id}: ${k.name} — ${k.description}`)
-    }
-  }
-  if (characterShortlist.length > 0) {
-    shortlistParts.push('\n[@section=Available Characters]\n## Available Characters  use getFragment tool to retrieve full content')
-    for (const c of characterShortlist) {
-      shortlistParts.push(`- ${c.id}: ${c.name} — ${c.description}`)
-    }
-  }
+  const blocks: ContextBlock[] = []
 
-  // Build system message — always present with instructions, optionally with system-placed fragments
-  const sysParts: string[] = []
+  // --- System blocks ---
 
-  sysParts.push(
-    '[@section=Instructions]',
-    'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.',
-    'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.',
-    'Only use tools to look up context you need before writing.',
-  )
+  blocks.push({
+    id: 'instructions',
+    role: 'system',
+    content: [
+      '[@block=instructions]',
+      'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.',
+      'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.',
+      'Only use tools to look up context you need before writing.',
+    ].join('\n'),
+    order: 100,
+    source: 'builtin',
+  })
 
-  // Available tools listed in system prompt
-  sysParts.push('\n[@section=Available Tools]\n## Available Tools')
-  sysParts.push('You have access to the following tools:')
-  sysParts.push(toolLines.join('\n'))
-  sysParts.push(
-    '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
-    'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.'
-  )
+  blocks.push({
+    id: 'tools',
+    role: 'system',
+    content: [
+      '\n[@block=tools]\n## Available Tools',
+      'You have access to the following tools:',
+      toolLines.join('\n'),
+      '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
+      'After gathering any context you need, output the prose directly as text. Do not explain what you are doing — just write the prose.',
+    ].join('\n'),
+    order: 200,
+    source: 'builtin',
+  })
 
-  // System-placed fragments
   if (systemPlaced.length > 0) {
+    let parts: string[]
     if (contextOrderMode === 'advanced') {
-      sysParts.push(...renderAdvancedOrder(systemPlaced, fragmentOrder))
+      parts = renderAdvancedOrder(systemPlaced, fragmentOrder)
     } else {
-      // Simple mode: group by type
+      parts = []
       const sysGuidelines = systemPlaced.filter(f => f.type === 'guideline')
       const sysKnowledge = systemPlaced.filter(f => f.type === 'knowledge')
       const sysCharacters = systemPlaced.filter(f => f.type === 'character')
-      sysParts.push(...renderTypeGrouped(sysGuidelines, 'Guidelines'))
-      sysParts.push(...renderTypeGrouped(sysKnowledge, 'Knowledge'))
-      sysParts.push(...renderTypeGrouped(sysCharacters, 'Characters'))
+      parts.push(...renderTypeGrouped(sysGuidelines, 'Guidelines'))
+      parts.push(...renderTypeGrouped(sysKnowledge, 'Knowledge'))
+      parts.push(...renderTypeGrouped(sysCharacters, 'Characters'))
     }
+    blocks.push({
+      id: 'system-fragments',
+      role: 'system',
+      content: parts.join('\n'),
+      order: 300,
+      source: 'builtin',
+    })
   }
 
-  const systemMessageContent = sysParts.join('\n')
+  // --- User blocks ---
 
-  // Build user message content
-  const userParts: string[] = []
+  blocks.push({
+    id: 'story-info',
+    role: 'user',
+    content: [
+      `[@block=story-info]\n## Story: ${story.name}`,
+      `${story.description}`,
+    ].join('\n'),
+    order: 100,
+    source: 'builtin',
+  })
 
-  // Story info
-  userParts.push(`[@section=Story]\n## Story: ${story.name}`)
-  userParts.push(`${story.description}`)
   if (story.summary) {
-    userParts.push(`\n[@section=Summary]\n## Story Summary So Far\n${story.summary}`)
+    blocks.push({
+      id: 'summary',
+      role: 'user',
+      content: `\n[@block=summary]\n## Story Summary So Far\n${story.summary}`,
+      order: 200,
+      source: 'builtin',
+    })
   }
 
-  // User-placed sticky fragments
-  if (contextOrderMode === 'advanced') {
-    userParts.push(...renderAdvancedOrder(userPlaced, fragmentOrder))
-  } else {
-    // Simple mode: group by type
-    const userGuidelines = userPlaced.filter(f => f.type === 'guideline')
-    const userKnowledge = userPlaced.filter(f => f.type === 'knowledge')
-    const userCharacters = userPlaced.filter(f => f.type === 'character')
-    userParts.push(...renderTypeGrouped(userGuidelines, 'Guidelines'))
-    userParts.push(...renderTypeGrouped(userKnowledge, 'Knowledge'))
-    userParts.push(...renderTypeGrouped(userCharacters, 'Characters'))
-  }
-
-  // Shortlists
-  userParts.push(...shortlistParts)
-
-  // Prose chain
-  if (proseFragments.length > 0) {
-    userParts.push('\n[@section=Recent Prose]\n## Recent Prose')
-    for (const p of proseFragments) {
-      userParts.push(renderFragment(p))
+  if (userPlaced.length > 0) {
+    let parts: string[]
+    if (contextOrderMode === 'advanced') {
+      parts = renderAdvancedOrder(userPlaced, fragmentOrder)
+    } else {
+      parts = []
+      const userGuidelines = userPlaced.filter(f => f.type === 'guideline')
+      const userKnowledge = userPlaced.filter(f => f.type === 'knowledge')
+      const userCharacters = userPlaced.filter(f => f.type === 'character')
+      parts.push(...renderTypeGrouped(userGuidelines, 'Guidelines'))
+      parts.push(...renderTypeGrouped(userKnowledge, 'Knowledge'))
+      parts.push(...renderTypeGrouped(userCharacters, 'Characters'))
     }
-    userParts.push('\n[@section=End of Recent Prose]\n## End of Recent Prose')
+    blocks.push({
+      id: 'user-fragments',
+      role: 'user',
+      content: parts.join('\n'),
+      order: 300,
+      source: 'builtin',
+    })
   }
 
-  // Author input
-  userParts.push(`\n[@section=Author Input]\nThe author wants the following to happen next: ${authorInput}`)
+  if (guidelineShortlist.length > 0) {
+    blocks.push({
+      id: 'shortlist-guidelines',
+      role: 'user',
+      content: [
+        '\n[@block=shortlist-guidelines]\n## Available Guidelines use getFragment tool to retrieve full content',
+        ...guidelineShortlist.map(g => `- ${g.id}: ${g.name} — ${g.description}`),
+      ].join('\n'),
+      order: 400,
+      source: 'builtin',
+    })
+  }
 
-  const userContent = userParts.join('\n')
+  if (knowledgeShortlist.length > 0) {
+    blocks.push({
+      id: 'shortlist-knowledge',
+      role: 'user',
+      content: [
+        '\n[@block=shortlist-knowledge]\n## Available Knowledge use getFragment tool to retrieve full content',
+        ...knowledgeShortlist.map(k => `- ${k.id}: ${k.name} — ${k.description}`),
+      ].join('\n'),
+      order: 410,
+      source: 'builtin',
+    })
+  }
 
-  const messages: ContextMessage[] = [
-    { role: 'system', content: systemMessageContent },
-    { role: 'user', content: userContent },
-  ]
+  if (characterShortlist.length > 0) {
+    blocks.push({
+      id: 'shortlist-characters',
+      role: 'user',
+      content: [
+        '\n[@block=shortlist-characters]\n## Available Characters  use getFragment tool to retrieve full content',
+        ...characterShortlist.map(c => `- ${c.id}: ${c.name} — ${c.description}`),
+      ].join('\n'),
+      order: 420,
+      source: 'builtin',
+    })
+  }
+
+  if (proseFragments.length > 0) {
+    blocks.push({
+      id: 'prose',
+      role: 'user',
+      content: [
+        '\n[@block=prose]\n## Recent Prose',
+        ...proseFragments.map(p => renderFragment(p)),
+        '\n[@block=prose:end]\n## End of Recent Prose',
+      ].join('\n'),
+      order: 500,
+      source: 'builtin',
+    })
+  }
+
+  blocks.push({
+    id: 'author-input',
+    role: 'user',
+    content: `\n[@block=author-input]\nThe author wants the following to happen next: ${authorInput}`,
+    order: 600,
+    source: 'builtin',
+  })
+
+  return blocks
+}
+
+/**
+ * Compiles context blocks into LLM messages.
+ * Groups blocks by role, sorts by order, joins content with newlines.
+ */
+export function compileBlocks(blocks: ContextBlock[]): ContextMessage[] {
+  const systemBlocks = blocks.filter(b => b.role === 'system').sort((a, b) => a.order - b.order)
+  const userBlocks = blocks.filter(b => b.role === 'user').sort((a, b) => a.order - b.order)
+
+  const messages: ContextMessage[] = []
+
+  if (systemBlocks.length > 0) {
+    messages.push({
+      role: 'system',
+      content: systemBlocks.map(b => b.content).join('\n'),
+    })
+  }
+
+  if (userBlocks.length > 0) {
+    messages.push({
+      role: 'user',
+      content: userBlocks.map(b => b.content).join('\n'),
+    })
+  }
+
+  return messages
+}
+
+/**
+ * Assembles the final LLM message array from the context state.
+ * Thin wrapper over createDefaultBlocks + compileBlocks.
+ */
+export function assembleMessages(state: ContextBuildState, opts: AssembleOptions = {}): ContextMessage[] {
+  const requestLogger = logger.child({ storyId: state.story.id })
+  requestLogger.info('Assembling messages...')
+
+  const blocks = createDefaultBlocks(state, opts)
+  const messages = compileBlocks(blocks)
 
   requestLogger.info('Messages assembled', {
     messageCount: messages.length,
-    systemContentLength: systemMessageContent.length,
-    userContentLength: userContent.length,
+    systemContentLength: messages.find(m => m.role === 'system')?.content.length ?? 0,
+    userContentLength: messages.find(m => m.role === 'user')?.content.length ?? 0,
   })
 
   return messages

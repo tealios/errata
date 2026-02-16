@@ -55,6 +55,14 @@ export interface ContextMessage {
   content: string
 }
 
+export interface ContextBlock {
+  id: string
+  role: 'system' | 'user'
+  content: string
+  order: number
+  source: 'builtin' | string
+}
+
 export interface PluginManifest {
   name: string
   version: string
@@ -78,6 +86,7 @@ export interface GenerationResult {
 
 export interface PluginHooks {
   beforeContext?: (ctx: ContextBuildState) => ContextBuildState | Promise<ContextBuildState>
+  beforeBlocks?: (blocks: ContextBlock[]) => ContextBlock[] | Promise<ContextBlock[]>
   beforeGeneration?: (messages: ContextMessage[]) => ContextMessage[] | Promise<ContextMessage[]>
   afterGeneration?: (result: GenerationResult) => GenerationResult | Promise<GenerationResult>
   afterSave?: (fragment: Fragment, storyId: string) => void | Promise<void>

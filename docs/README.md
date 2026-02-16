@@ -1,5 +1,7 @@
 # Documentation Index
 
+- `docs/context-blocks.md`
+  - Context block system: structured, manipulable LLM prompt blocks and the `beforeBlocks` plugin hook.
 - `docs/third-party-plugins.md`
   - How to build external plugins, use runtime iframe UI, scaffold templates, and validate in dev.
 - `docs/runtime-plugins-and-binary-packaging.md`
