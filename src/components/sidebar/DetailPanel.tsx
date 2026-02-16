@@ -49,7 +49,7 @@ const SECTION_TITLES: Record<string, string> = {
   knowledge: 'Knowledge',
   media: 'Media',
   archive: 'Archive',
-  'context-order': 'Context Order',
+  'context-order': 'Fragment Order',
   'block-editor': 'Block Editor',
   settings: 'Settings',
   'agent-activity': 'Librarian',

@@ -345,7 +345,7 @@ export function SettingsPanel({
               disabled={updateMutation.isPending}
             />
           </SettingRow>
-          <SettingRow label="Context ordering" description="How pinned fragments are ordered" helpTopic="settings#context-ordering">
+          <SettingRow label="Prompt control" description="Advanced mode enables Block Editor and fragment ordering" helpTopic="settings#prompt-control">
             <SegmentedControl
               value={story.settings.contextOrderMode ?? 'simple'}
               options={[

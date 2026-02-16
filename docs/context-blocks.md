@@ -186,7 +186,7 @@ const messages = compileBlocks(blocks)
 
 The Block Editor is a UI panel that gives users full control over the LLM context structure — without writing plugins. Users can disable builtin blocks, override their content, create custom blocks (including dynamic script blocks), and reorder everything via drag-and-drop.
 
-The Block Editor is accessible from the sidebar under **Management > Block Editor**. It replaces the need for the Context Order panel for most use cases (Context Order still exists for fragment-level ordering within blocks).
+The Block Editor is accessible from the sidebar under **Management > Block Editor** when **Prompt control** is set to **Advanced** in Settings. The Fragment Order panel (for ordering pinned fragments within blocks) is also gated behind this setting.
 
 ## How It Works
 
@@ -413,7 +413,7 @@ Storage functions (`src/server/blocks/storage.ts`):
 
 ## UI: Block Editor Panel
 
-The Block Editor panel is in the sidebar under **Management**. It shows a unified list of all blocks (builtin + custom), merged and sorted by role then order.
+The Block Editor panel is in the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It shows a unified list of all blocks (builtin + custom), merged and sorted by role then order.
 
 ### Block list
 

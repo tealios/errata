@@ -383,7 +383,9 @@ export const HELP_SECTIONS: HelpSection[] = [
             </P>
             <P>
               The <strong className="text-foreground/75">Block Editor</strong> lets you see and control these blocks
-              directly. Open it from the sidebar under <strong className="text-foreground/75">Management</strong>.
+              directly. To enable it, set <strong className="text-foreground/75">Prompt control</strong> to{' '}
+              <Mono>Advanced</Mono> in Settings. The Block Editor and Fragment Order panels then appear
+              in the sidebar under <strong className="text-foreground/75">Management</strong>.
             </P>
             <Tip>
               Use the <strong className="text-foreground/75">Preview</strong> button in the Block Editor to see exactly
@@ -777,19 +779,38 @@ return ''`}</div>
         ),
       },
       {
-        id: 'context-ordering',
-        title: 'Context ordering',
+        id: 'prompt-control',
+        title: 'Prompt control',
         content: (
           <>
             <P>
-              <strong className="text-foreground/75">Simple mode</strong> groups sticky fragments by type
-              (guidelines, then knowledge, then characters) in the prompt.
+              <strong className="text-foreground/75">Simple mode</strong> (default) groups sticky fragments by type
+              (guidelines, then knowledge, then characters) in the prompt. The block structure is fixed.
             </P>
             <P>
-              <strong className="text-foreground/75">Advanced mode</strong> lets you drag fragments into a
-              custom order. Use this when the order of context presentation matters for your story.
-              The Context Order panel becomes available in the sidebar when advanced mode is enabled.
+              <strong className="text-foreground/75">Advanced mode</strong> unlocks two sidebar panels:
             </P>
+            <div className="rounded-md border border-border/25 bg-accent/10 px-3 py-2.5 mb-2.5 space-y-1.5">
+              <div>
+                <p className="text-[11.5px] font-medium text-foreground/65">Block Editor</p>
+                <p className="text-[11px] text-muted-foreground/50 leading-snug">
+                  Disable, reorder, and override entire context blocks (instructions, tools, story info,
+                  prose, etc.). Create custom blocks with plain text or JavaScript scripts.
+                </p>
+              </div>
+              <div className="h-px bg-border/15" />
+              <div>
+                <p className="text-[11.5px] font-medium text-foreground/65">Fragment Order</p>
+                <p className="text-[11px] text-muted-foreground/50 leading-snug">
+                  Drag pinned fragments into a custom order and toggle their placement between system
+                  and user messages.
+                </p>
+              </div>
+            </div>
+            <Tip>
+              See the <strong className="text-foreground/75">Block Editor</strong> help section for full details
+              on blocks, overrides, and custom script blocks.
+            </Tip>
           </>
         ),
       },

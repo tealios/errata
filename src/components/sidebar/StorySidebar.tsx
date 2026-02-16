@@ -187,32 +187,34 @@ export function StorySidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
               <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={activeSection === 'block-editor'}
-                  onClick={() => handleToggle('block-editor')}
-                  tooltip="Block Editor"
-                  data-component-id="sidebar-section-block-editor"
-                >
-                  <Layers className="size-4" />
-                  <span>Block Editor</span>
-                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
               {story?.settings.contextOrderMode === 'advanced' && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={activeSection === 'context-order'}
-                    onClick={() => handleToggle('context-order')}
-                    tooltip="Context Order"
-                    data-component-id="sidebar-section-context-order"
-                  >
-                    <ArrowUpDown className="size-4" />
-                    <span>Context Order</span>
-                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={activeSection === 'block-editor'}
+                      onClick={() => handleToggle('block-editor')}
+                      tooltip="Block Editor"
+                      data-component-id="sidebar-section-block-editor"
+                    >
+                      <Layers className="size-4" />
+                      <span>Block Editor</span>
+                      <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={activeSection === 'context-order'}
+                      onClick={() => handleToggle('context-order')}
+                      tooltip="Fragment Order"
+                      data-component-id="sidebar-section-context-order"
+                    >
+                      <ArrowUpDown className="size-4" />
+                      <span>Fragment Order</span>
+                      <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
               )}
 
                 <SidebarMenuItem key={"media"}>
