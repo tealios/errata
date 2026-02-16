@@ -56,11 +56,6 @@ function StoryEditorPage() {
     queryFn: () => api.stories.get(storyId),
   })
 
-  const { data: proseFragments } = useQuery({
-    queryKey: ['fragments', storyId, 'prose'],
-    queryFn: () => api.fragments.list(storyId, 'prose'),
-  })
-
   const { data: allFragments } = useQuery({
     queryKey: ['fragments', storyId],
     queryFn: () => api.fragments.list(storyId),
@@ -356,7 +351,6 @@ function StoryEditorPage() {
         {/* Prose view — always mounted to preserve scroll position */}
         <ProseChainView
           storyId={storyId}
-          fragments={proseFragments ?? []}
           onSelectFragment={handleSelectFragment}
           onDebugLog={handleDebugLog}
         />

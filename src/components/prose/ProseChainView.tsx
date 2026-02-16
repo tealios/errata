@@ -11,14 +11,12 @@ import { useQuickSwitch } from '@/lib/theme'
 
 interface ProseChainViewProps {
   storyId: string
-  fragments: Fragment[]
   onSelectFragment: (fragment: Fragment) => void
   onDebugLog?: (logId: string) => void
 }
 
 export function ProseChainView({
   storyId,
-  fragments,
   onSelectFragment,
   onDebugLog,
 }: ProseChainViewProps) {
@@ -38,10 +36,17 @@ export function ProseChainView({
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [quickSwitch] = useQuickSwitch()
 
-  // Fetch prose chain to get active fragment info
+  // Co-locate both queries so they settle in the same component — prevents
+  // desync after regeneration where the chain points to a fragment the stale
+  // prop hadn't included yet.
   const { data: proseChain } = useQuery({
     queryKey: ['proseChain', storyId],
     queryFn: () => api.proseChain.get(storyId),
+  })
+
+  const { data: fragments = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'prose'],
+    queryFn: () => api.fragments.list(storyId, 'prose'),
   })
 
   // Get active fragment IDs from the chain (source of truth)
