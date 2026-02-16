@@ -7,8 +7,17 @@ export const PREFIXES: Record<string, string> = {
   icon: 'ic',
 }
 
+// Consonant-vowel alternation produces pronounceable, LLM-friendly IDs.
+// 13 consonants × 5 vowels = 65 combos per pair; 3 pairs (6 chars) ≈ 274k unique IDs per type.
+const CONSONANTS = 'bdfgkmnprstvz'
+const VOWELS = 'aeiou'
+
 export function generateFragmentId(type: string): string {
   const prefix = PREFIXES[type] ?? type.slice(0, 4).toLowerCase()
-  const suffix = Math.random().toString(36).slice(2, 8)
-  return `${prefix}-${suffix}`
+  const chars: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const pool = i % 2 === 0 ? CONSONANTS : VOWELS
+    chars.push(pool[Math.floor(Math.random() * pool.length)])
+  }
+  return `${prefix}-${chars.join('')}`
 }

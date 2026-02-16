@@ -37,6 +37,7 @@ export interface LibrarianAnalysisSummary {
   fragmentId: string
   contradictionCount: number
   suggestionCount: number
+  pendingSuggestionCount: number
   timelineEventCount: number
 }
 
@@ -111,6 +112,7 @@ export async function listAnalyses(
       fragmentId: analysis.fragmentId,
       contradictionCount: analysis.contradictions.length,
       suggestionCount: analysis.knowledgeSuggestions.length,
+      pendingSuggestionCount: analysis.knowledgeSuggestions.filter((s) => !s.accepted).length,
       timelineEventCount: analysis.timelineEvents.length,
     })
   }

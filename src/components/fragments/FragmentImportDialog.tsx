@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
 import {
   parseErrataExport,
   readFileAsText,
+  importFragmentEntry,
   type ErrataExportData,
   type FragmentClipboardData,
   type FragmentBundleData,
@@ -158,47 +158,6 @@ export function FragmentImportDialog({
     })
   }, [])
 
-  // Import a single fragment entry (shared logic)
-  async function importEntry(entry: FragmentExportEntry) {
-    // 1. Create attachment image/icon fragments first
-    const visualRefs: Array<{ fragmentId: string; kind: 'image' | 'icon'; boundary?: { x: number; y: number; width: number; height: number } }> = []
-    if (entry.attachments && entry.attachments.length > 0) {
-      for (const att of entry.attachments) {
-        const created = await api.fragments.create(storyId, {
-          type: att.kind,
-          name: att.name,
-          description: att.description || '',
-          content: att.content,
-        })
-        visualRefs.push({
-          fragmentId: created.id,
-          kind: att.kind,
-          ...(att.boundary ? { boundary: att.boundary } : {}),
-        })
-      }
-    }
-
-    // 2. Create the main fragment
-    const created = await api.fragments.create(storyId, {
-      type: entry.type,
-      name: entry.name,
-      description: entry.description || '',
-      content: entry.content,
-    })
-
-    // 3. If there are visual refs, update the fragment's meta
-    if (visualRefs.length > 0) {
-      await api.fragments.update(storyId, created.id, {
-        name: created.name,
-        description: created.description,
-        content: created.content,
-        meta: { visualRefs },
-      })
-    }
-
-    return created
-  }
-
   const importMutation = useMutation({
     mutationFn: async (data: ErrataExportData) => {
       if (isSingleFragment(data)) {
@@ -207,13 +166,13 @@ export function FragmentImportDialog({
           ...data.fragment,
           attachments: data.attachments,
         }
-        return [await importEntry(entry)]
+        return [await importFragmentEntry(storyId, entry)]
       } else {
         // Bundle format: import selected fragments
         const entries = data.fragments.filter((_, i) => selectedIndices.has(i))
         const results = []
         for (const entry of entries) {
-          results.push(await importEntry(entry))
+          results.push(await importFragmentEntry(storyId, entry))
         }
         return results
       }
@@ -341,7 +300,7 @@ export function FragmentImportDialog({
   )
 }
 
-function SingleFragmentPreview({
+export function SingleFragmentPreview({
   data,
   onClear,
 }: {
@@ -415,7 +374,7 @@ function SingleFragmentPreview({
   )
 }
 
-function BundlePreview({
+export function BundlePreview({
   data,
   selectedIndices,
   onToggle,

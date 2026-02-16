@@ -1,4 +1,4 @@
-import type { Fragment } from '@/lib/api'
+import { api, type Fragment } from '@/lib/api'
 import { parseVisualRefs, type BoundaryBox } from '@/lib/fragment-visuals'
 
 export interface ClipboardAttachment {
@@ -203,6 +203,46 @@ export function downloadTextFile(text: string, filename: string): void {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+export async function importFragmentEntry(storyId: string, entry: FragmentExportEntry): Promise<Fragment> {
+  // 1. Create attachment image/icon fragments first
+  const visualRefs: Array<{ fragmentId: string; kind: 'image' | 'icon'; boundary?: { x: number; y: number; width: number; height: number } }> = []
+  if (entry.attachments && entry.attachments.length > 0) {
+    for (const att of entry.attachments) {
+      const created = await api.fragments.create(storyId, {
+        type: att.kind,
+        name: att.name,
+        description: att.description || '',
+        content: att.content,
+      })
+      visualRefs.push({
+        fragmentId: created.id,
+        kind: att.kind,
+        ...(att.boundary ? { boundary: att.boundary } : {}),
+      })
+    }
+  }
+
+  // 2. Create the main fragment
+  const created = await api.fragments.create(storyId, {
+    type: entry.type,
+    name: entry.name,
+    description: entry.description || '',
+    content: entry.content,
+  })
+
+  // 3. If there are visual refs, update the fragment's meta
+  if (visualRefs.length > 0) {
+    await api.fragments.update(storyId, created.id, {
+      name: created.name,
+      description: created.description,
+      content: created.content,
+      meta: { visualRefs },
+    })
+  }
+
+  return created
 }
 
 export async function readFileAsText(file: File): Promise<string> {

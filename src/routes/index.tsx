@@ -1,8 +1,18 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { api, type StoryMeta } from '@/lib/api'
+import {
+  parseErrataExport,
+  readFileAsText,
+  importFragmentEntry,
+  type ErrataExportData,
+  type FragmentExportEntry,
+  type FragmentClipboardData,
+  type FragmentBundleData,
+} from '@/lib/fragment-clipboard'
+import { SingleFragmentPreview, BundlePreview } from '@/components/fragments/FragmentImportDialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload } from 'lucide-react'
+import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { ErrataLogo } from '@/components/ErrataLogo'
 
@@ -27,6 +37,14 @@ function StoryListPage() {
   const [description, setDescription] = useState('')
   const [importing, setImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
+
+  // Options section state
+  const [showOptions, setShowOptions] = useState(false)
+  const [autoApplyLibrarian, setAutoApplyLibrarian] = useState(false)
+  const [parsed, setParsed] = useState<ErrataExportData | null>(null)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  const [dragOver, setDragOver] = useState(false)
 
   const { data: stories, isLoading } = useQuery({
     queryKey: ['stories'],
@@ -59,13 +77,110 @@ function StoryListPage() {
       .map((entry) => entry.story)
   }, [stories])
 
+  const isSingleFragment = (data: ErrataExportData) => data._errata === 'fragment'
+  const isBundle = (data: ErrataExportData) => data._errata === 'fragment-bundle'
+
+  const handleImportTextChange = useCallback((text: string) => {
+    if (!text.trim()) {
+      setParsed(null)
+      setParseError(null)
+      return
+    }
+    const result = parseErrataExport(text)
+    if (result) {
+      setParsed(result)
+      setParseError(null)
+      if (result._errata === 'fragment-bundle') {
+        setSelectedIndices(new Set(result.fragments.map((_, i) => i)))
+      }
+    } else {
+      setParsed(null)
+      setParseError('Not a valid Errata export. Expected JSON with _errata: "fragment" or "fragment-bundle".')
+    }
+  }, [])
+
+  const handleImportFileDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    try {
+      const text = await readFileAsText(file)
+      handleImportTextChange(text)
+    } catch {
+      setParseError('Could not read file.')
+    }
+  }, [handleImportTextChange])
+
+  const handleImportFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await readFileAsText(file)
+      handleImportTextChange(text)
+    } catch {
+      setParseError('Could not read file.')
+    }
+    e.target.value = ''
+  }, [handleImportTextChange])
+
+  const handleImportPaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      handleImportTextChange(text)
+    } catch {
+      setParseError('Could not read clipboard. Try pasting manually with Ctrl+V.')
+    }
+  }, [handleImportTextChange])
+
+  const toggleBundleItem = useCallback((index: number) => {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }, [])
+
+  const resetDialog = () => {
+    setName('')
+    setDescription('')
+    setShowOptions(false)
+    setAutoApplyLibrarian(false)
+    setParsed(null)
+    setParseError(null)
+    setSelectedIndices(new Set())
+    setDragOver(false)
+  }
+
   const createMutation = useMutation({
-    mutationFn: api.stories.create,
+    mutationFn: async ({ name, description }: { name: string; description: string }) => {
+      // 1. Create the story
+      const newStory = await api.stories.create({ name, description })
+
+      // 2. Update settings if auto-apply is toggled
+      if (autoApplyLibrarian) {
+        await api.settings.update(newStory.id, { autoApplyLibrarianSuggestions: true })
+      }
+
+      // 3. Import fragments if any are selected
+      if (parsed) {
+        const entries: FragmentExportEntry[] = parsed._errata === 'fragment'
+          ? [{ ...(parsed as FragmentClipboardData).fragment, attachments: (parsed as FragmentClipboardData).attachments }]
+          : (parsed as FragmentBundleData).fragments.filter((_, i) => selectedIndices.has(i))
+
+        for (const entry of entries) {
+          await importFragmentEntry(newStory.id, entry)
+        }
+      }
+
+      return newStory
+    },
     onSuccess: (newStory) => {
       queryClient.invalidateQueries({ queryKey: ['stories'] })
       setOpen(false)
-      setName('')
-      setDescription('')
+      resetDialog()
       navigate({ to: '/story/$storyId', params: { storyId: newStory.id } })
     },
   })
@@ -144,14 +259,14 @@ function StoryListPage() {
               className="hidden"
               onChange={handleImportStory}
             />
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetDialog() }}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5" variant={'ghost'} data-component-id="story-create-open">
                 <Plus className="size-3.5" />
                 New Story
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
               <DialogHeader>
                 <DialogTitle className="font-display text-xl">Create a new story</DialogTitle>
               </DialogHeader>
@@ -161,7 +276,7 @@ function StoryListPage() {
                   e.preventDefault()
                   createMutation.mutate({ name, description })
                 }}
-                className="space-y-4 mt-2"
+                className="space-y-4 mt-2 overflow-y-auto min-h-0 flex-1"
               >
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Title</label>
@@ -185,6 +300,126 @@ function StoryListPage() {
                     required
                   />
                 </div>
+
+                {/* Collapsible Options */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOptions(!showOptions)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  >
+                    <ChevronRight className={`size-3 transition-transform ${showOptions ? 'rotate-90' : ''}`} />
+                    Options
+                  </button>
+
+                  {showOptions && (
+                    <div className="mt-3 space-y-4 pl-0.5">
+                      {/* Import Fragments */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                          <FileJson className="size-3" />
+                          Import Fragments
+                        </label>
+
+                        {!parsed && (
+                          <>
+                            <div className="flex gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1.5"
+                                onClick={handleImportPaste}
+                              >
+                                <Clipboard className="size-3" />
+                                Paste from clipboard
+                              </Button>
+                              <label className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-border/40 text-xs cursor-pointer transition-colors hover:bg-accent/50">
+                                <Upload className="size-3" />
+                                Load file
+                                <input
+                                  type="file"
+                                  accept=".json,application/json"
+                                  className="hidden"
+                                  onChange={handleImportFileInput}
+                                />
+                              </label>
+                            </div>
+
+                            <div
+                              className="relative"
+                              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                              onDragLeave={() => setDragOver(false)}
+                              onDrop={handleImportFileDrop}
+                            >
+                              <Textarea
+                                value=""
+                                onChange={(e) => handleImportTextChange(e.target.value)}
+                                placeholder='Paste JSON or drop a .json file here...'
+                                className={`min-h-[80px] resize-none font-mono text-xs bg-transparent transition-colors ${
+                                  dragOver ? 'border-primary/50 bg-primary/5' : ''
+                                }`}
+                              />
+                              {dragOver && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-primary/5 pointer-events-none">
+                                  <div className="text-center">
+                                    <Upload className="size-5 text-primary/50 mx-auto mb-1" />
+                                    <p className="text-xs text-primary/60">Drop file here</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        {parseError && (
+                          <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-md px-3 py-2">
+                            <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+                            <span>{parseError}</span>
+                          </div>
+                        )}
+
+                        {parsed && isSingleFragment(parsed) && (
+                          <SingleFragmentPreview data={parsed as FragmentClipboardData} onClear={() => { setParsed(null); setParseError(null) }} />
+                        )}
+
+                        {parsed && isBundle(parsed) && (
+                          <BundlePreview
+                            data={parsed as FragmentBundleData}
+                            selectedIndices={selectedIndices}
+                            onToggle={toggleBundleItem}
+                            onSelectAll={() => setSelectedIndices(new Set((parsed as FragmentBundleData).fragments.map((_, i) => i)))}
+                            onDeselectAll={() => setSelectedIndices(new Set())}
+                            onClear={() => { setParsed(null); setParseError(null); setSelectedIndices(new Set()) }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Librarian Settings */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Librarian</label>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground/70">Auto-apply suggestions</span>
+                          <button
+                            type="button"
+                            onClick={() => setAutoApplyLibrarian(!autoApplyLibrarian)}
+                            className={`relative shrink-0 h-[14px] w-[26px] rounded-full transition-colors ${
+                              autoApplyLibrarian ? 'bg-foreground' : 'bg-muted-foreground/20'
+                            }`}
+                            aria-label="Toggle auto-apply librarian suggestions"
+                          >
+                            <span
+                              className={`absolute top-[2px] h-[10px] w-[10px] rounded-full bg-background transition-[left] duration-150 ${
+                                autoApplyLibrarian ? 'left-[14px]' : 'left-[2px]'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end">
                   <Button type="submit" disabled={createMutation.isPending} data-component-id="story-create-submit">
                     {createMutation.isPending ? 'Creating...' : 'Create'}

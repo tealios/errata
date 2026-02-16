@@ -117,7 +117,7 @@ export function createFragmentTools(
     tools[`get${name}`] = tool({
       description: `Get the full content of a ${typeDef.type} fragment by its ID`,
       inputSchema: z.object({
-        id: z.string().describe(`The ${typeDef.type} fragment ID (e.g. ${typeDef.prefix}-a1b2)`),
+        id: z.string().describe(`The ${typeDef.type} fragment ID (e.g. ${typeDef.prefix}-bakumo)`),
       }),
       execute: withToolLogging(`get${name}`, storyId, async ({ id }: { id: string }) => {
         const fragment = await getFragment(dataDir, storyId, id)
@@ -159,7 +159,7 @@ export function createFragmentTools(
   tools.getFragment = tool({
     description: 'Get any fragment by its ID (works for all types: prose, character, guideline, knowledge, etc.)',
     inputSchema: z.object({
-      id: z.string().describe('The fragment ID (e.g. pr-a1b2, ch-c3d4, gl-e5f6, kn-g7h8)'),
+      id: z.string().describe('The fragment ID (e.g. pr-katemi, ch-bokura, gl-sideno, kn-taviku)'),
     }),
     execute: withToolLogging('getFragment', storyId, async ({ id }: { id: string }) => {
       const fragment = await getFragment(dataDir, storyId, id)

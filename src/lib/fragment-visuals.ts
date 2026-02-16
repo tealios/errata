@@ -109,12 +109,16 @@ function hashString(str: string): number {
   return h
 }
 
+export type BubbleShape = 'circle' | 'rounded-rect' | 'hexagon' | 'ellipse' | 'diamond'
+
 export interface Bubble {
   cx: number
   cy: number
   r: number
   color: string
   opacity: number
+  shape: BubbleShape
+  rotation: number
 }
 
 export interface BubbleSet {
@@ -122,26 +126,31 @@ export interface BubbleSet {
   bubbles: Bubble[]
 }
 
-const TYPE_PALETTES: Record<string, { bg: string; colors: string[] }> = {
+const TYPE_PALETTES: Record<string, { bg: string; colors: string[]; shape: BubbleShape }> = {
   character: {
     bg: 'oklch(0.42 0.06 15)',
     colors: ['oklch(0.68 0.17 10)', 'oklch(0.74 0.14 35)', 'oklch(0.63 0.15 350)', 'oklch(0.70 0.12 25)', 'oklch(0.78 0.10 50)'],
+    shape: 'circle',
   },
   guideline: {
     bg: 'oklch(0.40 0.06 250)',
     colors: ['oklch(0.66 0.15 250)', 'oklch(0.72 0.12 220)', 'oklch(0.60 0.17 270)', 'oklch(0.76 0.10 200)', 'oklch(0.68 0.13 240)'],
+    shape: 'rounded-rect',
   },
   knowledge: {
     bg: 'oklch(0.40 0.06 160)',
     colors: ['oklch(0.66 0.14 160)', 'oklch(0.72 0.12 140)', 'oklch(0.60 0.15 175)', 'oklch(0.76 0.10 150)', 'oklch(0.68 0.13 130)'],
+    shape: 'hexagon',
   },
   prose: {
     bg: 'oklch(0.44 0.04 60)',
     colors: ['oklch(0.70 0.10 60)', 'oklch(0.65 0.08 45)', 'oklch(0.75 0.07 75)', 'oklch(0.62 0.11 50)', 'oklch(0.78 0.06 70)'],
+    shape: 'ellipse',
   },
   image: {
     bg: 'oklch(0.40 0.06 300)',
     colors: ['oklch(0.66 0.15 300)', 'oklch(0.72 0.12 280)', 'oklch(0.60 0.14 320)', 'oklch(0.76 0.10 290)', 'oklch(0.68 0.15 310)'],
+    shape: 'diamond',
   },
 }
 
@@ -158,11 +167,29 @@ export function generateBubbles(id: string, type: string): BubbleSet {
       r: 5 + rng() * 12,
       color: palette.colors[Math.floor(rng() * palette.colors.length)],
       opacity: 0.35 + rng() * 0.45,
+      shape: palette.shape,
+      rotation: rng() * 360,
     })
   }
 
   return { bg: palette.bg, bubbles }
 }
+
+/** Renders a single bubble shape as an SVG element string-safe for JSX */
+function hexagonPoints(cx: number, cy: number, r: number): string {
+  const pts: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6
+    pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`)
+  }
+  return pts.join(' ')
+}
+
+function diamondPoints(cx: number, cy: number, r: number): string {
+  return `${cx},${cy - r} ${cx + r * 0.7},${cy} ${cx},${cy + r} ${cx - r * 0.7},${cy}`
+}
+
+export { hexagonPoints, diamondPoints }
 
 export function resolveFragmentVisual(fragment: Fragment, mediaById: Map<string, Fragment>): {
   imageUrl: string | null

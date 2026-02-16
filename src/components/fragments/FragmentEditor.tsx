@@ -1085,7 +1085,7 @@ function RefsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
         <Input
           value={newRefId}
           onChange={(e) => setNewRefId(e.target.value)}
-          placeholder="Fragment ID (e.g. ch-a1b2)"
+          placeholder="Fragment ID (e.g. ch-bokura)"
           className="h-7 text-xs bg-transparent"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {

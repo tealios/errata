@@ -124,7 +124,7 @@ export function DetailPanel({
     ? pluginName ?? 'Plugin'
     : SECTION_TITLES[activeSection] ?? activeSection
 
-  const panelWidth = activeSection === 'agent-activity' ? 480 : activeSection === 'story-info' ? 440 : activeSection === 'settings' ? 400 : activeSection === 'context-order' ? 380 : activeSection === 'archive' ? 340 : 340
+  const panelWidth = 440
 
   const panelContent = (
     <>

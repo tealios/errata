@@ -7,6 +7,8 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/lib/theme'
+import { HelpProvider } from '@/hooks/use-help'
+import { HelpPanel } from '@/components/help/HelpPanel'
 import appCss from '../styles.css?url'
 
 const queryClient = new QueryClient({
@@ -63,7 +65,10 @@ function RootComponent() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Outlet />
+          <HelpProvider>
+            <Outlet />
+            <HelpPanel />
+          </HelpProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

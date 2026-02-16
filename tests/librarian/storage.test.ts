@@ -97,6 +97,7 @@ describe('librarian storage', () => {
       const summaries = await listAnalyses(dataDir, storyId)
       expect(summaries[0].contradictionCount).toBe(1)
       expect(summaries[0].suggestionCount).toBe(1)
+      expect(summaries[0].pendingSuggestionCount).toBe(1)
       expect(summaries[0].timelineEventCount).toBe(2)
     })
 

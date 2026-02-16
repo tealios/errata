@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   api,
@@ -7,6 +7,7 @@ import {
   type LibrarianAnalysisSummary,
   type LibrarianState,
 } from '@/lib/api'
+import { useHelp } from '@/hooks/use-help'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,6 +27,7 @@ import {
   BookOpen,
   Radio,
   GitBranch,
+  CircleHelp,
 } from 'lucide-react'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { LibrarianChat } from '@/components/librarian/LibrarianChat'
@@ -49,6 +51,8 @@ function readSavedTab(storyId: string): TabValue {
 
 export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
   const [activeTab, setActiveTab] = useState<TabValue>(() => readSavedTab(storyId))
+  const { openHelp } = useHelp()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     setActiveTab(readSavedTab(storyId))
@@ -64,6 +68,24 @@ export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
     queryFn: () => api.librarian.getStatus(storyId),
     refetchInterval: 5000,
   })
+
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { autoApplyLibrarianSuggestions?: boolean }) =>
+      api.settings.update(storyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+    },
+  })
+
+  const autoApply = story?.settings.autoApplyLibrarianSuggestions ?? false
+  const toggleAutoApply = useCallback(() => {
+    updateMutation.mutate({ autoApplyLibrarianSuggestions: !autoApply })
+  }, [autoApply, updateMutation])
 
   const runStatus = status?.runStatus ?? 'idle'
 
@@ -93,6 +115,37 @@ export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
 
       {/* Status strip — always visible */}
       <StatusStrip status={status} runStatus={runStatus} />
+
+      {/* Auto-apply toggle */}
+      <div className="shrink-0 mx-4 mb-1">
+        <div className="flex items-center justify-between h-6 px-2.5 rounded-md bg-muted/40">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground/60">Auto-apply suggestions</span>
+            <button
+              type="button"
+              onClick={() => openHelp('librarian#auto-suggestions')}
+              className="text-muted-foreground/25 hover:text-primary/60 transition-colors"
+              title="Learn more"
+            >
+              <CircleHelp className="size-2.5" />
+            </button>
+          </div>
+          <button
+            onClick={toggleAutoApply}
+            disabled={updateMutation.isPending}
+            className={`relative shrink-0 h-[14px] w-[26px] rounded-full transition-colors ${
+              autoApply ? 'bg-foreground' : 'bg-muted-foreground/20'
+            }`}
+            aria-label="Toggle auto-apply suggestions"
+          >
+            <span
+              className={`absolute top-[2px] h-[10px] w-[10px] rounded-full bg-background transition-[left] duration-150 ${
+                autoApply ? 'left-[14px]' : 'left-[2px]'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
 
       {/* Tab content */}
       <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
@@ -228,7 +281,7 @@ function StoryContent({ storyId, status }: LibrarianPanelProps & { status: Libra
   const charName = (id: string) => characters?.find((c) => c.id === id)?.name ?? id
 
   const totalContradictions = analyses?.reduce((n, a) => n + a.contradictionCount, 0) ?? 0
-  const totalSuggestions = analyses?.reduce((n, a) => n + a.suggestionCount, 0) ?? 0
+  const totalSuggestions = analyses?.reduce((n, a) => n + a.pendingSuggestionCount, 0) ?? 0
   const hasMentions = status && Object.keys(status.recentMentions ?? {}).length > 0
   const hasTimeline = status && (status.timeline?.length ?? 0) > 0
   const hasFindings = totalContradictions > 0 || totalSuggestions > 0
@@ -544,7 +597,8 @@ function AnalysisItem({
     acceptMutation.mutate(index)
   }
 
-  const hasBadges = summary.contradictionCount > 0 || summary.suggestionCount > 0
+  const pendingSuggestions = summary.pendingSuggestionCount
+  const hasBadges = summary.contradictionCount > 0 || pendingSuggestions > 0
 
   return (
     <div className="rounded-md border border-border/25 overflow-hidden">
@@ -565,9 +619,9 @@ function AnalysisItem({
                 {summary.contradictionCount}
               </span>
             )}
-            {summary.suggestionCount > 0 && (
+            {pendingSuggestions > 0 && (
               <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/10 text-primary text-[9px] font-mono">
-                {summary.suggestionCount}
+                {pendingSuggestions}
               </span>
             )}
           </div>
