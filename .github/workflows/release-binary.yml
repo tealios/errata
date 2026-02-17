@@ -34,18 +34,23 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Read version
+        id: version
+        run: echo "value=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
       - name: Build binary
         run: bun run build:binary
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: 7z a "dist/errata-${{ matrix.name }}.zip" ./dist/${{ matrix.binary }} ./dist/public/
+        run: 7z a "dist/errata-${{ steps.version.outputs.value }}-${{ matrix.name }}.zip" ./dist/${{ matrix.binary }} ./dist/public/
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
-        run: cd dist && zip -r "errata-${{ matrix.name }}.zip" ${{ matrix.binary }} public/
+        run: cd dist && zip -r "errata-${{ steps.version.outputs.value }}-${{ matrix.name }}.zip" ${{ matrix.binary }} public/
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/errata-${{ matrix.name }}.zip
+          files: dist/errata-${{ steps.version.outputs.value }}-${{ matrix.name }}.zip

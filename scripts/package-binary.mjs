@@ -2,6 +2,8 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { zipSync, strToU8 } from 'fflate'
 
+const pkg = JSON.parse(await readFile('package.json', 'utf-8'))
+const version = pkg.version ?? '0.0.0'
 const distDir = resolve('dist')
 
 async function listFilesRecursive(rootDir) {
@@ -64,13 +66,16 @@ async function main() {
 
   filesForZip['README.txt'] = strToU8(
     [
-      'Errata binary bundle',
+      `Errata v${version}`,
       '',
       `Included binary: ${binaryName}`,
       'Required static assets are in ./public.',
       '',
       'Run on Windows:',
       `  .\\${binaryName}`,
+      '',
+      'Check version:',
+      `  .\\${binaryName} --version`,
       '',
       'Optional environment variables:',
       '  DATA_DIR=<path>',
@@ -81,7 +86,7 @@ async function main() {
   )
 
   const zipData = zipSync(filesForZip, { level: 9 })
-  const zipPath = join(distDir, 'errata-bundle.zip')
+  const zipPath = join(distDir, `errata-${version}-bundle.zip`)
   await Bun.write(zipPath, zipData)
 
   console.log(`Packaged ${binaryName} + public/* -> ${zipPath}`)

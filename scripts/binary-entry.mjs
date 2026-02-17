@@ -1,6 +1,14 @@
 import { promises as fsPromises } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+const ERRATA_VERSION = globalThis.__ERRATA_VERSION__ ?? 'unknown'
+
+// --version flag
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  console.log(`errata ${ERRATA_VERSION}`)
+  process.exit(0)
+}
+
 const originalReadFile = fsPromises.readFile.bind(fsPromises)
 
 const VIRTUAL_MARKERS = ['/~bun/public/', '/$bunfs/public/']
