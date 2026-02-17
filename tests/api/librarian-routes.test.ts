@@ -75,7 +75,7 @@ describe('librarian API routes', () => {
         summarizationThreshold: 4,
         maxSteps: 10,
         providerId: null,
-        modelId: null,
+        modelId: null,    
         librarianProviderId: null,
         librarianModelId: null,
         contextOrderMode: 'simple' as const,

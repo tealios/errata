@@ -169,7 +169,13 @@ export function createApp(dataDir: string = DATA_DIR) {
     // --- Story CRUD ---
     .post('/stories', async ({ body }) => {
       const now = new Date().toISOString()
-      const id = `story-${Date.now().toString(36)}`
+      const slug = body.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40)
+        .replace(/-$/, '')
+      const id = `${slug || 'story'}-${Date.now().toString(36)}`
       const story: StoryMeta = {
         id,
         name: body.name,
