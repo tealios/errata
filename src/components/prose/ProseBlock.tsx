@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { ChevronRail } from './ChevronRail'
+import { GenerationThoughts } from './GenerationThoughts'
+import { type ThoughtStep } from './InlineGenerationInput'
 import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2 } from 'lucide-react'
 
 interface ProseBlockProps {
@@ -42,6 +44,7 @@ export function ProseBlock({
   const [showUndo, setShowUndo] = useState(false)
   const [isStreamingAction, setIsStreamingAction] = useState(false)
   const [streamedActionText, setStreamedActionText] = useState('')
+  const [actionThoughtSteps, setActionThoughtSteps] = useState<ThoughtStep[]>([])
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showActions, setShowActions] = useState(false)
   const [actionInput, setActionInput] = useState('')
@@ -140,34 +143,61 @@ export function ProseBlock({
     setActionMode(null)
     setIsStreamingAction(true)
     setStreamedActionText('')
+    setActionThoughtSteps([])
 
     try {
       const stream = await api.generation.regenerate(storyId, fragment.id, quickRegenerateInput)
       const reader = stream.getReader()
       let accumulated = ''
+      let accumulatedReasoning = ''
+      const steps: ThoughtStep[] = []
+      let stepsDirty = false
       let rafScheduled = false
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        if (value.type === 'text') accumulated += value.text
+        if (value.type === 'text') {
+          accumulated += value.text
+        } else if (value.type === 'reasoning') {
+          accumulatedReasoning += value.text
+          const last = steps[steps.length - 1]
+          if (last && last.type === 'reasoning') {
+            last.text = accumulatedReasoning
+          } else {
+            steps.push({ type: 'reasoning', text: accumulatedReasoning })
+          }
+          stepsDirty = true
+        } else if (value.type === 'tool-call') {
+          accumulatedReasoning = ''
+          steps.push({ type: 'tool-call', id: value.id, toolName: value.toolName, args: value.args })
+          stepsDirty = true
+        } else if (value.type === 'tool-result') {
+          steps.push({ type: 'tool-result', id: value.id, toolName: value.toolName, result: value.result })
+          stepsDirty = true
+        }
         if (!rafScheduled) {
           rafScheduled = true
           const snapshot = accumulated
+          const stepsSnapshot = stepsDirty ? [...steps] : null
+          stepsDirty = false
           requestAnimationFrame(() => {
             setStreamedActionText(snapshot)
+            if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
             rafScheduled = false
           })
         }
       }
 
       setStreamedActionText(accumulated)
+      if (steps.length > 0) setActionThoughtSteps([...steps])
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
       handleActionComplete()
     } catch {
       setIsStreamingAction(false)
       setStreamedActionText('')
+      setActionThoughtSteps([])
     }
   }
 
@@ -179,6 +209,7 @@ export function ProseBlock({
     setShowActions(false)
     setIsStreamingAction(true)
     setStreamedActionText('')
+    setActionThoughtSteps([])
 
     try {
       const stream = mode === 'refine'
@@ -187,29 +218,55 @@ export function ProseBlock({
 
       const reader = stream.getReader()
       let accumulated = ''
+      let accumulatedReasoning = ''
+      const steps: ThoughtStep[] = []
+      let stepsDirty = false
       let rafScheduled = false
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        if (value.type === 'text') accumulated += value.text
+        if (value.type === 'text') {
+          accumulated += value.text
+        } else if (value.type === 'reasoning') {
+          accumulatedReasoning += value.text
+          const last = steps[steps.length - 1]
+          if (last && last.type === 'reasoning') {
+            last.text = accumulatedReasoning
+          } else {
+            steps.push({ type: 'reasoning', text: accumulatedReasoning })
+          }
+          stepsDirty = true
+        } else if (value.type === 'tool-call') {
+          accumulatedReasoning = ''
+          steps.push({ type: 'tool-call', id: value.id, toolName: value.toolName, args: value.args })
+          stepsDirty = true
+        } else if (value.type === 'tool-result') {
+          steps.push({ type: 'tool-result', id: value.id, toolName: value.toolName, result: value.result })
+          stepsDirty = true
+        }
         if (!rafScheduled) {
           rafScheduled = true
           const snapshot = accumulated
+          const stepsSnapshot = stepsDirty ? [...steps] : null
+          stepsDirty = false
           requestAnimationFrame(() => {
             setStreamedActionText(snapshot)
+            if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
             rafScheduled = false
           })
         }
       }
 
       setStreamedActionText(accumulated)
+      if (steps.length > 0) setActionThoughtSteps([...steps])
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
       handleActionComplete()
     } catch {
       setIsStreamingAction(false)
       setStreamedActionText('')
+      setActionThoughtSteps([])
     }
   }
 
@@ -217,6 +274,7 @@ export function ProseBlock({
     setActionMode(null)
     setIsStreamingAction(false)
     setStreamedActionText('')
+    setActionThoughtSteps([])
     setShowUndo(true)
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
@@ -326,6 +384,13 @@ export function ProseBlock({
         }`}
         data-component-id={`prose-${fragment.id}-select`}
       >
+        {(isStreamingAction || streamedActionText) && actionThoughtSteps.length > 0 && (
+          <GenerationThoughts
+            steps={actionThoughtSteps}
+            streaming={isStreamingAction}
+            hasText={!!streamedActionText}
+          />
+        )}
         <StreamMarkdown
           content={(isStreamingAction || streamedActionText)
             ? streamedActionText || ''
