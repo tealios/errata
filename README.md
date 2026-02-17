@@ -1,6 +1,6 @@
 # Errata
 
-An AI-assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
+An LLM assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
 
 ![Main editor view](docs/imgs/initial-view.png)
 
