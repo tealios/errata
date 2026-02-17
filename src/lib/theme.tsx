@@ -109,6 +109,64 @@ export function useProseWidth(): [ProseWidth, (v: ProseWidth) => void] {
   return [value, set]
 }
 
+// --- Prose font size preference ---
+
+export type ProseFontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+
+export const PROSE_FONT_SIZE_VALUES: Record<ProseFontSize, string> = {
+  xs: '0.9375rem',   // 15px
+  sm: '1rem',        // 16px
+  md: '1.0625rem',   // 17px (default)
+  lg: '1.1875rem',   // 19px
+  xl: '1.3125rem',   // 21px
+}
+
+export const PROSE_FONT_SIZE_LABELS: Record<ProseFontSize, string> = {
+  xs: 'XS',
+  sm: 'S',
+  md: 'M',
+  lg: 'L',
+  xl: 'XL',
+}
+
+const PROSE_FONT_SIZE_KEY = 'errata-prose-font-size'
+const PROSE_FONT_SIZE_EVENT = 'errata-prose-font-size-change'
+
+function applyProseFontSize(size: ProseFontSize) {
+  if (size === 'md') {
+    document.documentElement.style.removeProperty('--prose-font-size')
+  } else {
+    document.documentElement.style.setProperty('--prose-font-size', PROSE_FONT_SIZE_VALUES[size])
+  }
+}
+
+export function useProseFontSize(): [ProseFontSize, (v: ProseFontSize) => void] {
+  const [value, setValue] = useState<ProseFontSize>(() => {
+    if (typeof window === 'undefined') return 'md'
+    const stored = localStorage.getItem(PROSE_FONT_SIZE_KEY)
+    if (stored && stored in PROSE_FONT_SIZE_VALUES) return stored as ProseFontSize
+    return 'md'
+  })
+
+  useEffect(() => {
+    applyProseFontSize(value)
+  }, [value])
+
+  useEffect(() => {
+    const handler = (e: Event) => setValue((e as CustomEvent<ProseFontSize>).detail)
+    window.addEventListener(PROSE_FONT_SIZE_EVENT, handler)
+    return () => window.removeEventListener(PROSE_FONT_SIZE_EVENT, handler)
+  }, [])
+
+  const set = useCallback((v: ProseFontSize) => {
+    setValue(v)
+    localStorage.setItem(PROSE_FONT_SIZE_KEY, v)
+    window.dispatchEvent(new CustomEvent(PROSE_FONT_SIZE_EVENT, { detail: v }))
+  }, [])
+
+  return [value, set]
+}
+
 // --- Font preferences ---
 
 export type FontRole = 'display' | 'prose' | 'sans' | 'mono'

@@ -195,7 +195,7 @@ code {
 /* Prose content styling for the main reading experience */
 @utility prose-content {
   font-family: var(--font-prose);
-  font-size: 1.0625rem;
+  font-size: var(--prose-font-size, 1.0625rem);
   line-height: 1.75;
   letter-spacing: 0.005em;
 }

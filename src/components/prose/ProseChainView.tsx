@@ -3,10 +3,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
-import { Loader2, Brain, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  ChainOfThought,
+  ChainOfThoughtHeader,
+  ChainOfThoughtContent,
+  ChainOfThoughtStep,
+} from '@/components/ui/chain-of-thought'
+import { Loader2, Brain, Wrench, CheckCircle2 } from 'lucide-react'
 import { useQuickSwitch, useProseWidth, PROSE_WIDTH_VALUES } from '@/lib/theme'
 import { ProseBlock } from './ProseBlock'
-import { InlineGenerationInput } from './InlineGenerationInput'
+import { InlineGenerationInput, type ThoughtStep } from './InlineGenerationInput'
 import { ProseOutlinePanel } from './ProseOutlinePanel'
 
 interface ProseChainViewProps {
@@ -24,7 +30,7 @@ export function ProseChainView({
   // State for streaming generation
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
-  const [streamedReasoning, setStreamedReasoning] = useState('')
+  const [thoughtSteps, setThoughtSteps] = useState<ThoughtStep[]>([])
   const [fragmentCountBeforeGeneration, setFragmentCountBeforeGeneration] = useState<number | null>(null)
   const [followGeneration, setFollowGeneration] = useState(() => {
     if (typeof window === 'undefined') return true
@@ -130,7 +136,7 @@ export function ProseChainView({
   // Scroll to bottom when streaming new content (throttled to RAF)
   const scrollRafRef = useRef(0)
   useEffect(() => {
-    if (followGeneration && isGenerating && (streamedText || streamedReasoning) && scrollAreaRef.current) {
+    if (followGeneration && isGenerating && (streamedText || thoughtSteps.length > 0) && scrollAreaRef.current) {
       cancelAnimationFrame(scrollRafRef.current)
       scrollRafRef.current = requestAnimationFrame(() => {
         const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
@@ -139,7 +145,7 @@ export function ProseChainView({
         }
       })
     }
-  }, [streamedText, streamedReasoning, followGeneration, isGenerating])
+  }, [streamedText, thoughtSteps, followGeneration, isGenerating])
 
   // Clear streamed text once fragments update (new prose was saved)
   useEffect(() => {
@@ -154,7 +160,7 @@ export function ProseChainView({
         // Give a small delay so the transition is smooth
         const timeout = setTimeout(() => {
           setStreamedText('')
-          setStreamedReasoning('')
+          setThoughtSteps([])
           setFragmentCountBeforeGeneration(null)
         }, 100)
         return () => clearTimeout(timeout)
@@ -241,8 +247,12 @@ export function ProseChainView({
             <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300" data-component-id="prose-streaming-block">
               {/* Match prose block styling - no border, minimal background */}
               <div className="rounded-lg p-4 -mx-4 bg-card/30">
-                {streamedReasoning && (
-                  <ReasoningStream reasoning={streamedReasoning} streaming={isGenerating && !streamedText} />
+                {thoughtSteps.length > 0 && (
+                  <GenerationThoughts
+                    steps={thoughtSteps}
+                    streaming={isGenerating}
+                    hasText={!!streamedText}
+                  />
                 )}
                 <StreamMarkdown content={streamedText} streaming={isGenerating} variant="prose" />
 
@@ -265,11 +275,11 @@ export function ProseChainView({
             onGenerationStart={() => {
               setIsGenerating(true)
               setStreamedText('')
-              setStreamedReasoning('')
+              setThoughtSteps([])
               setFragmentCountBeforeGeneration(orderedFragments.length)
             }}
             onGenerationStream={(text) => setStreamedText(text)}
-            onGenerationReasoning={(reasoning) => setStreamedReasoning(reasoning)}
+            onGenerationThoughts={(steps) => setThoughtSteps(steps)}
             onGenerationComplete={() => {
               setIsGenerating(false)
               // Note: streamedText is NOT cleared here - it will be cleared after
@@ -299,27 +309,110 @@ export function ProseChainView({
   )
 }
 
-function ReasoningStream({ reasoning, streaming }: { reasoning: string; streaming: boolean }) {
-  const [expanded, setExpanded] = useState(true)
+function formatToolName(name: string): string {
+  return name
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (s) => s.toUpperCase())
+    .trim()
+}
+
+function GenerationThoughts({
+  steps,
+  streaming,
+  hasText,
+}: {
+  steps: ThoughtStep[]
+  streaming: boolean
+  hasText: boolean
+}) {
+  // Determine if reasoning is still actively streaming (no text yet, last step is reasoning)
+  const lastStep = steps[steps.length - 1]
+  const isThinking = streaming && !hasText && lastStep?.type === 'reasoning'
+
+  // Build a header label based on the current state
+  const headerLabel = isThinking
+    ? 'Thinking...'
+    : `${steps.filter((s) => s.type === 'reasoning').length > 0 ? 'Reasoning' : 'Tool calls'}${
+        steps.filter((s) => s.type === 'tool-call').length > 0
+          ? ` · ${steps.filter((s) => s.type === 'tool-call').length} tool call${steps.filter((s) => s.type === 'tool-call').length === 1 ? '' : 's'}`
+          : ''
+      }`
 
   return (
-    <div className="mb-3">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors"
-      >
-        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-        <Brain className="size-3" />
-        <span className="italic">
-          {streaming ? 'Thinking...' : 'Reasoning'}
-        </span>
-        {streaming && <Loader2 className="size-3 animate-spin" />}
-      </button>
-      {expanded && (
-        <div className="mt-1 pl-5 text-[10px] text-muted-foreground/40 italic font-mono whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
-          {reasoning}
-        </div>
-      )}
+    <div className="mb-4">
+      <ChainOfThought defaultOpen={true}>
+        <ChainOfThoughtHeader className="text-xs text-muted-foreground/60 hover:text-muted-foreground/80">
+          {isThinking && <Loader2 className="size-3 animate-spin" />}
+          {headerLabel}
+        </ChainOfThoughtHeader>
+        <ChainOfThoughtContent>
+          {steps.map((step, i) => {
+            if (step.type === 'reasoning') {
+              return (
+                <ChainOfThoughtStep
+                  key={`reasoning-${i}`}
+                  icon={Brain}
+                  label="Thinking"
+                  status={isThinking && i === steps.length - 1 ? 'active' : 'complete'}
+                >
+                  <div className="text-[10px] text-muted-foreground/40 italic font-mono whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">
+                    {step.text}
+                  </div>
+                </ChainOfThoughtStep>
+              )
+            }
+            if (step.type === 'tool-call') {
+              // Check if we have a matching result
+              const result = steps.find(
+                (s) => s.type === 'tool-result' && s.id === step.id,
+              ) as Extract<ThoughtStep, { type: 'tool-result' }> | undefined
+              const isActive = streaming && !result
+
+              return (
+                <ChainOfThoughtStep
+                  key={`tool-${step.id}`}
+                  icon={isActive ? Loader2 : result ? CheckCircle2 : Wrench}
+                  label={
+                    <span className="font-mono text-xs">
+                      {formatToolName(step.toolName)}
+                      {Object.keys(step.args).length > 0 && (
+                        <span className="text-muted-foreground/40 ml-1.5">
+                          {Object.entries(step.args)
+                            .slice(0, 2)
+                            .map(([k, v]) => `${k}=${typeof v === 'string' ? v.slice(0, 30) : JSON.stringify(v).slice(0, 30)}`)
+                            .join(', ')}
+                        </span>
+                      )}
+                    </span>
+                  }
+                  status={isActive ? 'active' : 'complete'}
+                  description={
+                    result
+                      ? summarizeToolResult(result.result)
+                      : undefined
+                  }
+                />
+              )
+            }
+            // tool-result steps are rendered inline with their tool-call
+            return null
+          })}
+        </ChainOfThoughtContent>
+      </ChainOfThought>
     </div>
   )
+}
+
+function summarizeToolResult(result: unknown): string {
+  if (result == null) return 'Done'
+  if (typeof result === 'string') return result.length > 100 ? result.slice(0, 100) + '...' : result
+  const r = result as Record<string, unknown>
+  if (r.error) return `Error: ${r.error}`
+  if (r.ok === true) return 'Success'
+  if (r.name && r.type) return `${r.name} (${r.type})`
+  if (r.name) return String(r.name)
+  if (Array.isArray(r.fragments)) return `${r.fragments.length} fragment${r.fragments.length === 1 ? '' : 's'}`
+  if (Array.isArray(r.matches)) return `${r.matches.length} match${r.matches.length === 1 ? '' : 'es'}`
+  if (Array.isArray(result)) return `${result.length} item${result.length === 1 ? '' : 's'}`
+  return 'Done'
 }

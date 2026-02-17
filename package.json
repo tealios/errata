@@ -18,6 +18,7 @@
     "@ai-sdk/openai-compatible": "^2.0.30",
     "@ai-sdk/react": "^3.0.88",
     "@elysiajs/eden": "^1.4.8",
+    "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@sinclair/typebox": "^0.34.48",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "^0.7.0",

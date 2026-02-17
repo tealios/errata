@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
-import { useTheme, useQuickSwitch, useProseWidth, useFontPreferences, getActiveFont, FONT_CATALOGUE, type FontRole, type ProseWidth } from '@/lib/theme'
+import { useTheme, useQuickSwitch, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
 import { Settings2, ChevronRight, ChevronDown, ExternalLink, Eye, EyeOff, Puzzle, Wrench, RotateCcw, CircleHelp } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 
@@ -222,6 +222,7 @@ export function SettingsPanel({
   const { theme, setTheme } = useTheme()
   const [quickSwitch, setQuickSwitch] = useQuickSwitch()
   const [proseWidth, setProseWidth] = useProseWidth()
+  const [proseFontSize, setProseFontSize] = useProseFontSize()
   const [fontPrefs, setFont, resetFonts] = useFontPreferences()
   const hasCustomFonts = Object.keys(fontPrefs).length > 0
   const enabledBuiltinTools = story.settings.enabledBuiltinTools ?? []
@@ -282,6 +283,19 @@ export function SettingsPanel({
                 { value: 'full', label: 'Full' },
               ]}
               onChange={setProseWidth}
+            />
+          </SettingRow>
+          <SettingRow label="Font size" description="Prose text size">
+            <SegmentedControl<ProseFontSize>
+              value={proseFontSize}
+              options={[
+                { value: 'xs', label: PROSE_FONT_SIZE_LABELS.xs },
+                { value: 'sm', label: PROSE_FONT_SIZE_LABELS.sm },
+                { value: 'md', label: PROSE_FONT_SIZE_LABELS.md },
+                { value: 'lg', label: PROSE_FONT_SIZE_LABELS.lg },
+                { value: 'xl', label: PROSE_FONT_SIZE_LABELS.xl },
+              ]}
+              onChange={setProseFontSize}
             />
           </SettingRow>
         </div>

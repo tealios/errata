@@ -6,6 +6,11 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { PenLine, ChevronsDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+export type ThoughtStep =
+  | { type: 'reasoning'; text: string }
+  | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
+  | { type: 'tool-result'; id: string; toolName: string; result: unknown }
+
 interface InlineGenerationInputProps {
   storyId: string
   isGenerating: boolean
@@ -13,7 +18,7 @@ interface InlineGenerationInputProps {
   onToggleFollowGeneration: () => void
   onGenerationStart: () => void
   onGenerationStream: (text: string) => void
-  onGenerationReasoning?: (reasoning: string) => void
+  onGenerationThoughts?: (steps: ThoughtStep[]) => void
   onGenerationComplete: () => void
   onGenerationError: () => void
 }
@@ -25,7 +30,7 @@ export function InlineGenerationInput({
   onToggleFollowGeneration,
   onGenerationStart,
   onGenerationStream,
-  onGenerationReasoning,
+  onGenerationThoughts,
   onGenerationComplete,
   onGenerationError,
 }: InlineGenerationInputProps) {
@@ -72,6 +77,8 @@ export function InlineGenerationInput({
       const reader = stream.getReader()
       let accumulatedText = ''
       let accumulatedReasoning = ''
+      const thoughtSteps: ThoughtStep[] = []
+      let thoughtsDirty = false
       let rafScheduled = false
 
       while (true) {
@@ -82,24 +89,41 @@ export function InlineGenerationInput({
           accumulatedText += value.text
         } else if (value.type === 'reasoning') {
           accumulatedReasoning += value.text
+          // Update or append the current reasoning step
+          const last = thoughtSteps[thoughtSteps.length - 1]
+          if (last && last.type === 'reasoning') {
+            last.text = accumulatedReasoning
+          } else {
+            thoughtSteps.push({ type: 'reasoning', text: accumulatedReasoning })
+          }
+          thoughtsDirty = true
+        } else if (value.type === 'tool-call') {
+          // Reset reasoning accumulator so next reasoning chunk starts fresh
+          accumulatedReasoning = ''
+          thoughtSteps.push({ type: 'tool-call', id: value.id, toolName: value.toolName, args: value.args })
+          thoughtsDirty = true
+        } else if (value.type === 'tool-result') {
+          thoughtSteps.push({ type: 'tool-result', id: value.id, toolName: value.toolName, result: value.result })
+          thoughtsDirty = true
         }
 
         // Throttle state updates to animation frames (~60fps max)
         if (!rafScheduled) {
           rafScheduled = true
           const textSnapshot = accumulatedText
-          const reasoningSnapshot = accumulatedReasoning
+          const stepsSnapshot = thoughtsDirty ? [...thoughtSteps] : null
+          thoughtsDirty = false
           requestAnimationFrame(() => {
             onGenerationStream(textSnapshot)
-            if (reasoningSnapshot) onGenerationReasoning?.(reasoningSnapshot)
+            if (stepsSnapshot) onGenerationThoughts?.(stepsSnapshot)
             rafScheduled = false
           })
         }
       }
 
-      // Final flush with complete text
+      // Final flush
       onGenerationStream(accumulatedText)
-      if (accumulatedReasoning) onGenerationReasoning?.(accumulatedReasoning)
+      if (thoughtSteps.length > 0) onGenerationThoughts?.([...thoughtSteps])
 
       // Invalidate queries to refresh the prose view
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
