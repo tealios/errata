@@ -2,6 +2,8 @@
 
 An AI-assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
 
+![Main editor view](docs/imgs/initial-view.png)
+
 ## Features
 
 - **Fragment system** — everything is a fragment with tags, refs, sticky/system placement, and version history
@@ -11,6 +13,24 @@ An AI-assisted writing app built around a fragment system. Prose, characters, gu
 - **Librarian agent** — background continuity management (rolling summary, contradictions, timeline, knowledge suggestions, interactive chat)
 - **Plugin system** — bundled + external runtime plugins with iframe UI panels
 - **No database** — filesystem storage, compiles to a single binary
+
+### Story Wizard
+
+Set up a new story with guidelines, characters, and knowledge in one flow.
+
+![Story wizard](docs/imgs/story-wizard.png)
+
+### Characters & Fragments
+
+Browse and edit fragments in the sidebar. Characters, guidelines, and knowledge all work the same way.
+
+![Character panel](docs/imgs/character-panel.png)
+
+### Debug Panel
+
+Inspect the full LLM prompt, tool calls, and token usage for any generation.
+
+![Debug panel](docs/imgs/debug-window.png)
 
 ## Quick Start
 
