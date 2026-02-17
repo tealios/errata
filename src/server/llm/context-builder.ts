@@ -436,7 +436,6 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     id: 'instructions',
     role: 'system',
     content: [
-      '[@block=instructions]',
       'You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.',
       'IMPORTANT: Output the prose directly as your text response. Do NOT use tools to write or save prose — that is handled automatically.',
       'Only use tools to look up context you need before writing.',
@@ -449,7 +448,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     id: 'tools',
     role: 'system',
     content: [
-      '\n[@block=tools]\n## Available Tools',
+      '## Available Tools',
       'You have access to the following tools:',
       toolLines.join('\n'),
       '\nUse these tools to retrieve details about characters, guidelines, or knowledge when needed. ' +
@@ -475,7 +474,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     blocks.push({
       id: 'system-fragments',
       role: 'system',
-      content: parts.join('\n'),
+      content: parts.join('\n').replace(/^\n+/, ''),
       order: 300,
       source: 'builtin',
     })
@@ -487,7 +486,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     id: 'story-info',
     role: 'user',
     content: [
-      `[@block=story-info]\n## Story: ${story.name}`,
+      `## Story: ${story.name}`,
       `${story.description}`,
     ].join('\n'),
     order: 100,
@@ -498,7 +497,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     blocks.push({
       id: 'summary',
       role: 'user',
-      content: `\n[@block=summary]\n## Story Summary So Far\n${story.summary}`,
+      content: `## Story Summary So Far\n${story.summary}`,
       order: 200,
       source: 'builtin',
     })
@@ -520,7 +519,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
     blocks.push({
       id: 'user-fragments',
       role: 'user',
-      content: parts.join('\n'),
+      content: parts.join('\n').replace(/^\n+/, ''),
       order: 300,
       source: 'builtin',
     })
@@ -531,7 +530,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-guidelines',
       role: 'user',
       content: [
-        '\n[@block=shortlist-guidelines]\n## Available Guidelines use getFragment tool to retrieve full content',
+        '## Available Guidelines use getFragment tool to retrieve full content',
         ...guidelineShortlist.map(g => `- ${g.id}: ${g.name} — ${g.description}`),
       ].join('\n'),
       order: 400,
@@ -544,7 +543,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-knowledge',
       role: 'user',
       content: [
-        '\n[@block=shortlist-knowledge]\n## Available Knowledge use getFragment tool to retrieve full content',
+        '## Available Knowledge use getFragment tool to retrieve full content',
         ...knowledgeShortlist.map(k => `- ${k.id}: ${k.name} — ${k.description}`),
       ].join('\n'),
       order: 410,
@@ -557,7 +556,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-characters',
       role: 'user',
       content: [
-        '\n[@block=shortlist-characters]\n## Available Characters  use getFragment tool to retrieve full content',
+        '## Available Characters  use getFragment tool to retrieve full content',
         ...characterShortlist.map(c => `- ${c.id}: ${c.name} — ${c.description}`),
       ].join('\n'),
       order: 420,
@@ -570,9 +569,9 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'prose',
       role: 'user',
       content: [
-        '\n[@block=prose]\n## Recent Prose',
+        '## Recent Prose',
         ...proseFragments.map(p => renderFragment(p)),
-        '\n[@block=prose:end]\n## End of Recent Prose',
+        '\n## End of Recent Prose',
       ].join('\n'),
       order: 500,
       source: 'builtin',
@@ -582,7 +581,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
   blocks.push({
     id: 'author-input',
     role: 'user',
-    content: `\n[@block=author-input]\nThe author wants the following to happen next: ${authorInput}`,
+    content: `The author wants the following to happen next: ${authorInput}`,
     order: 600,
     source: 'builtin',
   })
@@ -591,8 +590,16 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
 }
 
 /**
+ * Renders a single block: prepends the [@block=id] marker to its content.
+ */
+function renderBlock(block: ContextBlock): string {
+  return `[@block=${block.id}]\n${block.content}`
+}
+
+/**
  * Compiles context blocks into LLM messages.
- * Groups blocks by role, sorts by order, joins content with newlines.
+ * Groups blocks by role, sorts by order, prepends [@block=id] markers,
+ * and joins with blank-line separators.
  */
 export function compileBlocks(blocks: ContextBlock[]): ContextMessage[] {
   const systemBlocks = blocks.filter(b => b.role === 'system').sort((a, b) => a.order - b.order)
@@ -603,14 +610,14 @@ export function compileBlocks(blocks: ContextBlock[]): ContextMessage[] {
   if (systemBlocks.length > 0) {
     messages.push({
       role: 'system',
-      content: systemBlocks.map(b => b.content).join('\n'),
+      content: systemBlocks.map(renderBlock).join('\n\n'),
     })
   }
 
   if (userBlocks.length > 0) {
     messages.push({
       role: 'user',
-      content: userBlocks.map(b => b.content).join('\n'),
+      content: userBlocks.map(renderBlock).join('\n\n'),
     })
   }
 

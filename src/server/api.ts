@@ -673,7 +673,13 @@ export function createApp(dataDir: string = DATA_DIR) {
       const blockConfig = await getBlockConfig(dataDir, params.storyId)
       blocks = applyBlockConfig(blocks, blockConfig, ctxState)
       const messages = compileBlocks(blocks)
-      return { messages, blockCount: blocks.length }
+      const blocksMeta = blocks
+        .sort((a, b) => {
+          if (a.role !== b.role) return a.role === 'system' ? -1 : 1
+          return a.order - b.order
+        })
+        .map(b => ({ id: b.id, name: b.id, role: b.role }))
+      return { messages, blocks: blocksMeta, blockCount: blocks.length }
     })
 
     .post('/stories/:storyId/blocks/custom', async ({ params, body, set }) => {

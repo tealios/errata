@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
+import { BlockContentView } from '@/components/blocks/BlockContentView'
 import { X, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface DebugPanelProps {
@@ -43,7 +44,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
       <div className="flex items-center justify-between px-6 py-4 border-b border-border/50" data-component-id="debug-panel-header">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg">Debug</h2>
-          <span className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">Generation Logs</span>
+          <span className="text-[10px] text-muted-foreground/55 uppercase tracking-wider">Generation Logs</span>
         </div>
         <Button size="icon" variant="ghost" className="size-7 text-muted-foreground/50" onClick={onClose} data-component-id="debug-close">
           <X className="size-4" />
@@ -60,7 +61,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
             <ScrollArea className="flex-1">
               <div className="p-1.5 space-y-0.5">
                 {(!logs || logs.length === 0) && (
-                  <p className="text-xs text-muted-foreground/40 py-8 text-center italic">No logs yet</p>
+                  <p className="text-xs text-muted-foreground/55 py-8 text-center italic">No logs yet</p>
                 )}
                 {logs?.map((log) => (
                   <LogListItem
@@ -102,7 +103,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
                 ))}
 
                 {/* Stats */}
-                <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground/40">
+                <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground/55">
                   <span>{selectedLog.model}</span>
                   <span>{selectedLog.durationMs}ms</span>
                   <span>{selectedLog.stepCount ?? 1} steps</span>
@@ -128,13 +129,16 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
               )}
 
               {/* Tab content */}
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="p-6">
-                  {activeTab === 'prompt' && <PromptTab log={selectedLog} />}
-                  {activeTab === 'tools' && <ToolsTab log={selectedLog} />}
-                  {activeTab === 'output' && <OutputTab log={selectedLog} />}
-                </div>
-              </ScrollArea>
+              {activeTab === 'prompt' ? (
+                <BlockContentView messages={selectedLog.messages} />
+              ) : (
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="p-6">
+                    {activeTab === 'tools' && <ToolsTab log={selectedLog} />}
+                    {activeTab === 'output' && <OutputTab log={selectedLog} />}
+                  </div>
+                </ScrollArea>
+              )}
             </>
           ) : logLoading ? (
             <div className="flex items-center justify-center flex-1">
@@ -142,7 +146,7 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
             </div>
           ) : (
             <div className="flex items-center justify-center flex-1">
-              <p className="text-sm text-muted-foreground/40 italic">Select a generation log to inspect</p>
+              <p className="text-sm text-muted-foreground/55 italic">Select a generation log to inspect</p>
             </div>
           )}
         </div>
@@ -169,7 +173,7 @@ function LogListItem({
       }`}
     >
       <p className="truncate font-medium leading-tight">{log.input}</p>
-      <div className="flex items-center gap-1.5 mt-1 text-muted-foreground/40">
+      <div className="flex items-center gap-1.5 mt-1 text-muted-foreground/55">
         <span>{new Date(log.createdAt).toLocaleString()}</span>
         {log.toolCallCount > 0 && (
           <Badge variant="secondary" className="text-[9px] h-3.5 px-1">{log.toolCallCount} tools</Badge>
@@ -179,42 +183,6 @@ function LogListItem({
         )}
       </div>
     </button>
-  )
-}
-
-function PromptTab({ log }: { log: GenerationLog }) {
-  return (
-    <div className="space-y-5">
-      {log.messages.map((msg, i) => (
-        <div key={i}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge
-              variant={msg.role === 'system' ? 'default' : 'secondary'}
-              className="text-[10px] h-4"
-            >
-              {msg.role === 'system' ? 'system prompt' : msg.role}
-            </Badge>
-            <span className="text-[10px] text-muted-foreground/40">
-              {msg.content.length.toLocaleString()} chars
-            </span>
-          </div>
-          <pre className={`whitespace-pre-wrap text-xs font-mono rounded-lg p-4 max-h-[500px] overflow-auto ${
-            msg.role === 'system'
-              ? 'bg-primary/5 border border-primary/20'
-              : 'bg-card/50 border border-border/30'
-          }`}>
-            {msg.content}
-          </pre>
-        </div>
-      ))}
-
-      <div>
-        <Badge variant="outline" className="text-[10px] h-4 mb-1.5">author input</Badge>
-        <pre className="whitespace-pre-wrap text-xs font-mono bg-card/50 rounded-lg p-4 border border-border/30">
-          {log.input}
-        </pre>
-      </div>
-    </div>
   )
 }
 
@@ -230,7 +198,7 @@ function ToolsTab({ log }: { log: GenerationLog }) {
 
   if (log.toolCalls.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground/40 text-center py-12 italic">
+      <p className="text-sm text-muted-foreground/55 text-center py-12 italic">
         No tool calls were made during this generation.
       </p>
     )
@@ -244,7 +212,7 @@ function ToolsTab({ log }: { log: GenerationLog }) {
             onClick={() => toggle(i)}
             className="w-full text-left px-3.5 py-2.5 flex items-center gap-2 hover:bg-card/30 transition-colors rounded-lg"
           >
-            {expanded.has(i) ? <ChevronDown className="size-3 text-muted-foreground/40" /> : <ChevronRight className="size-3 text-muted-foreground/40" />}
+            {expanded.has(i) ? <ChevronDown className="size-3 text-muted-foreground/55" /> : <ChevronRight className="size-3 text-muted-foreground/55" />}
             <span className="text-xs font-mono font-medium">{tc.toolName}</span>
             <Badge variant="outline" className="text-[9px] h-3.5">
               {Object.keys(tc.args).length} args
@@ -278,7 +246,7 @@ function OutputTab({ log }: { log: GenerationLog }) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Generated text</span>
-        <span className="text-[10px] text-muted-foreground/30">
+        <span className="text-[10px] text-muted-foreground/50">
           {log.generatedText.length.toLocaleString()} chars
         </span>
       </div>

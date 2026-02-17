@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { GripVertical, Monitor, User } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface ContextOrderPanelProps {
   storyId: string
@@ -115,14 +116,14 @@ export function ContextOrderPanel({ storyId, story }: ContextOrderPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-border/30">
-        <p className="text-[11px] text-muted-foreground/60 leading-snug">
-          Drag to reorder how pinned fragments appear in the AI context. Toggle placement between system and user messages.
+      <div className="px-4 py-3 border-b border-border/30">
+        <p className="text-[11px] text-muted-foreground/50 leading-snug">
+          Drag to reorder how pinned fragments appear in the AI context
         </p>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-0.5">
+      <ScrollArea className="flex-1 [&>[data-slot=scroll-area-viewport]>div]:!block">
+        <div className="px-2 py-3 space-y-1">
           {stickyFragments.map((fragment, index) => (
             <div
               key={fragment.id}
@@ -131,30 +132,31 @@ export function ContextOrderPanel({ storyId, story }: ContextOrderPanelProps) {
               onDragEnter={() => handleDragEnter(index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className={`group flex items-center gap-1.5 rounded-md px-2 py-2 text-sm transition-colors duration-100 hover:bg-accent/50 ${
-                dragIndex === index ? 'opacity-50' : ''
-              }`}
+              className={cn(
+                'group flex items-center gap-2 rounded-lg border border-border/30 px-2.5 py-2 cursor-grab select-none transition-all duration-150 hover:bg-accent/30',
+                dragIndex === index && 'opacity-40 scale-[0.97]',
+              )}
             >
               {/* Drag handle */}
-              <div className="shrink-0 cursor-grab opacity-40 group-hover:opacity-70 transition-opacity">
+              <div className="shrink-0 opacity-0 group-hover:opacity-50 transition-opacity duration-150 -ml-0.5">
                 <GripVertical className="size-3.5 text-muted-foreground" />
               </div>
 
               {/* Fragment info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate leading-tight">{fragment.name}</p>
+                <p className="text-[12px] font-medium truncate leading-tight">{fragment.name}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] font-mono text-muted-foreground/40">
+                  <span className="text-[10px] font-mono text-muted-foreground/50">
                     {fragment.id}
                   </span>
                   <Badge
                     variant="outline"
-                    className={`text-[9px] h-3.5 px-1 ${typeBadgeColor[fragment.type] ?? ''}`}
+                    className={cn('text-[9px] h-3.5 px-1', typeBadgeColor[fragment.type] ?? '')}
                   >
                     {fragment.type}
                   </Badge>
                   {fragment.placement === 'system' && (
-                    <Badge variant="outline" className="text-[9px] h-3.5 px-1">
+                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 text-muted-foreground/50 bg-muted/30 border-transparent">
                       sys
                     </Badge>
                   )}
@@ -165,7 +167,7 @@ export function ContextOrderPanel({ storyId, story }: ContextOrderPanelProps) {
               <Button
                 size="icon"
                 variant="ghost"
-                className="size-6 shrink-0 text-muted-foreground/50 hover:text-foreground"
+                className="size-6 shrink-0 text-muted-foreground/55 hover:text-foreground"
                 onClick={() =>
                   placementMutation.mutate({
                     fragmentId: fragment.id,

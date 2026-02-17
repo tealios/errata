@@ -111,3 +111,10 @@ export interface WritingPlugin {
 
 export declare function definePlugin<T extends WritingPlugin>(plugin: T): T
 export declare const createPlugin: typeof definePlugin
+
+export declare function findBlock(blocks: ContextBlock[], id: string): ContextBlock | undefined
+export declare function replaceBlockContent(blocks: ContextBlock[], id: string, content: string): ContextBlock[]
+export declare function removeBlock(blocks: ContextBlock[], id: string): ContextBlock[]
+export declare function insertBlockBefore(blocks: ContextBlock[], targetId: string, block: ContextBlock): ContextBlock[]
+export declare function insertBlockAfter(blocks: ContextBlock[], targetId: string, block: ContextBlock): ContextBlock[]
+export declare function reorderBlock(blocks: ContextBlock[], id: string, newOrder: number): ContextBlock[]

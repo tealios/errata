@@ -773,12 +773,21 @@ describe('context blocks', () => {
       const messages = compileBlocks(blocks)
       expect(messages).toHaveLength(2)
       expect(messages[0].role).toBe('system')
-      expect(messages[0].content).toBe('System A')
+      expect(messages[0].content).toBe('[@block=a]\nSystem A')
       expect(messages[1].role).toBe('user')
-      expect(messages[1].content).toBe('User B')
+      expect(messages[1].content).toBe('[@block=b]\nUser B')
     })
 
-    it('sorts blocks by order within each role', () => {
+    it('prepends [@block=id] marker to each block', () => {
+      const blocks: ContextBlock[] = [
+        { id: 'my-block', role: 'user', content: 'Hello', order: 100, source: 'builtin' },
+      ]
+
+      const messages = compileBlocks(blocks)
+      expect(messages[0].content).toBe('[@block=my-block]\nHello')
+    })
+
+    it('sorts blocks by order and separates with blank lines', () => {
       const blocks: ContextBlock[] = [
         { id: 'b', role: 'user', content: 'Second', order: 200, source: 'builtin' },
         { id: 'a', role: 'user', content: 'First', order: 100, source: 'builtin' },
@@ -787,7 +796,9 @@ describe('context blocks', () => {
 
       const messages = compileBlocks(blocks)
       expect(messages).toHaveLength(1)
-      expect(messages[0].content).toBe('First\nSecond\nThird')
+      expect(messages[0].content).toBe(
+        '[@block=a]\nFirst\n\n[@block=b]\nSecond\n\n[@block=c]\nThird',
+      )
     })
 
     it('omits role when no blocks of that role exist', () => {

@@ -255,6 +255,7 @@ export interface BlocksResponse {
 
 export interface BlockPreviewResponse {
   messages: Array<{ role: string; content: string }>
+  blocks: Array<{ id: string; name: string; role: string }>
   blockCount: number
 }
 

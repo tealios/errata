@@ -6,8 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { BlockContentView } from './BlockContentView'
 
 interface BlockPreviewDialogProps {
   storyId: string
@@ -24,45 +24,34 @@ export function BlockPreviewDialog({ storyId, open, onOpenChange }: BlockPreview
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="sm:max-w-[900px] max-h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3">
+          <DialogTitle className="font-display text-lg flex items-center gap-2.5">
             Context Preview
             {data && (
-              <Badge variant="outline" className="text-[10px] font-normal">
-                {data.blockCount} blocks
+              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground/60">
+                {data.blockCount} {data.blockCount === 1 ? 'block' : 'blocks'}
               </Badge>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
-          {isLoading ? (
-            <p className="p-4 text-sm text-muted-foreground">Loading preview...</p>
-          ) : data?.messages.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No messages</p>
-          ) : (
-            <div className="space-y-4 p-1">
-              {data?.messages.map((msg, i) => (
-                <div key={i} className="space-y-1.5">
-                  <Badge
-                    variant="outline"
-                    className={
-                      msg.role === 'system'
-                        ? 'bg-violet-500/10 text-violet-500 border-violet-500/20'
-                        : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                    }
-                  >
-                    {msg.role}
-                  </Badge>
-                  <pre className="whitespace-pre-wrap text-xs font-mono bg-muted/30 rounded-md p-3 border border-border/30 max-h-[300px] overflow-y-auto">
-                    {msg.content}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="size-5 rounded-full border-2 border-muted-foreground/15 border-t-muted-foreground/50 animate-spin" />
+            <p className="mt-3 text-[11px] text-muted-foreground/55">Compiling context...</p>
+          </div>
+        ) : data?.messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-xs text-muted-foreground/55 italic">No messages in context</p>
+          </div>
+        ) : data ? (
+          <BlockContentView
+            messages={data.messages}
+            blocks={data.blocks}
+            className="border-t border-border/30"
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )
