@@ -1,14 +1,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { createDeepSeek } from '@ai-sdk/deepseek'
 import { getGlobalConfig } from '../config/storage'
 import { getStory } from '../fragments/storage'
 import type { LanguageModel } from 'ai'
-
-// Backward-compatible default model using DeepSeek env var
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-})
-export const defaultModel = deepseek('deepseek-chat')
 
 // Provider cache: keyed by `id:baseURL:apiKey`
 const providerCache = new Map<string, ReturnType<typeof createOpenAICompatible>>()
@@ -46,7 +39,7 @@ export interface GetModelOptions {
 
 /**
  * Resolve the model to use for a given story.
- * Resolution chain: story.settings.providerId -> globalConfig.defaultProviderId -> env-var DeepSeek fallback
+ * Resolution chain: story.settings.providerId -> globalConfig.defaultProviderId -> error
  */
 export async function getModel(dataDir: string, storyId?: string, opts: GetModelOptions = {}): Promise<ResolvedModel> {
   const role = opts.role ?? 'generation'
@@ -94,15 +87,6 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
     }
   }
 
-  // 5. Env-var DeepSeek fallback
-  return {
-    model: defaultModel,
-    providerId: null,
-    modelId: 'deepseek-chat',
-    config: {
-      providerName: 'DeepSeek',
-      baseURL: 'https://api.deepseek.com',
-      headers: {},
-    },
-  }
+  // 5. No provider found — throw descriptive error
+  throw new Error('No LLM provider configured. Add a provider in Settings > Providers.')
 }

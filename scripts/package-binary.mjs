@@ -76,7 +76,7 @@ async function main() {
       '  DATA_DIR=<path>',
       '  PLUGIN_DIR=<path>',
       '  PLUGIN_EXTERNAL_OVERRIDE=1',
-      '  PORT=3000',
+      '  PORT=7739',
     ].join('\n'),
   )
 

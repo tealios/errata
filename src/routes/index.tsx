@@ -197,11 +197,8 @@ function StoryListPage() {
     queryKey: ['global-config'],
     queryFn: api.config.getProviders,
   })
-  const [onboardingDismissed, setOnboardingDismissed] = useState(
-    () => typeof window !== 'undefined' && localStorage.getItem('errata-onboarding-dismissed') === 'true'
-  )
   const [manualWizard, setManualWizard] = useState(false)
-  const showOnboarding = manualWizard || (!configLoading && globalConfig && globalConfig.providers.length === 0 && !onboardingDismissed)
+  const showOnboarding = manualWizard || (!configLoading && globalConfig && globalConfig.providers.length === 0)
 
   const handleImportStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -224,7 +221,6 @@ function StoryListPage() {
     return (
       <OnboardingWizard
         onComplete={() => {
-          setOnboardingDismissed(true)
           setManualWizard(false)
           queryClient.invalidateQueries({ queryKey: ['global-config'] })
         }}

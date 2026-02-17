@@ -772,8 +772,7 @@ return ''`}</div>
               (background analysis).
             </P>
             <P>
-              The default provider uses the <Mono>DEEPSEEK_API_KEY</Mono> environment variable.
-              Add custom providers through the Manage Providers panel in Settings.
+              Add providers through the Manage Providers panel in Settings.
             </P>
           </>
         ),

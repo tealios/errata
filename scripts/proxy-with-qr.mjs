@@ -15,7 +15,7 @@ function getLocalIp() {
 }
 
 const LOCAL_IP = getLocalIp();
-const TARGET_PORT = 3000;
+const TARGET_PORT = 7739;
 const START_PORT = 6969;
 const MAX_PORT = START_PORT + 100;
 
@@ -49,7 +49,7 @@ const server = createServer((req, res) => {
   proxyReq.on('error', (err) => {
     console.error('Proxy error:', err.message);
     res.writeHead(502);
-    res.end('Bad Gateway: Is the dev server running on port 3000?');
+    res.end(`Bad Gateway: Is the dev server running on port ${TARGET_PORT}?`);
   });
 
   req.pipe(proxyReq);

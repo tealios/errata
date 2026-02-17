@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, seedTestProvider } from '../setup'
 import {
   createStory,
   createFragment,
@@ -116,6 +116,7 @@ describe('generation endpoint', () => {
     const tmp = await createTempDir()
     dataDir = tmp.path
     cleanup = tmp.cleanup
+    await seedTestProvider(dataDir)
     app = createApp(dataDir)
     await createStory(dataDir, makeStory())
     vi.clearAllMocks()

@@ -119,7 +119,7 @@ export function InlineGenerationInput({
     const defaultP = globalConfig.defaultProviderId
       ? providers.find(p => p.id === globalConfig.defaultProviderId)
       : null
-    return defaultP?.defaultModel ?? 'deepseek-chat'
+    return defaultP?.defaultModel ?? ''
   })()
 
   return (
@@ -188,7 +188,7 @@ export function InlineGenerationInput({
                         <option value="">
                           {defaultProvider
                             ? `${defaultProvider.defaultModel}`
-                            : `deepseek-chat`}
+                            : `No provider`}
                         </option>
                         {providers
                           .filter(p => p.id !== globalConfig.defaultProviderId)

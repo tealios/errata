@@ -45,7 +45,7 @@ vi.mock('ai', async () => {
   }
 })
 
-import { createTempDir } from '../setup'
+import { createTempDir, seedTestProvider } from '../setup'
 import { createApp } from '@/server/api'
 import { createStory } from '@/server/fragments/storage'
 import { saveGenerationLog, type GenerationLog } from '@/server/llm/generation-logs'
@@ -81,6 +81,7 @@ describe('generation-logs API routes', () => {
     const tmp = await createTempDir()
     dataDir = tmp.path
     cleanup = tmp.cleanup
+    await seedTestProvider(dataDir)
     app = createApp(dataDir)
 
     await createStory(dataDir, {
@@ -190,7 +191,7 @@ describe('generation-logs API routes', () => {
     expect(log.messages[0].role).toBe('system')
     expect(log.messages[1].role).toBe('user')
     expect(log.generatedText).toBe('Generated prose text')
-    expect(log.model).toBe('deepseek-chat')
+    expect(log.model).toBe('test-model')
     expect(log.durationMs).toBeGreaterThanOrEqual(0)
     // Should have captured tool calls from steps
     expect(log.toolCalls.length).toBeGreaterThanOrEqual(0)

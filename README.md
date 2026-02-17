@@ -41,7 +41,7 @@ bun install
 bun run dev
 ```
 
-Open `http://localhost:3000`. Configure an LLM provider in Settings, or set `DEEPSEEK_API_KEY` in your environment.
+Open `http://localhost:7739`. Configure an LLM provider in the onboarding wizard or Settings > Providers.
 
 ## Download
 
@@ -67,9 +67,8 @@ Set `DATA_DIR` to control where story data is stored (default: `./data`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DEEPSEEK_API_KEY` | — | Fallback LLM key (used when no provider configured) |
 | `DATA_DIR` | `./data` | Story data directory |
-| `PORT` | `3000` | Server port |
+| `PORT` | `7739` | Server port |
 | `PLUGIN_DIR` | — | External plugin directory |
 
 LLM providers can also be configured in the UI under Settings > Providers.

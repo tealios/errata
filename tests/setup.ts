@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -15,4 +15,27 @@ export async function createTempDir(): Promise<{
     path,
     cleanup: () => rm(path, { recursive: true, force: true }),
   }
+}
+
+/**
+ * Writes a minimal provider config to the test data directory.
+ * Required because getModel() throws when no provider is configured.
+ */
+export async function seedTestProvider(dataDir: string): Promise<void> {
+  await mkdir(dataDir, { recursive: true })
+  const config = {
+    providers: [{
+      id: 'test-provider',
+      name: 'Test',
+      preset: 'custom',
+      baseURL: 'http://localhost:0',
+      apiKey: 'test-key',
+      defaultModel: 'test-model',
+      enabled: true,
+      customHeaders: {},
+      createdAt: new Date().toISOString(),
+    }],
+    defaultProviderId: 'test-provider',
+  }
+  await writeFile(join(dataDir, 'config.json'), JSON.stringify(config))
 }

@@ -420,7 +420,7 @@ Users can customize blocks via the Block Editor (requires Advanced prompt contro
 
 ### Multi-Provider Support
 
-Model resolution chain: story settings → global default → `DEEPSEEK_API_KEY` env var fallback.
+Model resolution chain: story settings → global default → error if none configured.
 
 Provider presets: DeepSeek, OpenAI, Anthropic, OpenRouter, Custom. Any OpenAI-compatible API works via `@ai-sdk/openai-compatible`. Stories can configure separate providers for generation and librarian.
 
@@ -641,7 +641,7 @@ Tests first, conventional commits.
 
 ```bash
 bun install              # Install dependencies
-bun run dev              # Dev server on port 3000
+bun run dev              # Dev server on port 7739
 bun run test             # Run all tests (vitest)
 bun run test:watch       # Watch mode
 ```
@@ -666,8 +666,7 @@ bun run test:watch       # Watch mode
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DEEPSEEK_API_KEY` | — | Fallback LLM provider key |
 | `DATA_DIR` | `./data` | Filesystem storage root |
-| `PORT` | `3000` | Server port |
+| `PORT` | `7739` | Server port |
 | `PLUGIN_DIR` | — | External plugin directory |
 | `PLUGIN_EXTERNAL_OVERRIDE` | — | Allow external plugins to replace bundled ones |

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, seedTestProvider } from '../setup'
 import {
   createStory,
   getStory,
@@ -128,6 +128,7 @@ describe('librarian agent', () => {
     const tmp = await createTempDir()
     dataDir = tmp.path
     cleanup = tmp.cleanup
+    await seedTestProvider(dataDir)
     vi.clearAllMocks()
   })
 

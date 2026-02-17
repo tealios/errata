@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { tool } from 'ai'
 import { z } from 'zod/v4'
-import { createTempDir } from '../setup'
+import { createTempDir, seedTestProvider } from '../setup'
 import {
   createStory,
   createFragment,
@@ -81,6 +81,7 @@ describe('plugin integration', () => {
     const tmp = await createTempDir()
     dataDir = tmp.path
     cleanup = tmp.cleanup
+    await seedTestProvider(dataDir)
     app = createApp(dataDir)
     mockAgentInstances.length = 0
     mockAgentCtor.mockClear()

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, seedTestProvider } from '../setup'
 import {
   createStory,
   createFragment,
@@ -115,6 +115,7 @@ describe('end-to-end generation integration', () => {
     const temp = await createTempDir()
     dataDir = temp.path
     cleanup = temp.cleanup
+    await seedTestProvider(dataDir)
     app = createApp(dataDir)
     mockAgentInstances.length = 0
     mockAgentCtor.mockClear()

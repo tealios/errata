@@ -144,7 +144,7 @@ Run example (Linux/macOS):
 PLUGIN_DIR=/opt/errata/plugins PLUGIN_EXTERNAL_OVERRIDE=1 ./errata
 ```
 
-Plugin panel URL when enabled: `http://localhost:3000/api/plugins/my-plugin/ui/`
+Plugin panel URL when enabled: `http://localhost:7739/api/plugins/my-plugin/ui/`
 
 ## Build + Package Commands
 
@@ -176,7 +176,7 @@ To trigger: create a release on GitHub (or `gh release create v1.x.x`).
 
 ## Packaging Notes
 
-- Keep `DEEPSEEK_API_KEY` and other secrets in environment variables.
+- Keep API keys and other secrets in environment variables or configure via the UI.
 - Keep story data external via `DATA_DIR`.
 - Use external plugins only from trusted sources (runtime code execution risk).
 - External iframe panels are sandboxed (`allow-scripts allow-same-origin allow-forms`).

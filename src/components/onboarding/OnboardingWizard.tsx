@@ -108,30 +108,22 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState<Step>('theme')
   const [selectedPreset, setSelectedPreset] = useState<PresetKey | null>(null)
 
-  const handleSkip = () => {
-    localStorage.setItem('errata-onboarding-dismissed', 'true')
-    onComplete()
-  }
-
   return (
     <div className="fixed inset-0 bg-background z-50 flex items-center justify-center">
       {step === 'theme' && (
         <ThemeStep
           onNext={() => setStep('typography')}
-          onSkip={handleSkip}
         />
       )}
       {step === 'typography' && (
         <TypographyStep
           onNext={() => setStep('welcome')}
           onBack={() => setStep('theme')}
-          onSkip={handleSkip}
         />
       )}
       {step === 'welcome' && (
         <WelcomeStep
           onNext={() => setStep('provider-select')}
-          onSkip={handleSkip}
         />
       )}
       {step === 'provider-select' && (
@@ -141,7 +133,6 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             setStep('provider-setup')
           }}
           onBack={() => setStep('welcome')}
-          onSkip={handleSkip}
         />
       )}
       {step === 'provider-setup' && selectedPreset && (
@@ -149,7 +140,6 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           preset={selectedPreset}
           onComplete={onComplete}
           onBack={() => setStep('provider-select')}
-          onSkip={handleSkip}
         />
       )}
     </div>
@@ -160,10 +150,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
 function ThemeStep({
   onNext,
-  onSkip,
 }: {
   onNext: () => void
-  onSkip: () => void
 }) {
   const { theme, setTheme } = useTheme()
 
@@ -238,14 +226,6 @@ function ThemeStep({
         <Button onClick={onNext} className="px-8">
           Continue
         </Button>
-        <div className="mt-4">
-          <button
-            onClick={onSkip}
-            className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-          >
-            Skip setup
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -258,11 +238,9 @@ const PROSE_SAMPLE = 'The morning light fell across the desk, illuminating pages
 function TypographyStep({
   onNext,
   onBack,
-  onSkip,
 }: {
   onNext: () => void
   onBack: () => void
-  onSkip: () => void
 }) {
   const [fontPrefs, setFont] = useFontPreferences()
   const activeProse = getActiveFont('prose', fontPrefs)
@@ -366,19 +344,12 @@ function TypographyStep({
         <Button onClick={onNext} className="px-8">
           Continue
         </Button>
-        <div className="mt-4 flex items-center justify-center gap-4">
+        <div className="mt-4">
           <button
             onClick={onBack}
             className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
           >
             <ArrowLeft className="size-3" /> Back
-          </button>
-          <span className="text-border">|</span>
-          <button
-            onClick={onSkip}
-            className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-          >
-            Skip setup
           </button>
         </div>
       </div>
@@ -390,10 +361,8 @@ function TypographyStep({
 
 function WelcomeStep({
   onNext,
-  onSkip,
 }: {
   onNext: () => void
-  onSkip: () => void
 }) {
   const { theme, toggle } = useTheme()
 
@@ -458,14 +427,6 @@ function WelcomeStep({
         <Button onClick={onNext} className="px-8">
           Get Started
         </Button>
-        <div className="mt-4">
-          <button
-            onClick={onSkip}
-            className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-          >
-            Skip setup
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -476,11 +437,9 @@ function WelcomeStep({
 function ProviderSelectStep({
   onSelect,
   onBack,
-  onSkip,
 }: {
   onSelect: (preset: PresetKey) => void
   onBack: () => void
-  onSkip: () => void
 }) {
   const cards = Object.entries(PROVIDER_CARDS) as [PresetKey, (typeof PROVIDER_CARDS)[PresetKey]][]
 
@@ -532,7 +491,7 @@ function ProviderSelectStep({
       </div>
 
       <div
-        className="flex items-center justify-center gap-4 mt-8 animate-onboarding-fade-up"
+        className="flex items-center justify-center mt-8 animate-onboarding-fade-up"
         style={{ animationDelay: '500ms' }}
       >
         <button
@@ -540,13 +499,6 @@ function ProviderSelectStep({
           className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
         >
           <ArrowLeft className="size-3" /> Back
-        </button>
-        <span className="text-border">|</span>
-        <button
-          onClick={onSkip}
-          className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-        >
-          Skip setup
         </button>
       </div>
     </div>
@@ -559,12 +511,10 @@ function ProviderSetupStep({
   preset,
   onComplete,
   onBack,
-  onSkip,
 }: {
   preset: PresetKey
   onComplete: () => void
   onBack: () => void
-  onSkip: () => void
 }) {
   const card = PROVIDER_CARDS[preset]
   const accent = ACCENT_COLORS[card.accent]
@@ -859,7 +809,7 @@ function ProviderSetupStep({
       </div>
 
       <div
-        className="flex items-center justify-center gap-4 mt-8 animate-onboarding-fade-up"
+        className="flex items-center justify-center mt-8 animate-onboarding-fade-up"
         style={{ animationDelay: '250ms' }}
       >
         <button
@@ -867,13 +817,6 @@ function ProviderSetupStep({
           className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors flex items-center gap-1"
         >
           <ArrowLeft className="size-3" /> Back
-        </button>
-        <span className="text-border">|</span>
-        <button
-          onClick={onSkip}
-          className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-        >
-          Skip setup
         </button>
       </div>
     </div>
