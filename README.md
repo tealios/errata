@@ -1,25 +1,16 @@
 # Errata
 
-Errata is a writing app built around a fragment system: prose, characters, guidelines, and knowledge are all composable fragments used to generate story continuations.
+An AI-assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
 
-## Highlights
+## Features
 
-- Fragment-first writing workflow with sticky/system placement controls
-- Prose chain with variations (regenerate/refine/switch/remove)
-- Streaming generation with tool calls + debug logs
-- Librarian background agent (summary, contradictions, timeline)
-- Extensible plugin system (server + runtime iframe panels)
-- Filesystem storage (no database required)
-
-## Stack
-
-- Runtime: Bun
-- Frontend: TanStack Start + React 19
-- Backend: Elysia (embedded in Start)
-- Validation: Zod v4
-- Generation: AI SDK v6
-- Styling: Tailwind v4 + shadcn/ui
-- Tests: Vitest + RTL
+- **Fragment system** — everything is a fragment with tags, refs, sticky/system placement, and version history
+- **Prose chain** with variations (regenerate, refine, switch, remove)
+- **Block-based context** — visual editor for reordering, overriding, and extending LLM prompt structure
+- **Multi-provider LLM** — DeepSeek, OpenAI, Anthropic, OpenRouter, or any OpenAI-compatible API
+- **Librarian agent** — background continuity management (rolling summary, contradictions, timeline, knowledge suggestions, interactive chat)
+- **Plugin system** — bundled + external runtime plugins with iframe UI panels
+- **No database** — filesystem storage, compiles to a single binary
 
 ## Quick Start
 
@@ -30,61 +21,77 @@ bun install
 bun run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Configure an LLM provider in Settings, or set `DEEPSEEK_API_KEY` in your environment.
 
-### Optional `.env`
+## Download
 
-```env
-DEEPSEEK_API_KEY=your-api-key
-DATA_DIR=./data
-PORT=3000
+Pre-built binaries are available on the [Releases](https://github.com/nokusukun/errata/releases) page for Windows, Linux, and macOS. Extract the zip and run — no runtime dependencies required.
+
+```bash
+# Windows
+errata.exe
+
+# Linux / macOS
+./errata
 ```
+
+Set `DATA_DIR` to control where story data is stored (default: `./data`).
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEEPSEEK_API_KEY` | — | Fallback LLM key (used when no provider configured) |
+| `DATA_DIR` | `./data` | Story data directory |
+| `PORT` | `3000` | Server port |
+| `PLUGIN_DIR` | — | External plugin directory |
+
+LLM providers can also be configured in the UI under Settings > Providers.
 
 ## Scripts
 
-- `bun run dev` - start development server
-- `bun run build` - production build
-- `bun run preview` - preview production build
-- `bun run test` - run test suite
-- `bun run new:plugin <name>` - scaffold plugin from template
-
-### Binary/Release
-
-- `bun run build:binary` - build executable + required `dist/public`
-- `bun run package:binary` - zip binary bundle (`dist/errata-bundle.zip`)
-- `bun run release:binary` - build + package in one step
+```bash
+bun run dev              # Development server
+bun run build            # Production build
+bun run test             # Run tests
+bun run new:plugin       # Scaffold a plugin from template
+bun run build:binary     # Compile to standalone binary
+bun run release:binary   # Build + package zip bundle
+```
 
 ## Project Layout
 
-```text
-src/                    app code (routes, server, components, lib)
-plugins/                built-in plugins + templates
-packages/               local packages (includes plugin SDK)
-tests/                  vitest suites
-docs/                   documentation
+```
+src/                    App code (routes, server, components, lib)
+  server/               Elysia API, fragments, blocks, LLM, agents, librarian
+  components/           React UI (prose, fragments, blocks, generation, sidebar)
+  lib/api/              Typed frontend API client
+plugins/                Bundled plugins (diceroll, keybinds, names) + templates
+packages/               Plugin SDK (@tealios/errata-plugin-sdk)
+tests/                  Vitest suites
+docs/                   Documentation
 ```
 
-## Plugin System (Moved to Docs)
+## Stack
 
-Plugin documentation now lives in dedicated docs pages:
+Bun, TanStack Start + React 19, Elysia, Zod v4, Vercel AI SDK v6, Tailwind v4 + shadcn/ui, Vitest.
 
-- `docs/README.md` - docs index
-- `docs/third-party-plugins.md` - authoring external plugins
-- `docs/runtime-plugins-and-binary-packaging.md` - runtime loading + binary deployment
-- `plugins/templates/README.md` - complete plugin recipe templates
+## Plugins
 
-### SDK for Plugin Authors
+Plugins can register fragment types, LLM tools, API routes, and pipeline hooks. External plugins are loaded from `PLUGIN_DIR` at runtime with iframe-based UI panels.
 
-Use the SDK package for plugin contracts/types:
+- [Plugin authoring guide](docs/third-party-plugins.md)
+- [Runtime plugins + binary packaging](docs/runtime-plugins-and-binary-packaging.md)
+- [Plugin templates](plugins/templates/README.md)
+- SDK: `@tealios/errata-plugin-sdk`
 
-- `@tealios/errata-plugin-sdk`
+## Documentation
 
-This is the supported import path for third-party plugin repos.
-
-## Notes
-
-- On startup, Errata creates missing base directories (`DATA_DIR`, `DATA_DIR/stories`, and `PLUGIN_DIR` if set).
-- Runtime external plugin UI uses iframe mode (`plugin.json` + `ui/index.html`).
+- [Architecture & data model](PLAN.md)
+- [Context block system](docs/context-blocks.md)
+- [Component ID contract](docs/component-ids.md)
+- [Publishing the plugin SDK](docs/publishing-plugin-sdk.md)
+- [Full docs index](docs/README.md)
 
 ---
 
