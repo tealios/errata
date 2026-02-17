@@ -7,93 +7,55 @@
 - [Project Structure](#project-structure)
 - [Data Model](#data-model)
 - [Fragment System](#fragment-system)
-- [Plugin System](#plugin-system)
+- [Context Block System](#context-block-system)
 - [LLM Integration](#llm-integration)
-- [Background Librarian Agent](#background-librarian-agent)
+- [Agent Framework](#agent-framework)
+- [Background Librarian](#background-librarian)
+- [Plugin System](#plugin-system)
 - [Frontend](#frontend)
 - [API Routes](#api-routes)
-- [Implementation Phases](#implementation-phases)
+- [Binary Distribution](#binary-distribution)
 - [Development Workflow](#development-workflow)
+- [Environment Variables](#environment-variables)
 
 ---
 
 ## Overview
 
-Errata is an extensible, AI-assisted writing application built around a **fragment system** where everything is a fragment. Fragments represent prose, characters, guidelines, knowledge, and any user-defined type via plugins. The app sends structured context (composed of fragments) to an LLM to generate prose continuations directed by the author.
+Errata is an AI-assisted writing application built around a **fragment system** — everything (prose, characters, guidelines, knowledge) is a fragment. Fragments compose into structured LLM context via a **block system** to generate story continuations directed by the author. Supports multiple LLM providers, a plugin architecture, and a background librarian agent for continuity management.
 
 ---
 
 ## Architecture
 
-**Embedded architecture**: Elysia runs inside TanStack Start server routes via the `/api/$` catch-all route. This gives us:
-- Zero HTTP overhead for SSR calls (Eden Treaty calls Elysia directly on the server)
-- Single deployment artifact
-- End-to-end type safety via Eden Treaty
-- Shared types without a separate contracts package
+Elysia runs inside a TanStack Start catch-all server route (`src/routes/api.$.ts`). Single deployment artifact — compiles to a standalone Bun binary for distribution.
 
 ```
-Browser <--HTTP--> TanStack Start (Vinxi/Vite)
+Browser <--HTTP--> TanStack Start (Vite/Nitro)
                         |
                    /api/* routes --> Elysia (embedded)
                         |
-                   Filesystem Storage (/data)
+                   Filesystem Storage (data/)
 ```
 
 ---
 
 ## Tech Stack
 
-| Layer         | Technology                    | Version (as of Feb 2026) |
-|---------------|-------------------------------|--------------------------|
-| Runtime       | Bun                           | 1.3.x                   |
-| Frontend      | TanStack Start (React)        | RC / 1.x                |
-| Routing       | TanStack Router               | latest                   |
-| Server State  | TanStack Query (React Query)  | 5.x                      |
-| Backend       | Elysia                        | 1.4.x                   |
-| Type Safety   | Eden Treaty                   | latest                   |
-| Validation    | Zod                           | 3.x                     |
-| LLM SDK       | Vercel AI SDK (`ai`)          | 6.x                     |
-| LLM Provider  | `@ai-sdk/deepseek`           | latest                   |
-| Styling       | Tailwind CSS + shadcn/ui      | 4.x / latest             |
-| Editor        | TipTap or Lexical (TBD)       | latest                   |
-| Testing       | Vitest + React Testing Lib    | 3.x / latest             |
-
-### Key Dependencies
-```jsonc
-{
-  "dependencies": {
-    // Runtime & Framework
-    "@tanstack/react-start": "^1.x",
-    "@tanstack/react-router": "^1.x",
-    "@tanstack/react-query": "^5.x",
-    "elysia": "^1.4.x",
-    "@elysiajs/eden": "^1.x",
-    "react": "^19.x",
-    "react-dom": "^19.x",
-
-    // Validation & Types
-    "zod": "^3.x",
-
-    // LLM
-    "ai": "^6.x",
-    "@ai-sdk/deepseek": "latest",
-
-    // Styling & UI Components
-    "tailwindcss": "^4.x",
-    // shadcn/ui components installed via `bunx shadcn@latest add <component>`
-
-    // Editor (evaluate during Phase 2)
-    // "@tiptap/react": "^2.x"  OR  "lexical": "^0.x"
-  },
-  "devDependencies": {
-    "typescript": "^5.x",
-    "@types/react": "^19.x",
-    "@testing-library/react": "^16.x",
-    "@testing-library/jest-dom": "latest",
-    "vite": "^6.x"
-  }
-}
-```
+| Layer         | Technology                    | Version           |
+|---------------|-------------------------------|--------------------|
+| Runtime       | Bun                           | 1.x               |
+| Frontend      | TanStack Start (React)        | 1.132.x           |
+| Routing       | TanStack Router               | 1.132.x           |
+| Server State  | TanStack Query (React Query)  | 5.x               |
+| Backend       | Elysia                        | 1.4.x             |
+| Validation    | Zod                           | 4.x (`zod/v4`)    |
+| LLM SDK       | Vercel AI SDK (`ai`)          | 6.x               |
+| LLM Providers | `@ai-sdk/deepseek`, `@ai-sdk/openai-compatible` | latest |
+| Styling       | Tailwind CSS 4.x + shadcn/ui | latest             |
+| Build         | Vite 7.x + Nitro              | latest             |
+| Testing       | Vitest + React Testing Lib    | 3.x / latest       |
+| Compression   | fflate                        | 0.8.x             |
 
 ---
 
@@ -103,926 +65,609 @@ Browser <--HTTP--> TanStack Start (Vinxi/Vite)
 errata/
 ├── package.json
 ├── tsconfig.json
-├── vite.config.ts                    # TanStack Start + Vite config
+├── vite.config.ts
 ├── PLAN.md
+├── CLAUDE.md
 │
 ├── src/
-│   ├── router.tsx                    # TanStack Router config
-│   ├── routeTree.gen.ts              # Generated route tree
-│   │
 │   ├── routes/
-│   │   ├── __root.tsx                # Root layout (shell, sidebar, providers)
-│   │   ├── index.tsx                 # Home / story list
-│   │   ├── story.$storyId.tsx        # Main editor view for a story
-│   │   ├── story.$storyId.wizard.tsx # Story creation wizard
+│   │   ├── __root.tsx                # Root layout
+│   │   ├── index.tsx                 # Story list / home
+│   │   ├── story.$storyId.tsx        # Main editor view
 │   │   └── api.$.ts                  # Elysia catch-all API route
 │   │
 │   ├── server/
-│   │   ├── api.ts                    # Elysia app definition + all routes
+│   │   ├── api.ts                    # Elysia app + all route definitions
+│   │   ├── init.ts                   # Startup bootstrapping
 │   │   ├── treaty.ts                 # Eden Treaty isomorphic client
+│   │   ├── story-archive.ts          # Story archive/export logic
 │   │   │
 │   │   ├── fragments/
-│   │   │   ├── schema.ts             # Zod schemas for fragments
-│   │   │   ├── storage.ts            # Filesystem read/write operations
+│   │   │   ├── schema.ts             # Zod schemas (Fragment, StoryMeta, ProseChain)
+│   │   │   ├── storage.ts            # Filesystem CRUD + versioned updates
 │   │   │   ├── registry.ts           # Fragment type registry
-│   │   │   └── routes.ts             # Fragment CRUD Elysia routes
+│   │   │   └── prose-chain.ts        # Prose chain ordering with variations
+│   │   │
+│   │   ├── blocks/
+│   │   │   ├── schema.ts             # Block config Zod schemas
+│   │   │   ├── storage.ts            # Block config persistence
+│   │   │   └── apply.ts              # Applies block config to default blocks
+│   │   │
+│   │   ├── config/
+│   │   │   ├── schema.ts             # Provider config schemas + presets
+│   │   │   └── storage.ts            # Global config persistence
 │   │   │
 │   │   ├── llm/
-│   │   │   ├── client.ts             # Vercel AI SDK client setup (DeepSeek)
-│   │   │   ├── context-builder.ts    # Builds LLM prompt from fragments
-│   │   │   ├── tools.ts              # LLM tool definitions (fragment tools)
-│   │   │   └── routes.ts             # Generation endpoints (streaming)
+│   │   │   ├── client.ts             # Multi-provider model resolution
+│   │   │   ├── context-builder.ts    # Block-based context assembly
+│   │   │   ├── tools.ts              # Dynamic LLM tool generation
+│   │   │   ├── writer-agent.ts       # Writer agent wrapper
+│   │   │   └── generation-logs.ts    # Generation log storage
+│   │   │
+│   │   ├── agents/
+│   │   │   ├── types.ts              # AgentDefinition, AgentInvocationContext
+│   │   │   ├── registry.ts           # Global agent registry
+│   │   │   ├── runner.ts             # Agent invocation with depth/timeout limits
+│   │   │   ├── traces.ts             # Agent trace logging
+│   │   │   ├── register-core.ts      # Core agent registration
+│   │   │   └── index.ts              # Re-exports
 │   │   │
 │   │   ├── librarian/
-│   │   │   ├── storage.ts            # Types + filesystem storage for analyses and state
-│   │   │   ├── agent.ts              # Background librarian agent logic (runLibrarian)
-│   │   │   └── scheduler.ts          # Debounced fire-and-forget trigger
+│   │   │   ├── agent.ts              # Main librarian analysis logic
+│   │   │   ├── agents.ts             # Librarian agent definitions
+│   │   │   ├── llm-agents.ts         # LLM-based agent definitions
+│   │   │   ├── chat.ts               # Chat with librarian
+│   │   │   ├── refine.ts             # Fragment refinement via agent
+│   │   │   ├── suggestions.ts        # Knowledge suggestion logic
+│   │   │   ├── storage.ts            # Librarian state + analysis persistence
+│   │   │   └── scheduler.ts          # Debounced trigger
 │   │   │
-│   │   └── plugins/
-│   │       ├── loader.ts             # Plugin discovery & loading
-│   │       ├── types.ts              # Plugin interface definitions
-│   │       └── hooks.ts              # Pipeline hook system
+│   │   ├── plugins/
+│   │   │   ├── loader.ts             # Plugin discovery (bundled + external)
+│   │   │   ├── types.ts              # WritingPlugin interface
+│   │   │   ├── hooks.ts              # Pipeline hook system
+│   │   │   └── tools.ts              # Plugin tool registration
+│   │   │
+│   │   └── logging/
+│   │       ├── types.ts
+│   │       ├── storage.ts
+│   │       ├── logger.ts
+│   │       └── index.ts
 │   │
 │   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Shell.tsx             # App shell (header + sidebar + content)
-│   │   │   └── Sidebar.tsx           # Fragment browser sidebar
-│   │   ├── editor/
-│   │   │   ├── Editor.tsx            # Main prose editor component
-│   │   │   ├── EditorToolbar.tsx     # Toolbar (generate, settings)
-│   │   │   └── StreamingOutput.tsx   # Streaming LLM output display
+│   │   ├── prose/
+│   │   │   ├── ProseChainView.tsx     # Scrollable prose chain
+│   │   │   ├── ProseBlock.tsx         # Individual prose block
+│   │   │   ├── ProseOutlinePanel.tsx  # Prose outline/navigation
+│   │   │   ├── InlineGenerationInput.tsx # Author input
+│   │   │   └── ChevronRail.tsx        # Navigation rail
 │   │   ├── fragments/
-│   │   │   ├── FragmentList.tsx       # List view for any fragment type
-│   │   │   ├── FragmentCard.tsx       # Card component for fragment
-│   │   │   ├── FragmentEditor.tsx     # Edit modal/panel for a fragment
-│   │   │   └── FragmentBadge.tsx      # Tag/type badge
+│   │   │   ├── FragmentList.tsx       # Sidebar list with search/sort
+│   │   │   ├── FragmentEditor.tsx     # Full editor (tags, refs, sticky, placement)
+│   │   │   ├── FragmentExportPanel.tsx
+│   │   │   ├── FragmentImportDialog.tsx
+│   │   │   └── ContextOrderPanel.tsx  # Fragment ordering within blocks
+│   │   ├── blocks/
+│   │   │   ├── BlockEditorPanel.tsx   # Visual block editor
+│   │   │   ├── BlockCreateDialog.tsx  # Custom block creation
+│   │   │   ├── BlockPreviewDialog.tsx # Context preview
+│   │   │   └── BlockContentView.tsx   # Block content display
+│   │   ├── generation/
+│   │   │   ├── GenerationPanel.tsx    # Streaming generation UI
+│   │   │   └── DebugPanel.tsx         # Generation log inspector
 │   │   ├── sidebar/
-│   │   │   ├── StorySidebar.tsx       # Sidebar with section navigation
-│   │   │   ├── DetailPanel.tsx        # Detail panel rendering per section
-│   │   │   ├── StoryInfoPanel.tsx     # Story info display
-│   │   │   ├── SettingsPanel.tsx      # Story settings
-│   │   │   └── LibrarianPanel.tsx     # Agent activity: analyses, suggestions, timeline
-│   │   └── wizard/
-│   │       ├── WizardShell.tsx        # Multi-step wizard container
-│   │       ├── StepGuidelines.tsx     # Guideline creation step
-│   │       ├── StepCharacters.tsx     # Character creation step
-│   │       ├── StepKnowledge.tsx      # Knowledge creation step
-│   │       └── StepProse.tsx          # Starting prose step
+│   │   │   ├── StorySidebar.tsx       # Section navigation
+│   │   │   ├── DetailPanel.tsx        # Detail rendering per section
+│   │   │   ├── StoryInfoPanel.tsx
+│   │   │   ├── SettingsPanel.tsx      # Story + LLM settings
+│   │   │   ├── LibrarianPanel.tsx     # Librarian activity/chat
+│   │   │   └── ArchivePanel.tsx       # Story archive
+│   │   ├── wizard/
+│   │   │   └── StoryWizard.tsx        # Multi-step creation wizard
+│   │   ├── settings/
+│   │   │   └── ProviderManager.tsx    # LLM provider CRUD
+│   │   ├── onboarding/
+│   │   │   └── OnboardingWizard.tsx   # First-run onboarding
+│   │   ├── help/
+│   │   │   ├── HelpPanel.tsx
+│   │   │   └── help-content.tsx
+│   │   └── ui/                        # shadcn/ui components
 │   │
 │   ├── lib/
-│   │   ├── fragment-ids.ts           # Short ID generation (pr-xxx, ch-xxx)
-│   │   ├── constants.ts              # App constants
-│   │   └── utils.ts                  # Shared utilities
+│   │   ├── api/                       # Modular API client
+│   │   │   ├── client.ts             # Typed fetch wrapper
+│   │   │   ├── index.ts              # Re-exports
+│   │   │   ├── types.ts              # Centralized API types
+│   │   │   ├── fragments.ts
+│   │   │   ├── stories.ts
+│   │   │   ├── generation.ts
+│   │   │   ├── blocks.ts
+│   │   │   ├── librarian.ts
+│   │   │   ├── config.ts
+│   │   │   ├── settings.ts
+│   │   │   ├── prose-chain.ts
+│   │   │   └── plugins.ts
+│   │   ├── fragment-ids.ts           # Pronounceable ID generation
+│   │   ├── fragment-visuals.ts       # Fragment type visual shapes/colors
+│   │   ├── fragment-clipboard.ts     # Copy/paste fragments
+│   │   ├── dom-ids.ts               # data-component-id helpers
+│   │   ├── theme.tsx                # Theme provider (fonts, dark mode)
+│   │   └── utils.ts
 │   │
-│   └── styles/
-│       └── globals.css               # Tailwind imports + custom styles
+│   └── styles.css                    # Tailwind + custom styles
 │
 ├── tests/
-│   ├── setup.ts                      # Test setup (globals, mocks)
-│   ├── fragments/
-│   │   ├── storage.test.ts           # Filesystem storage tests
-│   │   ├── registry.test.ts          # Fragment type registry tests
-│   │   ├── routes.test.ts            # Fragment API route tests
-│   │   └── ids.test.ts               # Fragment ID generation tests
-│   ├── llm/
-│   │   ├── context-builder.test.ts   # Context assembly tests
-│   │   ├── tools.test.ts             # LLM tool definition tests
-│   │   └── generation.test.ts        # Generation pipeline tests
-│   ├── librarian/
-│   │   ├── storage.test.ts           # Librarian storage layer tests
-│   │   ├── agent.test.ts             # Librarian agent logic tests (mocked LLM)
-│   │   └── scheduler.test.ts         # Scheduler/debounce tests
-│   ├── api/
-│   │   ├── routes.test.ts            # Core API route tests
-│   │   ├── associations-routes.test.ts  # Tag/ref route tests
-│   │   ├── generation-logs-routes.test.ts  # Generation log route tests
-│   │   └── librarian-routes.test.ts  # Librarian API route tests
-│   ├── plugins/
-│   │   ├── loader.test.ts            # Plugin discovery tests
-│   │   └── hooks.test.ts             # Pipeline hook tests
-│   └── components/
-│       ├── FragmentList.test.tsx      # Fragment list rendering tests
-│       ├── Editor.test.tsx           # Editor component tests
-│       └── Wizard.test.tsx           # Wizard flow tests
+│   ├── setup.ts                      # Temp dir helpers, global setup
+│   ├── fragments/                    # Schema, storage, ID tests
+│   ├── llm/                          # Context builder, tools, generation tests
+│   ├── librarian/                    # Agent, chat, refine, scheduler tests
+│   ├── agents/                       # Agent runner tests
+│   ├── blocks/                       # Block storage and apply tests
+│   ├── api/                          # Route integration tests
+│   ├── plugins/                      # Plugin loading and hook tests
+│   └── fixtures/
 │
-├── data/                             # Filesystem storage root (gitignored)
-│   └── stories/
-│       └── <storyId>/
-│           ├── meta.json             # Story metadata
-│           ├── fragments/
-│           │   ├── pr-a1b2.json      # Prose fragment
-│           │   ├── ch-x9y8.json      # Character fragment
-│           │   ├── gl-m3n4.json      # Guideline fragment
-│           │   └── kn-p5q6.json      # Knowledge fragment
-│           ├── associations.json     # Fragment associations & tags
-│           ├── generation-logs/
-│           │   └── <logId>.json      # Generation debug logs
-│           └── librarian/
-│               ├── state.json        # Current librarian state (mentions, timeline)
-│               └── analyses/
-│                   └── <analysisId>.json  # Individual analysis results
+├── plugins/                          # Bundled plugins
+│   ├── diceroll/
+│   ├── keybinds/
+│   ├── names/
+│   └── templates/                    # Plugin recipe templates
 │
-└── plugins/                          # Plugin directory
-    └── names/
-        └── plugin.ts                 # Example "Names" plugin
+├── packages/
+│   └── errata-plugin-sdk/            # Published as @tealios/errata-plugin-sdk
+│
+├── scripts/
+│   ├── build-binary.mjs              # Compile to Bun standalone binary
+│   ├── package-binary.mjs            # Zip binary + public assets
+│   ├── new-plugin.mjs                # Plugin scaffolding
+│   ├── binary-entry.mjs              # Binary runtime entry
+│   └── proxy-with-qr.mjs            # Dev sharing with QR code
+│
+├── .github/workflows/
+│   ├── release-binary.yml            # Build + upload binaries on release
+│   └── publish-plugin-sdk.yml        # Publish SDK to npm on tag
+│
+└── data/                             # Filesystem storage root (gitignored)
+    ├── config.json                   # Global provider config
+    └── stories/
+        └── <storyId>/
+            ├── meta.json
+            ├── prose-chain.json       # Ordered prose with variations
+            ├── fragments/             # Individual fragment JSON files
+            ├── associations.json
+            ├── block-config.json      # Block editor config
+            ├── generation-logs/
+            └── librarian/
+                ├── state.json
+                ├── chat-history.json
+                └── analyses/
 ```
 
 ---
 
 ## Data Model
 
-### Core Schemas (Zod)
+### Fragment Schema
 
 ```typescript
-import { z } from 'zod';
+import { z } from 'zod/v4'
 
-// --- Fragment ID patterns ---
-// pr-[a-z0-9]{4}  (prose)
-// ch-[a-z0-9]{4}  (character)
-// gl-[a-z0-9]{4}  (guideline)
-// kn-[a-z0-9]{4}  (knowledge)
-// Plugin types define their own prefix
-
-export const FragmentIdSchema = z.string().regex(/^[a-z]{2}-[a-z0-9]{4,8}$/);
-
-export const FragmentTypeSchema = z.enum([
-  'prose',
-  'character',
-  'guideline',
-  'knowledge',
-]);
+export const FragmentIdSchema = z.string().regex(/^[a-z]{2,4}-[a-z0-9]{4,12}$/)
 
 export const FragmentSchema = z.object({
   id: FragmentIdSchema,
-  type: FragmentTypeSchema,           // extensible via plugins
+  type: z.string().min(1),               // 'prose', 'character', 'guideline', 'knowledge', 'image', 'icon', or plugin types
   name: z.string().max(100),
-  description: z.string().max(50),    // Short description for context lists
-  content: z.string(),                // Full content
+  description: z.string().max(250),
+  content: z.string(),
   tags: z.array(z.string()).default([]),
-  refs: z.array(FragmentIdSchema).default([]),  // References to other fragments
-  sticky: z.boolean().default(false), // Always in LLM context?
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  order: z.number().int().default(0), // Ordering within type (for prose sequence)
-  meta: z.record(z.unknown()).default({}), // Extensible metadata for plugins
-});
+  refs: z.array(FragmentIdSchema).default([]),
+  sticky: z.boolean().default(false),     // Always in LLM context
+  placement: z.enum(['system', 'user']).default('user'), // Which LLM message role
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  order: z.int().default(0),
+  meta: z.record(z.string(), z.unknown()).default({}),
+  archived: z.boolean().default(false),
+  version: z.int().min(1).default(1),
+  versions: z.array(z.object({           // Version history
+    version: z.int().min(1),
+    name: z.string().max(100),
+    description: z.string().max(250),
+    content: z.string(),
+    createdAt: z.iso.datetime(),
+    reason: z.string().optional(),
+  })).default([]),
+})
+```
 
-export type Fragment = z.infer<typeof FragmentSchema>;
+### Story Schema
 
-// --- Story ---
+```typescript
 export const StoryMetaSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  summary: z.string().default(''),     // Maintained by librarian
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  summary: z.string().default(''),            // Maintained by librarian
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
   settings: z.object({
     outputFormat: z.enum(['plaintext', 'markdown']).default('markdown'),
     enabledPlugins: z.array(z.string()).default([]),
+    summarizationThreshold: z.int().min(0).default(4),
+    maxSteps: z.int().min(1).max(50).default(10),
+    providerId: z.string().nullable().default(null),
+    modelId: z.string().nullable().default(null),
+    librarianProviderId: z.string().nullable().default(null),
+    librarianModelId: z.string().nullable().default(null),
+    autoApplyLibrarianSuggestions: z.boolean().default(false),
+    contextOrderMode: z.enum(['simple', 'advanced']).default('simple'),
+    fragmentOrder: z.array(z.string()).default([]),
+    contextCompact: z.object({
+      type: z.enum(['proseLimit', 'maxTokens', 'maxCharacters']),
+      value: z.number().int().min(1),
+    }).default({ type: 'proseLimit', value: 10 }),
   }),
-});
-
-export type StoryMeta = z.infer<typeof StoryMetaSchema>;
-
-// --- Associations ---
-export const AssociationsSchema = z.object({
-  // tag -> fragmentId[]
-  tagIndex: z.record(z.array(FragmentIdSchema)).default({}),
-  // fragmentId -> fragmentId[] (bidirectional refs tracked here)
-  refIndex: z.record(z.array(FragmentIdSchema)).default({}),
-});
+})
 ```
 
-### Fragment ID Generation
+### Prose Chain
+
+Prose is ordered via a chain with variation support:
 
 ```typescript
-// lib/fragment-ids.ts
-const PREFIXES: Record<string, string> = {
-  prose: 'pr',
-  character: 'ch',
-  guideline: 'gl',
-  knowledge: 'kn',
-};
-
-export function generateFragmentId(type: string): string {
-  const prefix = PREFIXES[type] ?? type.slice(0, 2);
-  const suffix = Math.random().toString(36).slice(2, 6); // 4 chars
-  return `${prefix}-${suffix}`;
-}
+export const ProseChainSchema = z.object({
+  entries: z.array(z.object({
+    proseFragments: z.array(FragmentIdSchema),  // All variations
+    active: FragmentIdSchema,                    // Currently selected variation
+  })),
+})
 ```
+
+### Provider Config
+
+```typescript
+export const ProviderConfigSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  preset: z.string().default('custom'),     // 'deepseek', 'openai', 'anthropic', 'openrouter', 'custom'
+  baseURL: z.string().url(),
+  apiKey: z.string().min(1),
+  defaultModel: z.string().min(1),
+  enabled: z.boolean().default(true),
+  customHeaders: z.record(z.string(), z.string()).optional().default({}),
+  createdAt: z.iso.datetime(),
+})
+
+export const GlobalConfigSchema = z.object({
+  providers: z.array(ProviderConfigSchema).default([]),
+  defaultProviderId: z.string().nullable().default(null),
+})
+```
+
+### Fragment ID Prefixes
+
+| Type       | Prefix |
+|------------|--------|
+| prose      | `pr`   |
+| character  | `ch`   |
+| guideline  | `gl`   |
+| knowledge  | `kn`   |
+| image      | `im`   |
+| icon       | `ic`   |
+
+IDs are pronounceable (e.g. `ch-bokura`, `pr-katemi`). Plugins register their own prefixes.
 
 ---
 
 ## Fragment System
 
-### Storage Layer (`server/fragments/storage.ts`)
+### Storage
 
-All data lives on the filesystem under `data/stories/<storyId>/`.
+All data lives on the filesystem under `data/stories/<storyId>/`. Uses Node.js `fs/promises`.
 
-```
-Operation         | File path
-------------------|------------------------------------------
-Read fragment     | data/stories/{sid}/fragments/{fid}.json
-Write fragment    | data/stories/{sid}/fragments/{fid}.json
-Delete fragment   | rm data/stories/{sid}/fragments/{fid}.json
-List fragments    | readdir data/stories/{sid}/fragments/ + filter by prefix
-List stories      | readdir data/stories/
-Associations      | data/stories/{sid}/associations.json
-```
+Fragments support versioned updates — `updateFragmentVersioned()` snapshots the previous state into `versions[]` before applying changes.
 
-Uses `Bun.file()` and `Bun.write()` for performant filesystem access.
+### Type Registry
 
-### Fragment Type Registry (`server/fragments/registry.ts`)
+The registry (`src/server/fragments/registry.ts`) holds all fragment type definitions. Each type specifies:
+- `type`, `prefix`, `stickyByDefault`
+- `contextRenderer` — how to render the fragment into LLM context
+- `llmTools` — whether to generate type-specific LLM tools (default: true)
 
-Maintains a map of registered fragment types (built-in + plugin-contributed). Each type entry includes:
-- `type`: string identifier
-- `prefix`: 2-char ID prefix
-- `schema`: optional Zod schema extending base Fragment for type-specific `meta`
-- `sticky`: default stickiness behavior
-- `contextRenderer`: function that renders the fragment into LLM context format
-
-```typescript
-interface FragmentTypeDefinition {
-  type: string;
-  prefix: string;
-  schema?: z.ZodType;
-  stickyByDefault: boolean;
-  contextRenderer: (fragment: Fragment) => string;
-  shortlistFields?: (keyof Fragment)[];  // Fields to include in context shortlists
-}
-```
+Built-in types (prose, character, guideline, knowledge, image, icon) have `llmTools: false` because their content is included directly in context.
 
 ### Context Behavior
 
-| Fragment Type | In Context?               | Shortlist?                        | Notes                                |
-|---------------|---------------------------|-----------------------------------|--------------------------------------|
-| Prose         | Last N fragments (full)   | Full list (id, type, description) | N configurable, rest via tool call   |
-| Character     | Recently mentioned (full) | No auto-list                      | Rest via `fragmentList('character')` |
-| Guideline     | Sticky ones (full)        | Full list (id, name, description) | Retrieve via `fragmentGet(id)`       |
-| Knowledge     | Sticky ones (full)        | Full list (id, name, description) | Retrieve via `fragmentGet(id)`       |
+| Fragment Type | In Context?               | Shortlist?                        |
+|---------------|---------------------------|-----------------------------------|
+| Prose         | Last N (configurable)     | Full list (id, type, description) |
+| Character     | Sticky ones (full)        | Full list (id, name, description) |
+| Guideline     | Sticky ones (full)        | Full list (id, name, description) |
+| Knowledge     | Sticky ones (full)        | Full list (id, name, description) |
 
 ---
 
-## Fragment Tool Calls (LLM Tools)
+## Context Block System
 
-These are tools provided to the LLM during generation so it can look up context on demand.
+The context builder produces discrete **blocks** that can be manipulated before compilation into LLM messages. See `docs/context-blocks.md` for full documentation.
 
-```typescript
-// server/llm/tools.ts
-import { tool } from 'ai';
-import { z } from 'zod';
-
-export function createFragmentTools(storyId: string) {
-  return {
-    fragmentGet: tool({
-      description: 'Get the full content of a fragment by its ID',
-      parameters: z.object({
-        fragmentId: z.string().describe('The fragment ID (e.g. ch-a1b2)'),
-      }),
-      execute: async ({ fragmentId }) => {
-        // Read from filesystem and return
-      },
-    }),
-
-    fragmentSet: tool({
-      description: 'Overwrite a fragment with entirely new content',
-      parameters: z.object({
-        fragmentId: z.string(),
-        newContent: z.string(),
-        newDescription: z.string().max(50),
-      }),
-      execute: async ({ fragmentId, newContent, newDescription }) => {
-        // Overwrite fragment on disk
-      },
-    }),
-
-    fragmentEdit: tool({
-      description: 'Edit a fragment by replacing a specific text span (for large prose/knowledge)',
-      parameters: z.object({
-        fragmentId: z.string(),
-        oldText: z.string(),
-        newText: z.string(),
-      }),
-      execute: async ({ fragmentId, oldText, newText }) => {
-        // String replace in content
-      },
-    }),
-
-    fragmentDelete: tool({
-      description: 'Delete a fragment',
-      parameters: z.object({
-        fragmentId: z.string(),
-      }),
-      execute: async ({ fragmentId }) => {
-        // Remove file from disk, update associations
-      },
-    }),
-
-    fragmentList: tool({
-      description: 'List all fragments of a given type (returns id, name, description)',
-      parameters: z.object({
-        type: z.string().describe('Fragment type: prose, character, guideline, knowledge'),
-      }),
-      execute: async ({ type }) => {
-        // Read dir, filter by prefix, return shortlist
-      },
-    }),
-
-    fragmentTypesList: tool({
-      description: 'List all available fragment types',
-      parameters: z.object({}),
-      execute: async () => {
-        // Return from registry
-      },
-    }),
-  };
-}
+```
+buildContextState() → beforeContext hooks → createDefaultBlocks() → applyBlockConfig() → beforeBlocks hooks → compileBlocks() → beforeGeneration hooks → streamText()
 ```
 
----
+### Default Blocks
 
-## Plugin System
+| Block ID | Role | Order | Content |
+|---|---|---|---|
+| `instructions` | system | 100 | Writing assistant instructions |
+| `tools` | system | 200 | Available tools listing |
+| `system-fragments` | system | 300 | System-placed sticky fragments |
+| `story-info` | user | 100 | Story name + description |
+| `summary` | user | 200 | Rolling story summary |
+| `user-fragments` | user | 300 | User-placed sticky fragments |
+| `shortlist-guidelines` | user | 400 | Non-sticky guideline shortlist |
+| `shortlist-knowledge` | user | 410 | Non-sticky knowledge shortlist |
+| `shortlist-characters` | user | 420 | Non-sticky character shortlist |
+| `prose` | user | 500 | Recent prose chain |
+| `author-input` | user | 600 | Author's direction |
 
-### Plugin Interface
-
-```typescript
-// server/plugins/types.ts
-import { Elysia } from 'elysia';
-import type { FragmentTypeDefinition } from '../fragments/registry';
-
-export interface PluginManifest {
-  name: string;
-  version: string;
-  description: string;
-}
-
-export interface WritingPlugin {
-  manifest: PluginManifest;
-
-  // Register custom fragment types
-  fragmentTypes?: FragmentTypeDefinition[];
-
-  // Register custom LLM tools
-  tools?: (storyId: string) => Record<string, ReturnType<typeof import('ai').tool>>;
-
-  // Register additional Elysia API routes under /api/plugins/<name>/*
-  routes?: (app: Elysia) => Elysia;
-
-  // Pipeline hooks
-  hooks?: {
-    // Before the LLM context is assembled
-    beforeContext?: (ctx: ContextBuildState) => ContextBuildState | Promise<ContextBuildState>;
-    // After context is assembled, before sending to LLM
-    beforeGeneration?: (messages: Message[]) => Message[] | Promise<Message[]>;
-    // After LLM responds, before saving
-    afterGeneration?: (result: GenerationResult) => GenerationResult | Promise<GenerationResult>;
-    // After the generated fragment is saved
-    afterSave?: (fragment: Fragment) => void | Promise<void>;
-  };
-}
-```
-
-### Plugin Lifecycle
-
-1. **Discovery**: On server start, scan `plugins/*/plugin.ts` for default exports implementing `WritingPlugin`.
-2. **Registration**: For each plugin:
-   - Register fragment types into the registry
-   - Mount API routes under `/api/plugins/<name>/`
-   - Register LLM tools into the tool pool
-   - Attach pipeline hooks
-3. **Activation**: Per-story, plugins are enabled/disabled via `story.settings.enabledPlugins`.
-4. **Execution**: During generation, only hooks from enabled plugins run.
-
-### Example Plugin: Names (`plugins/names/plugin.ts`)
-
-```typescript
-import type { WritingPlugin } from '../../src/server/plugins/types';
-import { tool } from 'ai';
-import { z } from 'zod';
-
-const namesPlugin: WritingPlugin = {
-  manifest: {
-    name: 'names',
-    version: '1.0.0',
-    description: 'Generate character names based on themes and cultures',
-  },
-
-  tools: (storyId) => ({
-    'plugin.names.generate': tool({
-      description: 'Generate a character name based on a theme or culture',
-      parameters: z.object({
-        theme: z.string().describe('Theme or culture for the name'),
-        gender: z.string().optional(),
-      }),
-      execute: async ({ theme, gender }) => {
-        // Call LLM or use a name database
-        return { name: '...' };
-      },
-    }),
-  }),
-};
-
-export default namesPlugin;
-```
+Users can customize blocks via the Block Editor (requires Advanced prompt control mode in Settings). Custom blocks can be static text or JavaScript scripts with access to the full story context.
 
 ---
 
 ## LLM Integration
 
-### Client Setup (`server/llm/client.ts`)
+### Multi-Provider Support
 
-```typescript
-import { createDeepSeek } from '@ai-sdk/deepseek';
+Model resolution chain: story settings → global default → `DEEPSEEK_API_KEY` env var fallback.
 
-export const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  // baseURL defaults to https://api.deepseek.com
-});
+Provider presets: DeepSeek, OpenAI, Anthropic, OpenRouter, Custom. Any OpenAI-compatible API works via `@ai-sdk/openai-compatible`. Stories can configure separate providers for generation and librarian.
 
-export const defaultModel = deepseek('deepseek-chat');
-```
+### LLM Tools
 
-### Context Builder (`server/llm/context-builder.ts`)
+Tools are dynamically generated per registered fragment type. Types with `llmTools: false` (all built-in types) are skipped since their content is already in context.
 
-Assembles the LLM prompt from fragments. The builder:
+**Always available (generic):**
+- `getFragment(id)` — get any fragment by ID
+- `listFragments(type?)` — list fragments, optionally filtered
+- `searchFragments(query, type?)` — full-text search across fragments
+- `listFragmentTypes()` — list registered types
 
-1. Loads the story metadata and summary
-2. Loads the last N prose fragments (full content)
-3. Loads sticky guideline/knowledge fragments (full content)
-4. Builds a shortlist of all guideline/knowledge fragments (id, name, description)
-5. Loads recently mentioned characters (detected by librarian)
-6. Runs `beforeContext` plugin hooks
-7. Assembles the final message array
+**Write tools (when not readOnly):**
+- `createFragment(type, name, description, content)`
+- `updateFragment(fragmentId, newContent, newDescription)`
+- `editFragment(fragmentId, oldText, newText)`
+- `deleteFragment(fragmentId)`
+- `editProse(oldText, newText)` — search-and-replace across active prose chain
+- `getStorySummary()` / `updateStorySummary(summary)`
 
-```typescript
-export async function buildContext(storyId: string, authorInput: string): Promise<Message[]> {
-  const story = await loadStoryMeta(storyId);
-  const enabledPlugins = getEnabledPlugins(story);
+**Per-type tools (for plugin types with `llmTools: true`):**
+- `get{Type}(id)`, `list{Types}()`
 
-  let ctx: ContextBuildState = {
-    story,
-    proseFragments: await getRecentProse(storyId, { limit: 5 }),
-    stickyGuidelines: await getStickyFragments(storyId, 'guideline'),
-    stickyKnowledge: await getStickyFragments(storyId, 'knowledge'),
-    guidelineShortlist: await getShortlist(storyId, 'guideline'),
-    knowledgeShortlist: await getShortlist(storyId, 'knowledge'),
-    recentCharacters: await getRecentlyMentionedCharacters(storyId),
-    authorInput,
-    pluginContextBlocks: [],
-  };
-
-  // Run plugin beforeContext hooks
-  for (const plugin of enabledPlugins) {
-    if (plugin.hooks?.beforeContext) {
-      ctx = await plugin.hooks.beforeContext(ctx);
-    }
-  }
-
-  return assembleMessages(ctx);
-}
-```
-
-### Generation Flow
+### Generation Pipeline
 
 ```
 Author Input
     |
-    v
-buildContext(storyId, input)       -- assemble fragment context
+buildContextState()                -- load fragments into typed state
     |
-    v
-beforeGeneration hooks             -- plugins modify messages
+beforeContext hooks                -- plugins modify state
     |
-    v
-streamText({                       -- Vercel AI SDK v6
-  model: defaultModel,
-  messages,
-  tools: {
-    ...createFragmentTools(storyId),
-    ...pluginTools,
-  },
-  stopWhen: stepCountIs(10),       -- allow multi-step tool use
-})
+createDefaultBlocks()              -- convert state to ContextBlock[]
     |
-    v
-Stream response to client          -- SSE via toUIMessageStreamResponse()
+applyBlockConfig()                 -- user's block customizations
     |
-    v
-afterGeneration hooks              -- plugins process result
+beforeBlocks hooks                 -- plugins manipulate blocks
     |
-    v
-Save as new prose fragment          -- fragmentSet
+compileBlocks()                    -- blocks → ContextMessage[]
     |
-    v
-afterSave hooks                     -- plugins post-save logic
+beforeGeneration hooks             -- plugins modify final messages
     |
-    v
-Trigger librarian (async)           -- background analysis
+streamText() with tools            -- Vercel AI SDK v6
+    |
+Stream to client (SSE)
+    |
+afterGeneration hooks
+    |
+Save prose fragment (versioned)
+    |
+afterSave hooks
+    |
+Trigger librarian (async)
 ```
 
 ---
 
-## Background Librarian Agent
+## Agent Framework
 
-The librarian is a background process that triggers after new prose is saved. It performs **full continuity management**.
-
-### Responsibilities
-
-1. **Summarize prose**: Update the story's rolling summary after new prose is generated.
-2. **Detect character mentions**: Scan new prose for character names, update a `recentlyMentioned` index.
-3. **Flag contradictions**: Compare new prose against existing knowledge/character fragments for inconsistencies.
-4. **Suggest knowledge updates**: If new world-building details appear in prose, suggest new knowledge fragments.
-5. **Maintain timeline**: Track temporal references and maintain a chronological event index.
-
-### Storage Types (`server/librarian/storage.ts`)
+A structured agent invocation system (`src/server/agents/`).
 
 ```typescript
-interface LibrarianAnalysis {
-  id: string                           // e.g. "la-abc123"
-  createdAt: string
-  fragmentId: string                   // The prose fragment that triggered this analysis
-  summaryUpdate: string                // Text appended to story.summary
-  mentionedCharacters: string[]        // Character fragment IDs detected
-  contradictions: Array<{
-    description: string
-    fragmentIds: string[]              // Conflicting fragment IDs
-  }>
-  knowledgeSuggestions: Array<{
-    name: string
-    description: string                // Max 50 chars
-    content: string
-  }>
-  timelineEvents: Array<{
-    event: string
-    position: 'before' | 'during' | 'after'  // Relative to previous prose
-  }>
-}
-
-interface LibrarianState {
-  lastAnalyzedFragmentId: string | null
-  recentMentions: Record<string, string[]>  // characterId -> [fragmentId where mentioned]
-  timeline: Array<{ event: string; fragmentId: string }>
+interface AgentDefinition<TInput, TOutput> {
+  name: string
+  description: string
+  inputSchema: ZodSchema
+  outputSchema?: ZodSchema
+  allowedCalls?: string[]
+  run: (ctx: AgentInvocationContext, input: TInput) => Promise<TOutput>
 }
 ```
 
-Storage functions: `saveAnalysis`, `getAnalysis`, `listAnalyses`, `getState`, `saveState`. Follows the same filesystem pattern as `generation-logs.ts`.
+The runner enforces depth limits, call count limits, and timeouts. Agents can invoke other agents via `ctx.invokeAgent()`. Traces are logged per-run.
 
-### Agent Logic (`server/librarian/agent.ts`)
+Core agents: `librarian.analyze`, `librarian.refine`, `librarian.chat`.
 
-```typescript
-export async function runLibrarian(dataDir: string, storyId: string, fragmentId: string): Promise<LibrarianAnalysis>
-```
+---
 
-1. Loads story meta, the new fragment, existing characters, existing knowledge
-2. Loads current librarian state (for running summary context)
-3. Calls `generateText()` with a structured prompt asking for JSON output
-4. Parses the JSON response (handles markdown fences)
-5. Appends `summaryUpdate` to `story.summary` via `updateStory()`
-6. Updates `recentMentions` and `timeline` in librarian state
-7. Saves the analysis result + updated state
-8. Returns the analysis
+## Background Librarian
 
-### Scheduling (`server/librarian/scheduler.ts`)
+Triggered after prose saves. Performs continuity management:
 
-```typescript
-const DEBOUNCE_MS = 2000
+1. Updates rolling story summary
+2. Detects character mentions
+3. Flags contradictions
+4. Suggests knowledge fragments
+5. Tracks timeline events
 
-function triggerLibrarian(dataDir: string, storyId: string, fragment: Fragment): void
-```
+Also supports interactive chat (ask questions about the story) and fragment refinement (improve a fragment via agent).
 
-- Triggered from `api.ts` after prose save (fire-and-forget, after `afterSave` hooks)
-- Debounced per-story: rapid successive saves only trigger one analysis
-- Errors are caught and logged to console, never bubble to the user
-- Helper functions `clearPending()` and `getPendingCount()` for testing
+Storage at `data/stories/<storyId>/librarian/` — state, analyses, and chat history.
 
-### Librarian API Routes
+---
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/stories/:storyId/librarian/status` | Get librarian state (last analyzed, mentions, timeline) |
-| GET | `/api/stories/:storyId/librarian/analyses` | List analysis summaries (newest first) |
-| GET | `/api/stories/:storyId/librarian/analyses/:id` | Get full analysis detail |
+## Plugin System
 
-### Frontend (`components/sidebar/LibrarianPanel.tsx`)
+Plugins implement `WritingPlugin` and can provide:
+- Custom fragment types
+- LLM tools
+- API routes under `/api/plugins/<name>/`
+- Pipeline hooks (`beforeContext`, `beforeBlocks`, `beforeGeneration`, `afterGeneration`, `afterSave`)
+- Sidebar UI panels (iframe-based for external plugins)
 
-Rendered in the DetailPanel when "Agent Activity" sidebar section is selected. Displays:
-- Current status (Idle indicator + last analyzed fragment)
-- Badge counts for total contradictions and suggestions
-- Character mentions index (character ID → mention count)
-- Timeline (last 10 events with fragment IDs)
-- Expandable analysis list — each analysis shows:
-  - Summary update text
-  - Mentioned characters as badges
-  - Contradictions highlighted in orange/warning style
-  - Knowledge suggestions with "Create Fragment" button (pre-fills FragmentEditor)
-  - Timeline events with position badges (before/during/after)
-- Auto-refreshes every 5 seconds via React Query `refetchInterval`
+Two plugin sources:
+1. **Bundled** — compiled into the app from `plugins/*/`
+2. **External** — loaded at runtime from `PLUGIN_DIR`
+
+Bundled plugins: `diceroll`, `keybinds`, `names`.
+
+Plugin SDK published as `@tealios/errata-plugin-sdk`. See `docs/third-party-plugins.md` for the development guide.
 
 ---
 
 ## Frontend
 
-### Pages
+### Routes
 
-| Route                          | Component                 | Description                                          |
-|--------------------------------|---------------------------|------------------------------------------------------|
-| `/`                            | `index.tsx`               | Story list - shows all stories, create new           |
-| `/story/:storyId`             | `story.$storyId.tsx`      | Main editor view with sidebar                        |
-| `/story/:storyId/wizard`      | `story.$storyId.wizard.tsx` | Creation wizard for new stories                   |
+| Route              | Component              | Description                    |
+|--------------------|------------------------|--------------------------------|
+| `/`                | `index.tsx`            | Story list, create/import      |
+| `/story/:storyId`  | `story.$storyId.tsx`   | Main editor view with sidebar  |
 
-### Main Editor Layout (`/story/:storyId`)
+The creation wizard (`StoryWizard.tsx`) is an overlay within the story route, not a separate route.
 
-```
-+-------+----------------------------------+
-| Side  |         Editor Area              |
-| bar   |                                  |
-|       |  [Previous prose - read only]    |
-| Prose |  [Previous prose - read only]    |
-| Chars |  ...                             |
-| Guide |  [Current prose - editable]      |
-| Know  |                                  |
-| Plugs |  --------------------------------|
-|       |  [Author input box]              |
-|       |  [Generate button]               |
-|       |                                  |
-|       |  [Streaming output area]         |
-+-------+----------------------------------+
-```
+### Key Patterns
 
-**Sidebar**: Collapsible panel with tabs for each fragment type. Each tab shows a list of fragments (name + description). Clicking a fragment opens it in an editor panel/modal. Fragments can be created, edited, deleted, tagged, and linked.
-
-**Editor area**: Scrollable view of the prose chain. The latest prose block is editable. Below it, an input area for author direction and a generate button. When generating, the streaming output appears below in real-time.
-
-### Creation Wizard (`/story/:storyId/wizard`)
-
-Multi-step wizard flow:
-
-1. **Story Setup** - Name, description, output format preference
-2. **Guidelines** - Create initial guidelines (tone, style, genre, rules)
-3. **Characters** - Define main characters
-4. **Knowledge** - World-building, setting details
-5. **Starting Prose** - Write or generate the opening prose
-
-Each step creates the corresponding fragments. The wizard can be re-entered later to add more.
-
-### Key Frontend Patterns
-
-- **React Query** for all server state (fragments, story meta, lists)
-- **Optimistic updates** for fragment edits
-- **SSE streaming** for LLM generation via Vercel AI SDK's `useChat` or `useCompletion`
-- **Eden Treaty** client for type-safe API calls (via `getTreaty()` isomorphic helper)
+- **React Query** for server state with auto-refresh
+- **Modular API client** (`src/lib/api/`) — typed fetch wrapper, no Eden Treaty on client side
+- **SSE streaming** for generation via Vercel AI SDK
+- **Theme system** with configurable prose fonts
+- **Responsive layout** with mobile support
 
 ---
 
 ## API Routes
 
-All API routes are defined in Elysia and mounted at `/api/*`.
+All routes mounted at `/api/*` via Elysia.
 
-### Fragment Routes (`/api/fragments`)
+### Stories & Fragments
 
-| Method   | Path                              | Description                           |
-|----------|-----------------------------------|---------------------------------------|
-| GET      | `/api/stories`                    | List all stories                      |
-| POST     | `/api/stories`                    | Create a new story                    |
-| GET      | `/api/stories/:storyId`           | Get story metadata                    |
-| PUT      | `/api/stories/:storyId`           | Update story metadata                 |
-| DELETE   | `/api/stories/:storyId`           | Delete a story                        |
-| GET      | `/api/stories/:sid/fragments`     | List fragments (query: `?type=prose`) |
-| GET      | `/api/stories/:sid/fragments/:fid`| Get a single fragment                 |
-| POST     | `/api/stories/:sid/fragments`     | Create a fragment                     |
-| PUT      | `/api/stories/:sid/fragments/:fid`| Update a fragment (full overwrite)    |
-| PATCH    | `/api/stories/:sid/fragments/:fid`| Edit a fragment (partial text replace)|
-| DELETE   | `/api/stories/:sid/fragments/:fid`| Delete a fragment                     |
-| GET      | `/api/stories/:sid/fragment-types`| List available fragment types         |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stories` | List stories |
+| POST | `/api/stories` | Create story |
+| GET | `/api/stories/:id` | Get story |
+| PUT | `/api/stories/:id` | Update story |
+| DELETE | `/api/stories/:id` | Delete story |
+| GET | `/api/stories/:id/fragments` | List fragments (`?type=`) |
+| GET | `/api/stories/:id/fragments/:fid` | Get fragment |
+| POST | `/api/stories/:id/fragments` | Create fragment |
+| PUT | `/api/stories/:id/fragments/:fid` | Update fragment |
+| DELETE | `/api/stories/:id/fragments/:fid` | Delete fragment |
+| GET | `/api/stories/:id/prose-chain` | Get prose chain |
+| PUT | `/api/stories/:id/prose-chain` | Update prose chain |
 
-### LLM Routes (`/api/llm`)
+### Generation
 
-| Method | Path                               | Description                                |
-|--------|------------------------------------|--------------------------------------------|
-| POST   | `/api/stories/:sid/generate`       | Generate prose (streaming SSE response)     |
-| GET    | `/api/stories/:sid/generation-logs` | List recent generation debug logs          |
-| GET    | `/api/stories/:sid/generation-logs/:logId` | Get a specific generation debug log  |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/stories/:id/generate` | Generate prose (streaming SSE) |
+| GET | `/api/stories/:id/generation-logs` | List generation logs |
+| GET | `/api/stories/:id/generation-logs/:logId` | Get full log |
 
-### Librarian Routes (`/api/librarian`)
+### Blocks
 
-| Method | Path                                          | Description                              |
-|--------|-----------------------------------------------|------------------------------------------|
-| GET    | `/api/stories/:sid/librarian/status`          | Get librarian state (mentions, timeline) |
-| GET    | `/api/stories/:sid/librarian/analyses`        | List analysis summaries (newest first)   |
-| GET    | `/api/stories/:sid/librarian/analyses/:id`    | Get full analysis detail                 |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stories/:id/blocks` | Get block config + builtin metadata |
+| GET | `/api/stories/:id/blocks/preview` | Preview compiled context |
+| POST | `/api/stories/:id/blocks/custom` | Create custom block |
+| PUT | `/api/stories/:id/blocks/custom/:blockId` | Update custom block |
+| DELETE | `/api/stories/:id/blocks/custom/:blockId` | Delete custom block |
+| PATCH | `/api/stories/:id/blocks/config` | Update overrides/ordering |
 
-### Plugin Routes
+### Librarian
 
-Plugins mount under `/api/plugins/<plugin-name>/*`.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stories/:id/librarian/status` | Librarian state |
+| GET | `/api/stories/:id/librarian/analyses` | List analyses |
+| GET | `/api/stories/:id/librarian/analyses/:aid` | Get analysis |
+| POST | `/api/stories/:id/librarian/chat` | Chat with librarian |
+| POST | `/api/stories/:id/librarian/refine` | Refine a fragment |
+
+### Config
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/config` | Get global config |
+| POST | `/api/config/providers` | Add provider |
+| PUT | `/api/config/providers/:id` | Update provider |
+| DELETE | `/api/config/providers/:id` | Delete provider |
+
+### Plugins
+
+Plugins mount under `/api/plugins/<name>/*`. Plugin UI served from `/api/plugins/<name>/ui/*`.
 
 ---
 
-## Implementation Phases
+## Binary Distribution
 
-### Phase 1: Foundation
-> Goal: Working fragment CRUD with filesystem storage and basic UI shell
-> Approach: **Tests first** — write tests before implementation for each item.
+Compiles to a standalone Bun executable with static assets.
 
-- [ ] Initialize project: `bun create @tanstack/start@latest`, init git repo
-- [ ] Configure test runner (`bun test`), test setup file, temp directory helpers
-- [ ] Configure Elysia embedded in TanStack Start (`src/routes/api.$.ts`)
-- [ ] Set up Eden Treaty isomorphic client
-- [ ] **Test** → Implement Zod schemas for Fragment and StoryMeta (validate correct/invalid inputs)
-- [ ] **Test** → Implement fragment ID generation (correct prefixes, uniqueness, format)
-- [ ] **Test** → Implement filesystem storage layer (CRUD operations on temp dirs)
-- [ ] **Test** → Implement fragment type registry with built-in types
-- [ ] **Test** → Implement associations: tag index and ref index
-- [ ] **Test** → Build all fragment CRUD Elysia routes (use Eden Treaty in tests)
-- [ ] **Test** → Build story CRUD routes
-- [ ] Basic frontend shell: sidebar + content area
-- [ ] Story list page
-- [ ] Fragment list and detail views in sidebar
-- [ ] Fragment create/edit/delete UI
+```bash
+bun run build:binary     # Build binary (vite build + bun build --compile)
+bun run package:binary   # Zip binary + public/ assets
+bun run release:binary   # Both steps
+```
 
-### Phase 2: LLM Integration
-> Goal: Generate prose from author input using fragment context
-> Approach: **Tests first** — mock LLM responses for deterministic tests.
-
-- [x] Set up Vercel AI SDK with DeepSeek provider
-- [x] **Test** → Implement context builder (verify correct message assembly from fixtures)
-- [x] **Test** → Implement LLM tool definitions (verify schema, mock execute functions)
-- [x] **Test** → Build generation endpoint (mock AI SDK, verify streaming contract)
-- [x] **Test** → Save generated prose as new fragment (verify storage side effects)
-- [x] Author input UI + generate button
-- [x] Streaming output display in editor
-- [x] Wire up the full generation pipeline (context -> LLM -> stream -> save)
-- [x] **Integration test**: end-to-end generation with mocked LLM
-
-### Phase 3: Editor & Polish
-> Goal: Proper text editor experience and refined UX
-
-- [ ] Evaluate and integrate rich text editor (TipTap or Lexical)
-- [x] **Test** → Prose chain view (scrollable history of prose fragments)
-- [x] Editable current prose block (inline editing of last prose block)
-- [x] **Test** → Creation wizard (multi-step: Guidelines → Characters → Knowledge → Prose)
-- [x] **Test** → Fragment tagging UI (verify tag operations)
-- [x] **Test** → Fragment association/linking UI (verify ref operations)
-- [x] Sidebar improvements: search, filter by tag, sort
-- [x] **Test** → Generation debug view (show full prompt + tool calls for each generation)
-
-#### Generation Debug View
-
-A toggleable debug panel that shows exactly what was sent to the LLM and what tool calls it made during prose generation. Essential for understanding and tuning the context assembly.
-
-**Backend changes:**
-- New endpoint: `GET /api/stories/:storyId/generation-logs/:logId` — fetch a stored generation log
-- New endpoint: `GET /api/stories/:storyId/generation-logs` — list recent generation logs
-- On each generation, persist a log entry to `data/stories/<storyId>/generation-logs/<timestamp>.json` containing:
-  ```json
-  {
-    "id": "<timestamp>",
-    "createdAt": "...",
-    "input": "author's input text",
-    "messages": [
-      { "role": "system", "content": "..." },
-      { "role": "user", "content": "..." }
-    ],
-    "toolCalls": [
-      {
-        "toolName": "fragmentGet",
-        "args": { "fragmentId": "ch-a1b2" },
-        "result": { "id": "ch-a1b2", "name": "Alice", "..." : "..." }
-      }
-    ],
-    "generatedText": "The resulting prose...",
-    "fragmentId": "pr-xxxx or null",
-    "model": "deepseek-chat",
-    "durationMs": 1234
-  }
-  ```
-- Capture tool calls from AI SDK's `streamText()` result via `result.toolCalls` / `result.steps` (accumulate during streaming)
-
-**Frontend:**
-- `src/components/generation/DebugPanel.tsx` — collapsible panel showing:
-  - **Prompt tab**: full system message and user message, syntax-highlighted or in a `<pre>` block with sections clearly labeled (story meta, sticky fragments, shortlists, prose chain, tool hints)
-  - **Tool calls tab**: chronological list of tool invocations with expandable args/results
-  - **Stats**: model name, total tokens (if available), duration, fragment ID of saved result
-- Toggle button in `GenerationPanel` header: "Debug" that opens/closes the debug view
-- Also accessible from prose blocks that have `meta.generatedFrom` — clicking the "AI" badge opens the debug log for that generation
-- Each generation log is linked to the resulting prose fragment via `fragmentId`
-
-### Phase 4: Plugin System
-> Goal: Extensible plugin architecture
-> Approach: **Tests first** — test plugin loading, registration, and hook execution.
-
-- [ ] Define WritingPlugin interface
-- [ ] **Test** → Plugin discovery and loading from `plugins/*/plugin.ts`
-- [ ] **Test** → Plugin fragment type registration (verify registry updates)
-- [ ] **Test** → Plugin tool registration (verify tools appear in tool pool)
-- [ ] **Test** → Plugin route mounting (verify routes respond)
-- [ ] **Test** → Pipeline hooks execution order and data flow
-- [ ] **Test** → Per-story plugin enable/disable
-- [ ] Build example plugin: `names`
-- [ ] Plugin management UI in sidebar
-
-### Phase 5: Background Librarian
-> Goal: Automated continuity management
-> Approach: **Tests first** — use fixture prose and mock LLM for deterministic analysis.
-
-- [x] **Test** → Librarian storage layer (save/load analysis, list, state persistence)
-- [x] **Test** → Librarian agent core logic (given fixture prose, expect structured analysis)
-- [x] **Test** → Summary maintenance (verify summary updates append correctly)
-- [x] **Test** → Character mention detection (given known characters + prose, expect matches)
-- [x] **Test** → Contradiction detection (given conflicting facts, expect flags)
-- [x] **Test** → Knowledge fragment suggestions (given new world details, expect suggestions)
-- [x] **Test** → Timeline tracking (given temporal markers, expect ordered events)
-- [x] **Test** → Scheduling: trigger after prose save, debounce (verify timing)
-- [x] **Test** → Librarian API routes (status, analyses list, analysis detail, 404)
-- [x] Librarian status UI (LibrarianPanel with analyses, suggestions, contradictions)
-- [x] Wire librarian trigger into generation pipeline (fire-and-forget after afterSave)
-- [x] Frontend API client methods (api.librarian.getStatus, listAnalyses, getAnalysis)
-- [x] Sidebar integration (Agent Activity section clickable, opens LibrarianPanel)
-
-### Phase 6: Hardening
-> Goal: Production readiness
-
-- [ ] Error handling across all routes (test error responses)
-- [ ] Input validation on all endpoints (test boundary cases)
-- [ ] Loading states and error states in UI
-- [ ] Responsive design
-- [ ] Keyboard shortcuts (generate, save, navigate fragments)
-- [ ] Environment variable configuration (API keys, data dir, etc.)
-- [ ] Performance: lazy loading fragments, pagination for large story lists
-- [ ] CI: run full test suite on commit
+GitHub Actions (`.github/workflows/release-binary.yml`) builds for Windows x64, Linux x64, and macOS ARM64 on every release tag.
 
 ---
 
 ## Development Workflow
 
-### Tests-First Approach
+Tests first, conventional commits.
 
-Every feature follows this cycle:
-
-1. **Write the test** — Define the expected behavior in a `*.test.ts` file.
-2. **Run the test** — Confirm it fails (red).
-3. **Implement** — Write the minimum code to make the test pass (green).
-4. **Commit** — Commit the test + implementation together.
-5. **Refactor** — Clean up if needed, re-run tests, commit again.
-
-```
-Write test (red) → Implement (green) → Commit → Refactor → Commit
+```bash
+bun install              # Install dependencies
+bun run dev              # Dev server on port 3000
+bun run test             # Run all tests (vitest)
+bun run test:watch       # Watch mode
 ```
 
 ### Testing Strategy
 
-| Layer              | Tool                        | Approach                                                   |
-|--------------------|-----------------------------|------------------------------------------------------------|
-| Zod schemas        | `bun test`                  | Validate correct inputs pass, invalid inputs throw         |
-| Storage layer      | `bun test` + temp dirs      | CRUD against real filesystem in temp directories           |
-| API routes         | `bun test` + Eden Treaty    | Call Elysia routes via Treaty, assert responses            |
-| Context builder    | `bun test` + fixtures       | Fixed fragment fixtures → assert correct message assembly  |
-| LLM tools          | `bun test` + mocks          | Mock storage, verify tool execution side effects           |
-| Generation         | `bun test` + mock AI SDK    | Mock `streamText`, verify streaming contract and save      |
-| Plugins            | `bun test` + test plugin    | Load a test plugin, verify registration and hook execution |
-| Librarian          | `bun test` + mock AI SDK    | Fixture prose → mock LLM analysis → verify updates        |
-| React components   | `bun test` + RTL            | Render components, assert DOM output and interactions      |
-
-### Commit Discipline
-
-- **Commit after every meaningful edit**: each test + implementation pair, each refactor, each bug fix.
-- Commit messages follow conventional commits: `test(fragments): add storage CRUD tests`, `feat(fragments): implement filesystem storage`.
-- Keep commits atomic — one logical change per commit.
-- Tests must pass before committing.
-
-### Test File Conventions
-
-- Test files live in `tests/` mirroring the `src/server/` structure.
-- Component tests live in `tests/components/`.
-- Test files are named `*.test.ts` (server) or `*.test.tsx` (components).
-- Use `beforeEach` / `afterEach` to create and clean up temp directories.
-- Fixture data lives in `tests/fixtures/` as JSON files.
-
-### Running Tests
-
-```bash
-bun test                    # Run all tests
-bun test --watch            # Watch mode
-bun test tests/fragments/   # Run fragment tests only
-bun test --filter "storage" # Filter by name
-```
+| Layer | Approach |
+|-------|----------|
+| Schemas | Validate correct/invalid inputs |
+| Storage | Real filesystem in temp directories |
+| API routes | Call Elysia via `app.fetch(new Request(...))` |
+| Context builder | Fixed fragment fixtures, assert message assembly |
+| LLM/generation | Mock AI SDK (`streamText`, `generateText`) |
+| Agents | Mock agent runner, verify invocation and traces |
+| Blocks | Test config application and block manipulation |
+| Plugins | Test plugin fixture, verify registration and hooks |
+| Librarian | Fixture prose, mock LLM, verify analysis updates |
 
 ---
 
 ## Environment Variables
 
-```env
-DEEPSEEK_API_KEY=your-api-key-here
-DATA_DIR=./data
-PORT=3000
-```
-
----
-
-## Open Questions / Decisions for Later
-
-1. **Rich text editor**: TipTap vs Lexical - evaluate during Phase 3 based on markdown support and extensibility.
-2. ~~**Fragment versioning**~~: **DECIDED** — Keep a full history of generated fragments. History should be accessible, especially when viewing previously generated prose. Implementation: store version snapshots (e.g. `fragments/<id>/versions/<timestamp>.json`) alongside the current fragment. UI should allow browsing past versions when viewing generated prose.
-3. **Multi-user**: Currently single-user. If needed later, add auth layer.
-4. **Export**: Export story as single markdown/text file. Nice-to-have for Phase 6.
-5. ~~**Librarian feedback loop**~~: **DECIDED** — Approval-based with auto-apply option. Librarian suggestions require author approval by default, but users can toggle an auto-apply mode for trusted operations. UI should show pending suggestions with accept/reject controls, plus a global toggle for auto-apply.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEEPSEEK_API_KEY` | — | Fallback LLM provider key |
+| `DATA_DIR` | `./data` | Filesystem storage root |
+| `PORT` | `3000` | Server port |
+| `PLUGIN_DIR` | — | External plugin directory |
+| `PLUGIN_EXTERNAL_OVERRIDE` | — | Allow external plugins to replace bundled ones |

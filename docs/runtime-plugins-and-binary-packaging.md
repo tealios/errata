@@ -128,10 +128,7 @@ Bundled plugins can still use `entry.client.ts` React panels discovered at build
 
 ## Standalone Binary Workflow
 
-For Bun executable packaging, runtime plugin support works like this:
-
-- Bundled plugins are inside the binary.
-- External plugins are loaded from `PLUGIN_DIR` at runtime from disk.
+Bundled plugins are inside the binary. External plugins are loaded from `PLUGIN_DIR` at runtime from disk.
 
 Run example (Windows):
 
@@ -141,49 +138,41 @@ set PLUGIN_EXTERNAL_OVERRIDE=1
 errata.exe
 ```
 
-Example plugin panel URL when enabled:
-
-- `http://localhost:3000/api/plugins/my-plugin/ui/`
-
 Run example (Linux/macOS):
 
 ```bash
 PLUGIN_DIR=/opt/errata/plugins PLUGIN_EXTERNAL_OVERRIDE=1 ./errata
 ```
 
-## Build + Package Commands (Current)
+Plugin panel URL when enabled: `http://localhost:3000/api/plugins/my-plugin/ui/`
+
+## Build + Package Commands
 
 Use the project scripts instead of calling `bun build --compile` directly:
 
 ```bash
-bun run build:binary
+bun run build:binary     # vite build + bun build --compile → dist/errata(.exe) + dist/public/
+bun run package:binary   # zip binary + public/ → dist/errata-bundle.zip
+bun run release:binary   # both steps
 ```
 
-Build output:
+The binary wrapper (`scripts/binary-entry.mjs`) remaps virtual Bun paths so runtime asset reads resolve to `dist/public/`.
 
-- `dist/errata*.exe`
-- `dist/public/` (required at runtime for static assets)
+## CI: Automated Release Builds
 
-Create a distributable zip:
+The GitHub Actions workflow at `.github/workflows/release-binary.yml` builds binaries automatically on every release publish.
 
-```bash
-bun run package:binary
-```
+It builds on three platforms in parallel:
 
-Output:
+| Runner | Artifact |
+|--------|----------|
+| `windows-latest` | `errata-windows-x64.zip` |
+| `ubuntu-latest` | `errata-linux-x64.zip` |
+| `macos-latest` | `errata-macos-arm64.zip` |
 
-- `dist/errata-bundle.zip` (binary + required `public/` + README)
+Each zip contains the compiled binary + `public/` static assets. Archives are uploaded to the GitHub release as assets.
 
-Full release flow:
-
-```bash
-bun run release:binary
-```
-
-Why this is required:
-
-- Nitro output expects static assets from `public/`.
-- The binary wrapper remaps virtual Bun paths so runtime asset reads resolve to `dist/public`.
+To trigger: create a release on GitHub (or `gh release create v1.x.x`).
 
 ## Packaging Notes
 

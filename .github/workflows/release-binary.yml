@@ -1,0 +1,51 @@
+name: Release Binary
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+            binary: errata.exe
+          - os: ubuntu-latest
+            name: linux-x64
+            binary: errata
+          - os: macos-latest
+            name: macos-arm64
+            binary: errata
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary
+        run: bun run build:binary
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: 7z a "dist/errata-${{ matrix.name }}.zip" ./dist/${{ matrix.binary }} ./dist/public/
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: cd dist && zip -r "errata-${{ matrix.name }}.zip" ${{ matrix.binary }} public/
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/errata-${{ matrix.name }}.zip
