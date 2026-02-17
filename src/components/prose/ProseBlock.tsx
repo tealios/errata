@@ -22,6 +22,7 @@ interface ProseBlockProps {
   onDebugLog?: (logId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
+  mentionColors?: Map<string, string>
   onClickMention?: (fragmentId: string) => void
 }
 
@@ -37,6 +38,7 @@ export function ProseBlock({
   onDebugLog,
   quickSwitch,
   mentionsEnabled,
+  mentionColors,
   onClickMention,
 }: ProseBlockProps) {
   // isFirst/isLast are part of the interface for future use
@@ -289,8 +291,8 @@ export function ProseBlock({
   const annotations = fragment.meta?.annotations as Annotation[] | undefined
   const textTransform = useMemo(() => {
     if (!mentionsEnabled || !annotations || !onClickMention) return undefined
-    return buildAnnotationHighlighter(annotations, onClickMention) ?? undefined
-  }, [mentionsEnabled, annotations, onClickMention])
+    return buildAnnotationHighlighter(annotations, onClickMention, mentionColors) ?? undefined
+  }, [mentionsEnabled, annotations, onClickMention, mentionColors])
 
   if (editing) {
     return (

@@ -38,7 +38,9 @@ You have five reporting tools. Use them to report your findings:
 5. reportTimeline — Note significant events. "position" is relative to the previous prose: "before" if it's a flashback, "during" if concurrent, "after" if it follows sequentially.
 
 Always call updateSummary. Only call the other tools if there are relevant findings.
-If there are no contradictions, suggestions, mentions, or timeline events, don't call those tools.`
+If there are no contradictions, suggestions, mentions, or timeline events, don't call those tools.
+Only return an extremely concise summary of what you did afterwards.
+`
 
 function buildUserPrompt(
   summary: string,

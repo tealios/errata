@@ -527,15 +527,13 @@ export function createApp(dataDir: string = DATA_DIR) {
     })
 
     // --- Tags ---
-    .get('/stories/:storyId/fragments/:fragmentId/tags', async ({ params }) => {
-      const assoc = await getAssociations(dataDir, params.storyId)
-      const tags: string[] = []
-      for (const [tag, ids] of Object.entries(assoc.tagIndex)) {
-        if (ids.includes(params.fragmentId)) {
-          tags.push(tag)
-        }
+    .get('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, set }) => {
+      const fragment = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!fragment) {
+        set.status = 404
+        return { error: 'Fragment not found' }
       }
-      return { tags }
+      return { tags: fragment.tags }
     })
 
     .post('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, body }) => {

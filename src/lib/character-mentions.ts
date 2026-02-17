@@ -19,6 +19,7 @@ function escapeRegex(str: string): string {
 export function buildAnnotationHighlighter(
   annotations: Annotation[],
   onClick: (fragmentId: string) => void,
+  colorOverrides?: Map<string, string>,
 ): ((text: string) => ReactNode) | null {
   const mentions = annotations.filter(a => a.type === 'mention')
   if (mentions.length === 0) return null
@@ -63,7 +64,7 @@ export function buildAnnotationHighlighter(
         parts.push(text.slice(lastIndex, match.index))
       }
 
-      const color = colorForId(annotation.fragmentId)
+      const color = colorOverrides?.get(annotation.fragmentId) ?? colorForId(annotation.fragmentId)
       parts.push(
         createElement(
           'span',

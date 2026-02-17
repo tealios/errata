@@ -94,8 +94,8 @@ export const StoryMetaSchema = z.object({
 export type StoryMeta = z.infer<typeof StoryMetaSchema>
 
 export const AssociationsSchema = z.object({
-  tagIndex: z.record(z.string(), z.array(FragmentIdSchema)).default({}),
-  refIndex: z.record(z.string(), z.array(FragmentIdSchema)).default({}),
+  tagIndex: z.record(z.string(), z.array(z.string())).default({}),
+  refIndex: z.record(z.string(), z.array(z.string())).default({}),
 })
 
 export type Associations = z.infer<typeof AssociationsSchema>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -55,6 +55,26 @@ export function ProseChainView({
     queryKey: ['fragments', storyId, 'prose'],
     queryFn: () => api.fragments.list(storyId, 'prose'),
   })
+
+  const { data: characterFragments = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'character'],
+    queryFn: () => api.fragments.list(storyId, 'character'),
+    enabled: mentionsEnabled,
+  })
+
+  // Build color overrides from character `color=` tags
+  const mentionColors = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const char of characterFragments) {
+      const tag = char.tags.find(t => t.startsWith('color='))
+      if (!tag) continue
+      const value = tag.slice(6)
+      if (/^#[0-9a-fA-F]{3,8}$/.test(value) || value.startsWith('oklch(')) {
+        map.set(char.id, value)
+      }
+    }
+    return map
+  }, [characterFragments])
 
   // Get active fragment IDs from the chain (source of truth)
   const activeFragmentIds = proseChain?.entries.map(entry => entry.active) ?? []
@@ -238,6 +258,7 @@ export function ProseChainView({
                 onDebugLog={onDebugLog}
                 quickSwitch={quickSwitch}
                 mentionsEnabled={mentionsEnabled}
+                mentionColors={mentionColors}
                 onClickMention={handleMentionClick}
               />
             ))

@@ -1032,6 +1032,7 @@ function TagsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
     mutationFn: (tag: string) => api.fragments.addTag(storyId, fragmentId, tag),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags', storyId, fragmentId] })
+      queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
       setNewTag('')
     },
   })
@@ -1040,6 +1041,7 @@ function TagsSection({ storyId, fragmentId }: { storyId: string; fragmentId: str
     mutationFn: (tag: string) => api.fragments.removeTag(storyId, fragmentId, tag),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags', storyId, fragmentId] })
+      queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
     },
   })
 
