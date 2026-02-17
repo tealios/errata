@@ -51,7 +51,13 @@ Pre-built binaries are available on the [Releases](https://github.com/nokusukun/
 # Windows
 errata.exe
 
-# Linux / macOS
+# Linux
+chmod +x errata
+./errata
+
+# macOS — remove quarantine attribute first
+xattr -cr errata
+chmod +x errata
 ./errata
 ```
 
