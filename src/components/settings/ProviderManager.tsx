@@ -25,7 +25,7 @@ interface FormState {
   baseURL: string
   apiKey: string
   defaultModel: string
-  customHeaders: Array<{ key: string; value: string }>
+  customHeaders: Array<{ key: string; value: string; _id: string }>
 }
 
 const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-chat', customHeaders: [] }
@@ -139,7 +139,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
       baseURL: provider.baseURL,
       apiKey: '',
       defaultModel: provider.defaultModel,
-      customHeaders: Object.entries(headers).map(([key, value]) => ({ key, value })),
+      customHeaders: Object.entries(headers).map(([key, value]) => ({ key, value, _id: crypto.randomUUID() })),
     })
     setFetchedModels([])
     setFetchError(null)
@@ -331,7 +331,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                 <button
                   type="button"
                   className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-0.5 transition-colors"
-                  onClick={() => setForm({ ...form, customHeaders: [...form.customHeaders, { key: '', value: '' }] })}
+                  onClick={() => setForm({ ...form, customHeaders: [...form.customHeaders, { key: '', value: '', _id: crypto.randomUUID() }] })}
                 >
                   <Plus className="size-3" /> Add
                 </button>
@@ -341,7 +341,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
               ) : (
                 <div className="space-y-1.5">
                   {form.customHeaders.map((header, i) => (
-                    <div key={i} className="flex gap-1.5 items-center">
+                    <div key={header._id} className="flex gap-1.5 items-center">
                       <input
                         value={header.key}
                         onChange={(e) => {

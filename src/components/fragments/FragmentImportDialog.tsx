@@ -52,16 +52,24 @@ export function FragmentImportDialog({
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
   const [dragOver, setDragOver] = useState(false)
 
-  // When opened with initial data, populate immediately
+  // Manage dialog state on open/close
   useEffect(() => {
-    if (open && initialData) {
+    if (!open) {
+      setJsonText('')
+      setParsed(null)
+      setParseError(null)
+      setSelectedIndices(new Set())
+      setDragOver(false)
+      return
+    }
+    if (initialData) {
       setParsed(initialData)
       setJsonText(JSON.stringify(initialData, null, 2))
       setParseError(null)
       if (isBundle(initialData)) {
         setSelectedIndices(new Set(initialData.fragments.map((_, i) => i)))
       }
-    } else if (open && !initialData) {
+    } else {
       // Try reading clipboard automatically
       navigator.clipboard.readText().then((text) => {
         const result = parseErrataExport(text)
@@ -78,17 +86,6 @@ export function FragmentImportDialog({
       })
     }
   }, [open, initialData])
-
-  // Reset when closed
-  useEffect(() => {
-    if (!open) {
-      setJsonText('')
-      setParsed(null)
-      setParseError(null)
-      setSelectedIndices(new Set())
-      setDragOver(false)
-    }
-  }, [open])
 
   const handleTextChange = (text: string) => {
     setJsonText(text)
@@ -344,15 +341,15 @@ export function SingleFragmentPreview({
               {data.attachments.length} attached {data.attachments.length === 1 ? 'image' : 'images'}
             </div>
             <div className="flex gap-1.5">
-              {data.attachments.map((att, i) => {
+              {data.attachments.map((att) => {
                 const url = att.content.startsWith('data:image/') || att.content.startsWith('http')
                   ? att.content : null
                 return url ? (
-                  <div key={i} className="size-10 rounded border border-border/30 overflow-hidden bg-muted shrink-0">
+                  <div key={att.name} className="size-10 rounded border border-border/30 overflow-hidden bg-muted shrink-0">
                     <img src={url} alt={att.name} className="size-full object-cover" />
                   </div>
                 ) : (
-                  <div key={i} className="size-10 rounded border border-border/30 bg-muted flex items-center justify-center shrink-0">
+                  <div key={att.name} className="size-10 rounded border border-border/30 bg-muted flex items-center justify-center shrink-0">
                     <ImageIcon className="size-4 text-muted-foreground/30" />
                   </div>
                 )
@@ -436,7 +433,7 @@ export function BundlePreview({
             </div>
             {items.map(({ entry, index }) => (
               <div
-                key={index}
+                key={`${entry.type}-${entry.name}-${index}`}
                 onClick={() => onToggle(index)}
                 className={`flex items-center gap-2.5 w-full px-4 py-2 text-left transition-colors hover:bg-accent/30 cursor-pointer ${
                   selectedIndices.has(index) ? '' : 'opacity-50'

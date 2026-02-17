@@ -330,7 +330,7 @@ function ToolsTab({ log }: { log: GenerationLog }) {
 
         return (
           <div
-            key={i}
+            key={`${tc.toolName}-${i}`}
             className={cn(
               'rounded-lg border overflow-hidden transition-colors duration-200',
               isError ? 'border-destructive/20' : 'border-border/20',

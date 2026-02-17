@@ -56,7 +56,6 @@ export function ProseOutlinePanel({
         className={`shrink-0 flex flex-col border-l border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-250 ease-out overflow-hidden ${
           open ? 'w-56' : 'w-7'
         }`}
-        style={{ willChange: 'width' }}
       >
         {/* Toggle button — always inside the panel */}
         <div className={`shrink-0 flex pt-4 pb-2 ${open ? 'px-3' : 'justify-center'}`}>
@@ -152,10 +151,10 @@ export function ProseOutlinePanel({
           <>
             {/* Dot indicators */}
             <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 flex flex-col items-center py-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
-              {fragments.map((_, idx) => {
+              {fragments.map((fragment, idx) => {
                 const isActive = idx === activeIndex
                 return (
-                  <Tooltip key={idx}>
+                  <Tooltip key={fragment.id}>
                     <TooltipTrigger asChild>
                       <button
                         ref={isActive ? collapsedActiveRef : undefined}

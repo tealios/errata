@@ -12,7 +12,7 @@ import type { LibrarianAnalysis } from './storage'
 
 type KnowledgeSuggestion = LibrarianAnalysis['knowledgeSuggestions'][number]
 
-export interface ApplySuggestionResult {
+interface ApplySuggestionResult {
   fragmentId: string
   created: boolean
   updated: boolean

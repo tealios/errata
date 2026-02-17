@@ -1,11 +1,6 @@
 import type { tool } from 'ai'
 import type { WritingPlugin } from './types'
 
-export interface PluginToolEntry {
-  tool: ReturnType<typeof tool>
-  pluginName: string
-}
-
 export function collectPluginTools(
   plugins: WritingPlugin[],
   dataDir: string,

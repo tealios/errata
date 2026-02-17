@@ -114,12 +114,12 @@ export function FragmentEditor({
   }, [fragmentProp?.id])
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-    await queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] })
-    await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
-    if (fragment?.id) {
-      await queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] })
-    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] }),
+      ...(fragment?.id ? [queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] })] : []),
+    ])
   }
 
   const createMutation = useMutation({

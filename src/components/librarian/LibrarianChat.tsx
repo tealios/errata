@@ -300,7 +300,7 @@ export function LibrarianChat({ storyId }: LibrarianChatProps) {
 
           {messages.map((msg, i) => (
             <div
-              key={i}
+              key={`${msg.role}-${i}`}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div

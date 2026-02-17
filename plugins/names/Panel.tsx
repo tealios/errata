@@ -113,9 +113,12 @@ export function NamesPanel(_props: PluginPanelProps) {
             <div className="space-y-1">
               {history.map((item, i) => (
                 <div
-                  key={`${item.name}-${i}`}
+                  key={`${item.name}-${item.theme}-${item.gender}`}
+                  role="button"
+                  tabIndex={0}
                   className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-muted/50 cursor-pointer"
                   onClick={() => handleCopy(item.name)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopy(item.name) } }}
                 >
                   <span>{item.name}</span>
                   <span className="text-xs text-muted-foreground">

@@ -380,7 +380,7 @@ function StoryContent({ storyId, status }: LibrarianPanelProps & { status: Libra
               <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border/40" />
               <div className="space-y-0">
                 {status.timeline.slice(-10).map((entry, i) => (
-                  <div key={i} className="flex items-start gap-2.5 py-1 pl-0 relative">
+                  <div key={`${entry.fragmentId}-${entry.event}-${i}`} className="flex items-start gap-2.5 py-1 pl-0 relative">
                     <span className="relative z-10 mt-[5px] size-[7px] rounded-full bg-muted-foreground/20 ring-2 ring-background shrink-0" />
                     <div className="min-w-0">
                       <span className="text-[11px] text-foreground/65 leading-snug block">{entry.event}</span>
@@ -668,7 +668,7 @@ function AnalysisItem({
                   ? refinableFragments?.find((rf) => rf.id === fixableId)
                   : null
                 return (
-                  <div key={i} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
+                  <div key={`contradiction-${c.fragmentIds.join('-')}-${i}`} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
                     <div className="flex items-start justify-between gap-1">
                       <div>
                         <p className="text-foreground/70">{c.description}</p>
@@ -706,9 +706,9 @@ function AnalysisItem({
           {analysis.knowledgeSuggestions.length > 0 && (
             <div className="space-y-1.5">
               <span className="text-primary/70 text-[10px] font-medium">Suggestions</span>
-              {analysis.knowledgeSuggestions.map((s, i) => (
+              {analysis.knowledgeSuggestions.map((s) => (
                 <div
-                  key={i}
+                  key={`${s.type ?? 'knowledge'}-${s.name}`}
                   className={`rounded-md p-2 flex items-start justify-between gap-1 ${
                     s.accepted
                       ? 'bg-emerald-500/5 border border-emerald-500/10 opacity-60'
@@ -769,8 +769,8 @@ function AnalysisItem({
           {analysis.timelineEvents.length > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground/45 text-[10px]">Timeline events</span>
-              {analysis.timelineEvents.map((t, i) => (
-                <div key={i} className="flex items-center gap-1.5">
+              {analysis.timelineEvents.map((t) => (
+                <div key={`${t.position}-${t.event}`} className="flex items-center gap-1.5">
                   <Badge variant="outline" className="text-[9px] h-3.5 px-1">{t.position}</Badge>
                   <span className="text-foreground/60">{t.event}</span>
                 </div>
@@ -810,7 +810,7 @@ function StoredTraceViewer({ trace }: { trace: LibrarianAnalysis['trace'] }) {
       {expanded && (
         <div className="mt-1.5 space-y-1">
           {items.map((item, i) => (
-            <TraceItem key={i} item={item} />
+            <TraceItem key={`${item.kind}-${i}`} item={item} />
           ))}
         </div>
       )}
@@ -1004,7 +1004,7 @@ function LiveAnalysisTrace({ storyId }: { storyId: string }) {
         </div>
         <div className="space-y-0.5 max-h-32 overflow-y-auto">
           {items.map((item, i) => (
-            <LiveTraceItem key={i} item={item} />
+            <LiveTraceItem key={`${item.kind}-${i}`} item={item} />
           ))}
         </div>
       </div>

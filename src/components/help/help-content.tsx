@@ -126,7 +126,7 @@ export const HELP_SECTIONS: HelpSection[] = [
                 'Recent prose from the chain (context-limited)',
                 'Your author input',
               ].map((item, i) => (
-                <p key={i} className="text-[11.5px] text-foreground/55 leading-snug">
+                <p key={item} className="text-[11.5px] text-foreground/55 leading-snug">
                   <span className="text-muted-foreground/30 mr-1.5">{i + 1}.</span>{item}
                 </p>
               ))}

@@ -1733,7 +1733,3 @@ export function createApp(dataDir: string = DATA_DIR) {
 
   return app
 }
-
-export const app = createApp()
-
-export type App = typeof app

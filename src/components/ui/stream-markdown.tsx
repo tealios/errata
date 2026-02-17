@@ -82,7 +82,7 @@ function StreamingText({ content, className, textTransform }: { content: string;
   return (
     <>
       {paragraphs.map((p, i) => (
-        <p key={i} className={className}>
+        <p key={`${i}-${p.slice(0, 32)}`} className={className}>
           {textTransform ? textTransform(p) : p}
         </p>
       ))}

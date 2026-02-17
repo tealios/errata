@@ -55,11 +55,15 @@ export function ChevronRail({ direction, disabled, onClick, fragmentId }: Chevro
   return (
     <div
       ref={railRef}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={isLeft ? 'Previous variation' : 'Next variation'}
       className={`absolute top-0 bottom-0 w-12 z-20 flex items-center justify-center ${
         isLeft ? '-left-12' : '-right-12'
       }`}
       style={{ cursor: disabled ? 'default' : 'pointer' }}
       onClick={(e) => { e.stopPropagation(); if (!disabled) onClick() }}
+      onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
       data-component-id={`prose-${fragmentId}-variation-${direction}`}
     >
       <div

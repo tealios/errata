@@ -324,6 +324,9 @@ export function BlockEditorPanel({ storyId }: BlockEditorPanelProps) {
                 >
                   {/* Block header row */}
                   <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
                     draggable
                     onDragStart={() => handleDragStart(index)}
                     onDragEnter={() => handleDragEnter(index)}
@@ -334,9 +337,11 @@ export function BlockEditorPanel({ storyId }: BlockEditorPanelProps) {
                       dragIndex === index && 'opacity-40 scale-[0.97]',
                     )}
                     onClick={() => setExpandedId(isExpanded ? null : block.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : block.id) } }}
                   >
                     {/* Drag handle */}
                     <div
+                      role="presentation"
                       className="shrink-0 cursor-grab opacity-0 group-hover:opacity-50 transition-opacity duration-150 -ml-0.5"
                       onClick={(e) => e.stopPropagation()}
                     >

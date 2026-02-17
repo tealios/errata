@@ -207,18 +207,16 @@ function SectionView({ section, scrollAreaRef }: { section: HelpSection; scrollA
         <p className="text-[10px] text-muted-foreground/35 uppercase tracking-wider mb-2">On this page</p>
         <div className="space-y-1">
           {section.subsections.map((sub) => (
-            <a
+            <button
               key={sub.id}
-              href={`#help-${sub.id}`}
-              onClick={(e) => {
-                e.preventDefault()
+              onClick={() => {
                 if (scrollAreaRef.current) scrollToHelpAnchor(scrollAreaRef.current, sub.id)
               }}
-              className="block text-[11.5px] text-foreground/50 hover:text-foreground/80 transition-colors py-0.5"
+              className="block text-left text-[11.5px] text-foreground/50 hover:text-foreground/80 transition-colors py-0.5"
               data-component-id={componentId('help-nav', sub.id)}
             >
               {sub.title}
-            </a>
+            </button>
           ))}
         </div>
       </nav>

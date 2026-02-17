@@ -896,7 +896,7 @@ function CharactersStep({
           <div className="space-y-2">
             {characters.map((char, i) => (
               <div
-                key={i}
+                key={char.fragmentId ?? `char-${char.name}`}
                 className={`group p-3 rounded-xl border transition-colors ${
                   editingIndex === i
                     ? 'border-primary/25 bg-primary/[0.03]'
@@ -1048,7 +1048,7 @@ function CharactersStep({
                 </label>
                 {castParsed.map((char, i) => (
                   <label
-                    key={i}
+                    key={char.name}
                     className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
                       char.selected
                         ? 'border-primary/25 bg-primary/[0.03]'
@@ -1210,9 +1210,9 @@ function CompleteStep({
       <div className="space-y-6">
         {items.length > 0 ? (
           <div className="space-y-2">
-            {items.map((item, i) => (
+            {items.map((item) => (
               <div
-                key={i}
+                key={item.label}
                 className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-card/20"
               >
                 <Check className="size-4 text-primary/50 shrink-0" />
