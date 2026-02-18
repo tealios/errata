@@ -28,6 +28,7 @@ type ChatMessage =
 
 interface LibrarianChatProps {
   storyId: string
+  initialInput?: string
 }
 
 function ToolCallCard({ tc, defaultExpanded = false }: { tc: ToolCallInfo; defaultExpanded?: boolean }) {
@@ -136,7 +137,7 @@ function AssistantMessageView({ msg, streaming }: { msg: AssistantMessage; strea
   )
 }
 
-export function LibrarianChat({ storyId }: LibrarianChatProps) {
+export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -145,6 +146,19 @@ export function LibrarianChat({ storyId }: LibrarianChatProps) {
   const [loaded, setLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const initialInputAppliedRef = useRef<string | null>(null)
+
+  // Apply initial input when it changes or when component becomes visible
+  useEffect(() => {
+    if (initialInput && initialInput !== initialInputAppliedRef.current) {
+      setInput(initialInput)
+      initialInputAppliedRef.current = initialInput
+      // Focus the textarea after setting input
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 0)
+    }
+  })
 
   // Load persisted chat history on mount
   const { data: chatHistory } = useQuery({

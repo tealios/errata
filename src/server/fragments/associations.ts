@@ -4,18 +4,20 @@ import { existsSync } from 'node:fs'
 import { AssociationsSchema, type Associations } from './schema'
 import { getFragment, updateFragment } from './storage'
 import { createLogger } from '../logging/logger'
+import { getContentRoot } from './branches'
 
 const log = createLogger('tags')
 
-function associationsPath(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId, 'associations.json')
+async function associationsPath(dataDir: string, storyId: string): Promise<string> {
+  const root = await getContentRoot(dataDir, storyId)
+  return join(root, 'associations.json')
 }
 
 export async function getAssociations(
   dataDir: string,
   storyId: string
 ): Promise<Associations> {
-  const path = associationsPath(dataDir, storyId)
+  const path = await associationsPath(dataDir, storyId)
   if (!existsSync(path)) {
     return { tagIndex: {}, refIndex: {} }
   }
@@ -28,7 +30,7 @@ export async function saveAssociations(
   storyId: string,
   assoc: Associations
 ): Promise<void> {
-  const path = associationsPath(dataDir, storyId)
+  const path = await associationsPath(dataDir, storyId)
   await writeFile(path, JSON.stringify(assoc, null, 2), 'utf-8')
 }
 

@@ -21,3 +21,12 @@ export function generateFragmentId(type: string): string {
   }
   return `${prefix}-${chars.join('')}`
 }
+
+export function generateBranchId(): string {
+  const chars: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const pool = i % 2 === 0 ? CONSONANTS : VOWELS
+    chars.push(pool[Math.floor(Math.random() * pool.length)])
+  }
+  return `br-${chars.join('')}`
+}

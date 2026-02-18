@@ -114,3 +114,23 @@ export const ProseChainSchema = z.object({
 })
 
 export type ProseChain = z.infer<typeof ProseChainSchema>
+
+// --- Branch schemas ---
+
+export const BranchMetaSchema = z.object({
+  id: z.string(),
+  name: z.string().max(100),
+  order: z.int().min(0),
+  parentBranchId: z.string().optional(),
+  forkAfterIndex: z.int().min(0).optional(),
+  createdAt: z.iso.datetime(),
+})
+
+export type BranchMeta = z.infer<typeof BranchMetaSchema>
+
+export const BranchesIndexSchema = z.object({
+  branches: z.array(BranchMetaSchema),
+  activeBranchId: z.string(),
+})
+
+export type BranchesIndex = z.infer<typeof BranchesIndexSchema>

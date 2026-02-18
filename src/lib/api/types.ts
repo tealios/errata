@@ -266,6 +266,21 @@ export interface BlockPreviewResponse {
   blockCount: number
 }
 
+// Branch types
+export interface BranchMeta {
+  id: string
+  name: string
+  order: number
+  parentBranchId?: string
+  forkAfterIndex?: number
+  createdAt: string
+}
+
+export interface BranchesIndex {
+  branches: BranchMeta[]
+  activeBranchId: string
+}
+
 export type ChatEvent =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }

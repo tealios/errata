@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
@@ -15,6 +15,7 @@ interface ProseChainViewProps {
   onSelectFragment: (fragment: Fragment) => void
   onDebugLog?: (logId: string) => void
   onLaunchWizard?: () => void
+  onAskLibrarian?: (fragmentId: string) => void
 }
 
 export function ProseChainView({
@@ -22,6 +23,7 @@ export function ProseChainView({
   onSelectFragment,
   onDebugLog,
   onLaunchWizard,
+  onAskLibrarian,
 }: ProseChainViewProps) {
   const FOLLOW_GENERATION_KEY = 'errata:follow-generation'
   // State for streaming generation
@@ -223,6 +225,28 @@ export function ProseChainView({
     el?.scrollIntoView({ behavior: 'instant', block: 'start' })
   }, [])
 
+  const branchFromMutation = useMutation({
+    mutationFn: async (sectionIndex: number) => {
+      const name = window.prompt('Timeline name:')
+      if (!name?.trim()) throw new Error('Cancelled')
+      const index = await api.branches.list(storyId)
+      return api.branches.create(storyId, {
+        name: name.trim(),
+        parentBranchId: index.activeBranchId,
+        forkAfterIndex: sectionIndex,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    },
+  })
+
+  const handleBranchFrom = useCallback((sectionIndex: number) => {
+    branchFromMutation.mutate(sectionIndex)
+  }, [branchFromMutation])
+
   const handleMentionClick = useCallback((fragmentId: string) => {
     // Find the character fragment from the already-fetched prose fragments won't work;
     // we need to fetch the character fragment directly
@@ -256,6 +280,8 @@ export function ProseChainView({
                 isFirst={idx === 0}
                 onSelect={() => onSelectFragment(fragment)}
                 onDebugLog={onDebugLog}
+                onBranchFrom={handleBranchFrom}
+                onAskLibrarian={onAskLibrarian}
                 quickSwitch={quickSwitch}
                 mentionsEnabled={mentionsEnabled}
                 mentionColors={mentionColors}

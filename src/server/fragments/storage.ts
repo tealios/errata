@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { PREFIXES } from '@/lib/fragment-ids'
+import { getContentRoot, initBranches } from './branches'
 
 // --- Path helpers ---
 
@@ -18,12 +19,14 @@ function storyMetaPath(dataDir: string, storyId: string) {
   return join(storyDir(dataDir, storyId), 'meta.json')
 }
 
-function fragmentsDir(dataDir: string, storyId: string) {
-  return join(storyDir(dataDir, storyId), 'fragments')
+async function fragmentsDir(dataDir: string, storyId: string) {
+  const root = await getContentRoot(dataDir, storyId)
+  return join(root, 'fragments')
 }
 
-function fragmentPath(dataDir: string, storyId: string, fragmentId: string) {
-  return join(fragmentsDir(dataDir, storyId), `${fragmentId}.json`)
+async function fragmentPath(dataDir: string, storyId: string, fragmentId: string) {
+  const dir = await fragmentsDir(dataDir, storyId)
+  return join(dir, `${fragmentId}.json`)
 }
 
 // --- JSON read/write helpers ---
@@ -67,7 +70,7 @@ export async function createStory(
 ): Promise<void> {
   const dir = storyDir(dataDir, story.id)
   await mkdir(dir, { recursive: true })
-  await mkdir(fragmentsDir(dataDir, story.id), { recursive: true })
+  await initBranches(dataDir, story.id)
   await writeJson(storyMetaPath(dataDir, story.id), story)
 }
 
@@ -119,10 +122,10 @@ export async function createFragment(
   storyId: string,
   fragment: Fragment
 ): Promise<void> {
-  const dir = fragmentsDir(dataDir, storyId)
+  const dir = await fragmentsDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
   const normalized = normalizeFragment(fragment)
-  await writeJson(fragmentPath(dataDir, storyId, fragment.id), normalized)
+  await writeJson(await fragmentPath(dataDir, storyId, fragment.id), normalized)
 }
 
 export async function getFragment(
@@ -130,7 +133,7 @@ export async function getFragment(
   storyId: string,
   fragmentId: string
 ): Promise<Fragment | null> {
-  const fragment = await readJson<Fragment>(fragmentPath(dataDir, storyId, fragmentId))
+  const fragment = await readJson<Fragment>(await fragmentPath(dataDir, storyId, fragmentId))
   return normalizeFragment(fragment)
 }
 
@@ -140,7 +143,7 @@ export async function listFragments(
   type?: string,
   opts?: { includeArchived?: boolean }
 ): Promise<Fragment[]> {
-  const dir = fragmentsDir(dataDir, storyId)
+  const dir = await fragmentsDir(dataDir, storyId)
   if (!existsSync(dir)) return []
 
   const includeArchived = opts?.includeArchived ?? false
@@ -179,7 +182,7 @@ export async function archiveFragment(
     archived: true,
     updatedAt: new Date().toISOString(),
   }
-  await writeJson(fragmentPath(dataDir, storyId, fragmentId), updated)
+  await writeJson(await fragmentPath(dataDir, storyId, fragmentId), updated)
   return updated
 }
 
@@ -195,7 +198,7 @@ export async function restoreFragment(
     archived: false,
     updatedAt: new Date().toISOString(),
   }
-  await writeJson(fragmentPath(dataDir, storyId, fragmentId), updated)
+  await writeJson(await fragmentPath(dataDir, storyId, fragmentId), updated)
   return updated
 }
 
@@ -205,7 +208,7 @@ export async function updateFragment(
   fragment: Fragment
 ): Promise<void> {
   const normalized = normalizeFragment(fragment)
-  await writeJson(fragmentPath(dataDir, storyId, fragment.id), normalized)
+  await writeJson(await fragmentPath(dataDir, storyId, fragment.id), normalized)
 }
 
 export async function updateFragmentVersioned(
@@ -299,7 +302,7 @@ export async function deleteFragment(
   storyId: string,
   fragmentId: string
 ): Promise<void> {
-  const path = fragmentPath(dataDir, storyId, fragmentId)
+  const path = await fragmentPath(dataDir, storyId, fragmentId)
   if (existsSync(path)) {
     await rm(path)
   }

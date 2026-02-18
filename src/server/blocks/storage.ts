@@ -1,11 +1,13 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { BlockConfigSchema } from './schema'
 import type { BlockConfig, CustomBlockDefinition, BlockOverride } from './schema'
+import { getContentRoot } from '../fragments/branches'
 
-function blockConfigPath(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId, 'block-config.json')
+async function blockConfigPath(dataDir: string, storyId: string): Promise<string> {
+  const root = await getContentRoot(dataDir, storyId)
+  return join(root, 'block-config.json')
 }
 
 function emptyConfig(): BlockConfig {
@@ -13,7 +15,7 @@ function emptyConfig(): BlockConfig {
 }
 
 export async function getBlockConfig(dataDir: string, storyId: string): Promise<BlockConfig> {
-  const path = blockConfigPath(dataDir, storyId)
+  const path = await blockConfigPath(dataDir, storyId)
   if (!existsSync(path)) return emptyConfig()
 
   try {
@@ -25,11 +27,7 @@ export async function getBlockConfig(dataDir: string, storyId: string): Promise<
 }
 
 export async function saveBlockConfig(dataDir: string, storyId: string, config: BlockConfig): Promise<void> {
-  const path = blockConfigPath(dataDir, storyId)
-  const dir = join(dataDir, 'stories', storyId)
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true })
-  }
+  const path = await blockConfigPath(dataDir, storyId)
   await writeFile(path, JSON.stringify(config, null, 2), 'utf-8')
 }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
-import { useTheme, useQuickSwitch, useCharacterMentions, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
+import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
 import { Settings2, ChevronRight, ChevronDown, ExternalLink, Eye, EyeOff, Puzzle, Wrench, RotateCcw, CircleHelp } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 
@@ -222,6 +222,7 @@ export function SettingsPanel({
   const { theme, setTheme } = useTheme()
   const [quickSwitch, setQuickSwitch] = useQuickSwitch()
   const [characterMentions, setCharacterMentions] = useCharacterMentions()
+  const [timelineBar, setTimelineBar] = useTimelineBar()
   const [proseWidth, setProseWidth] = useProseWidth()
   const [proseFontSize, setProseFontSize] = useProseFontSize()
   const [fontPrefs, setFont, resetFonts] = useFontPreferences()
@@ -276,6 +277,9 @@ export function SettingsPanel({
           </SettingRow>
           <SettingRow label="Character mentions" description="Highlight character names in prose">
             <ToggleSwitch on={characterMentions} onToggle={() => setCharacterMentions(!characterMentions)} label="Toggle character mentions" />
+          </SettingRow>
+          <SettingRow label="Timeline bar" description="Show timeline switcher above prose">
+            <ToggleSwitch on={timelineBar} onToggle={() => setTimelineBar(!timelineBar)} label="Toggle timeline bar" />
           </SettingRow>
           <SettingRow label="Prose width" description="Reading column width">
             <SegmentedControl<ProseWidth>

@@ -5,6 +5,12 @@ vi.mock('@/server/agents', () => ({
   invokeAgent: vi.fn(),
 }))
 
+// Mock the branches module — scheduler now resolves branch before debounce
+vi.mock('@/server/fragments/branches', () => ({
+  getActiveBranchId: vi.fn().mockResolvedValue('main'),
+  withBranch: vi.fn((_dataDir: string, _storyId: string, fn: () => Promise<unknown>, _branchId?: string) => fn()),
+}))
+
 // Import mocked modules AFTER vi.mock (vitest hoists mocks to top)
 import { invokeAgent } from '@/server/agents'
 import { triggerLibrarian, clearPending, getPendingCount, getLibrarianRuntimeStatus } from '@/server/librarian/scheduler'
@@ -58,7 +64,7 @@ describe('librarian scheduler', () => {
   })
 
   it('triggers librarian analyze agent after debounce period', async () => {
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
 
     expect(mockedInvokeAgent).not.toHaveBeenCalled()
     expect(getPendingCount()).toBe(1)
@@ -78,9 +84,9 @@ describe('librarian scheduler', () => {
   })
 
   it('debounces multiple rapid triggers for the same story', async () => {
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0002'))
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0003'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0002'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0003'))
 
     expect(getPendingCount()).toBe(1)
 
@@ -97,8 +103,8 @@ describe('librarian scheduler', () => {
   })
 
   it('runs independently for different stories', async () => {
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
-    triggerLibrarian('/data', 'story-2', makeFragment('pr-0002'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await triggerLibrarian('/data', 'story-2', makeFragment('pr-0002'))
 
     expect(getPendingCount()).toBe(2)
 
@@ -123,7 +129,7 @@ describe('librarian scheduler', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockedInvokeAgent.mockRejectedValue(new Error('LLM failed'))
 
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
 
     // Should not throw
     await vi.advanceTimersByTimeAsync(2000)
@@ -138,8 +144,8 @@ describe('librarian scheduler', () => {
   })
 
   it('clearPending cancels all pending runs', async () => {
-    triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
-    triggerLibrarian('/data', 'story-2', makeFragment('pr-0002'))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await triggerLibrarian('/data', 'story-2', makeFragment('pr-0002'))
 
     expect(getPendingCount()).toBe(2)
     clearPending()

@@ -10,6 +10,7 @@ import { StoryInfoPanel } from './StoryInfoPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { LibrarianPanel } from './LibrarianPanel'
 import { ArchivePanel } from './ArchivePanel'
+import { TimelineManagerPanel } from './TimelineManagerPanel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { X } from 'lucide-react'
@@ -49,6 +50,7 @@ const SECTION_TITLES: Record<string, string> = {
   knowledge: 'Knowledge',
   media: 'Media',
   archive: 'Archive',
+  branches: 'Timelines',
   'context-order': 'Fragment Order',
   'block-editor': 'Block Editor',
   settings: 'Settings',
@@ -163,6 +165,10 @@ export function DetailPanel({
 
       {activeSection === 'archive' && (
         <ArchivePanel storyId={storyId} />
+      )}
+
+      {activeSection === 'branches' && (
+        <TimelineManagerPanel storyId={storyId} />
       )}
 
       {SECTION_TO_TYPE[activeSection] && (

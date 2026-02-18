@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,7 +8,7 @@ import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, type Annotation } from '@/lib/character-mentions'
-import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2 } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare } from 'lucide-react'
 
 interface ProseBlockProps {
   storyId: string
@@ -20,6 +20,8 @@ interface ProseBlockProps {
   isFirst?: boolean
   onSelect: () => void
   onDebugLog?: (logId: string) => void
+  onBranchFrom?: (sectionIndex: number) => void
+  onAskLibrarian?: (fragmentId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
   mentionColors?: Map<string, string>
@@ -36,6 +38,8 @@ export function ProseBlock({
   isFirst,
   onSelect,
   onDebugLog,
+  onBranchFrom,
+  onAskLibrarian,
   quickSwitch,
   mentionsEnabled,
   mentionColors,
@@ -55,8 +59,27 @@ export function ProseBlock({
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showActions, setShowActions] = useState(false)
   const [actionInput, setActionInput] = useState('')
+  const [editingPrompt, setEditingPrompt] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
+  const promptInputRef = useRef<HTMLInputElement>(null)
+
+  // Provider quick-switch (fetched lazily, only rendered when editing prompt)
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
+  const { data: globalConfig } = useQuery({
+    queryKey: ['global-config'],
+    queryFn: () => api.config.getProviders(),
+  })
+  const providerMutation = useMutation({
+    mutationFn: (data: { providerId?: string | null; modelId?: string | null }) =>
+      api.settings.update(storyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+    },
+  })
 
   useEffect(() => {
     return () => {
@@ -64,19 +87,20 @@ export function ProseBlock({
     }
   }, [])
 
-  // Dismiss action panel on outside click
+  // Dismiss action panel / prompt editor on outside click
   useEffect(() => {
-    if (!showActions && !actionMode) return
+    if (!showActions && !actionMode && !editingPrompt) return
     const handler = (e: MouseEvent) => {
       if (blockRef.current && !blockRef.current.contains(e.target as Node)) {
         setShowActions(false)
         setActionMode(null)
         setActionInput('')
+        setEditingPrompt(false)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showActions, actionMode])
+  }, [showActions, actionMode, editingPrompt])
 
   const updateMutation = useMutation({
     mutationFn: (content: string) =>
@@ -279,12 +303,77 @@ export function ProseBlock({
 
   const handleActionComplete = () => {
     setActionMode(null)
+    setEditingPrompt(false)
     setIsStreamingAction(false)
     setStreamedActionText('')
     setActionThoughtSteps([])
     setShowUndo(true)
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000)
+  }
+
+  const handlePromptSubmit = async () => {
+    if (!actionInput.trim() || isStreamingAction) return
+    setEditingPrompt(false)
+    setShowActions(false)
+    setIsStreamingAction(true)
+    setStreamedActionText('')
+    setActionThoughtSteps([])
+
+    try {
+      const stream = await api.generation.regenerate(storyId, fragment.id, actionInput)
+      const reader = stream.getReader()
+      let accumulated = ''
+      let accumulatedReasoning = ''
+      const steps: ThoughtStep[] = []
+      let stepsDirty = false
+      let rafScheduled = false
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value.type === 'text') {
+          accumulated += value.text
+        } else if (value.type === 'reasoning') {
+          accumulatedReasoning += value.text
+          const last = steps[steps.length - 1]
+          if (last && last.type === 'reasoning') {
+            last.text = accumulatedReasoning
+          } else {
+            steps.push({ type: 'reasoning', text: accumulatedReasoning })
+          }
+          stepsDirty = true
+        } else if (value.type === 'tool-call') {
+          accumulatedReasoning = ''
+          steps.push({ type: 'tool-call', id: value.id, toolName: value.toolName, args: value.args })
+          stepsDirty = true
+        } else if (value.type === 'tool-result') {
+          steps.push({ type: 'tool-result', id: value.id, toolName: value.toolName, result: value.result })
+          stepsDirty = true
+        }
+        if (!rafScheduled) {
+          rafScheduled = true
+          const snapshot = accumulated
+          const stepsSnapshot = stepsDirty ? [...steps] : null
+          stepsDirty = false
+          requestAnimationFrame(() => {
+            setStreamedActionText(snapshot)
+            if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
+            rafScheduled = false
+          })
+        }
+      }
+
+      setStreamedActionText(accumulated)
+      if (steps.length > 0) setActionThoughtSteps([...steps])
+      await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      handleActionComplete()
+    } catch {
+      setIsStreamingAction(false)
+      setStreamedActionText('')
+      setActionThoughtSteps([])
+    }
   }
 
   // Build mention highlighter from annotations
@@ -347,15 +436,111 @@ export function ProseBlock({
 
   return (
     <div ref={blockRef} className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}>
-      {/* User prompt divider */}
+      {/* User prompt header — left-aligned accent bar, display font, inline editable */}
       {fragment.description && (
-        <div className="flex items-center gap-3 mb-2 -mt-3 -mx-4 px-4">
-          <div className="h-px flex-1 bg-border/30" />
-          <span className="text-[10px] text-muted-foreground/30 italic">{fragment.description}</span>
-          {hasMultiple && (
-            <span className="text-[10px] font-mono text-muted-foreground/20 shrink-0">{variationIndex + 1}/{variationCount}</span>
+        <div className="mb-3 -mt-2">
+          {editingPrompt ? (
+            /* Inline editing — input replaces the header text in place */
+            <div className="flex items-start gap-2.5">
+              <div className="w-0.5 self-stretch rounded-full bg-primary/50 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <input
+                  ref={promptInputRef}
+                  type="text"
+                  value={actionInput}
+                  onChange={(e) => setActionInput(e.target.value)}
+                  className="w-full bg-transparent font-display italic text-sm text-foreground/80 placeholder:text-muted-foreground/30 outline-none border-none p-0 caret-primary"
+                  placeholder="New direction..."
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setEditingPrompt(false)
+                      setActionInput('')
+                    }
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handlePromptSubmit()
+                    }
+                  }}
+                />
+                <div className="flex items-center gap-2 mt-1.5">
+                  {/* Model quick-switch */}
+                  {globalConfig && (
+                    <select
+                      value={story?.settings.providerId ?? ''}
+                      onChange={(e) => {
+                        const providerId = e.target.value || null
+                        providerMutation.mutate({ providerId, modelId: null })
+                      }}
+                      disabled={providerMutation.isPending || isStreamingAction}
+                      className="text-[10px] text-muted-foreground/50 bg-transparent hover:bg-muted/40 border border-border/30 hover:border-border/50 rounded outline-none cursor-pointer transition-all appearance-none pl-1.5 pr-4 py-0.5 font-mono max-w-[140px] truncate disabled:opacity-30 focus:ring-1 focus:ring-primary/20"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center' }}
+                    >
+                      {(() => {
+                        const providers = globalConfig.providers.filter(p => p.enabled)
+                        const defaultProvider = globalConfig.defaultProviderId
+                          ? providers.find(p => p.id === globalConfig.defaultProviderId)
+                          : null
+                        return (
+                          <>
+                            <option value="">
+                              {defaultProvider ? defaultProvider.defaultModel : 'No provider'}
+                            </option>
+                            {providers
+                              .filter(p => p.id !== globalConfig.defaultProviderId)
+                              .map(p => (
+                                <option key={p.id} value={p.id}>{p.defaultModel}</option>
+                              ))}
+                          </>
+                        )
+                      })()}
+                    </select>
+                  )}
+                  <span className="text-[10px] text-muted-foreground/25">
+                    Enter &middot; Esc
+                  </span>
+                  <button
+                    className="ml-auto text-[10px] px-1.5 py-0.5 rounded text-primary/70 hover:text-primary hover:bg-primary/10 transition-colors font-medium disabled:opacity-30"
+                    disabled={!actionInput.trim()}
+                    onClick={handlePromptSubmit}
+                  >
+                    Regenerate
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : canQuickRegenerate ? (
+            <button
+              className="group/prompt flex items-start gap-2.5 w-full text-left transition-all"
+              onClick={(e) => {
+                e.stopPropagation()
+                setActionInput(generatedFrom || fragment.description || '')
+                setEditingPrompt(true)
+                requestAnimationFrame(() => {
+                  promptInputRef.current?.focus()
+                  promptInputRef.current?.select()
+                })
+              }}
+              title="Click to edit prompt and regenerate"
+            >
+              <div className="w-0.5 min-h-[1.25rem] rounded-full bg-primary/20 group-hover/prompt:bg-primary/45 transition-colors shrink-0 mt-0.5" />
+              <span className="font-display italic text-sm text-muted-foreground/40 group-hover/prompt:text-muted-foreground/65 truncate transition-colors">
+                {generatedFrom || fragment.description}
+              </span>
+              <RefreshCw className="size-3 shrink-0 mt-1 opacity-0 group-hover/prompt:opacity-40 transition-opacity" />
+              {hasMultiple && (
+                <span className="text-[10px] font-mono text-muted-foreground/20 shrink-0 ml-auto mt-0.5">{variationIndex + 1}/{variationCount}</span>
+              )}
+            </button>
+          ) : (
+            <div className="flex items-start gap-2.5">
+              <div className="w-0.5 min-h-[1.25rem] rounded-full bg-border/30 shrink-0 mt-0.5" />
+              <span className="font-display italic text-sm text-muted-foreground/30 truncate">{fragment.description}</span>
+              {hasMultiple && (
+                <span className="text-[10px] font-mono text-muted-foreground/20 shrink-0 ml-auto mt-0.5">{variationIndex + 1}/{variationCount}</span>
+              )}
+            </div>
           )}
-          <div className="h-px flex-1 bg-border/30" />
         </div>
       )}
 
@@ -534,6 +719,26 @@ export function ProseBlock({
                   <Sparkles className="size-3" />
                   Refine
                 </button>
+                {onAskLibrarian && (
+                  <button
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
+                    onClick={() => { onAskLibrarian(fragment.id); setShowActions(false) }}
+                    data-component-id={`prose-${fragment.id}-ask`}
+                  >
+                    <MessageSquare className="size-3" />
+                    Ask
+                  </button>
+                )}
+                {onBranchFrom && sectionIndex >= 0 && (
+                  <button
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
+                    onClick={() => { onBranchFrom(sectionIndex); setShowActions(false) }}
+                    data-component-id={`prose-${fragment.id}-branch`}
+                  >
+                    <GitBranch className="size-3" />
+                    Split from here
+                  </button>
+                )}
                 <div className="w-px h-4 bg-border/30 mx-0.5" />
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-muted-foreground/70 hover:text-foreground hover:bg-accent/80 transition-all"

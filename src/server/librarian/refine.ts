@@ -4,6 +4,7 @@ import { buildContextState } from '../llm/context-builder'
 import { createFragmentTools } from '../llm/tools'
 import { createLogger } from '../logging'
 import { createLibrarianRefineAgent } from './llm-agents'
+import { withBranch } from '../fragments/branches'
 
 const logger = createLogger('librarian-refine')
 
@@ -44,7 +45,15 @@ export async function refineFragment(
   storyId: string,
   opts: RefineOptions,
 ): Promise<RefineResult> {
-  const requestLogger = logger.child({ storyId, fragmentId: opts.fragmentId })
+  return withBranch(dataDir, storyId, () => refineFragmentInner(dataDir, storyId, opts))
+}
+
+async function refineFragmentInner(
+  dataDir: string,
+  storyId: string,
+  opts: RefineOptions,
+): Promise<RefineResult> {
+  const requestLogger = logger.child({ storyId, extra: { fragmentId: opts.fragmentId } })
   requestLogger.info('Starting fragment refinement...')
 
   // Validate story exists

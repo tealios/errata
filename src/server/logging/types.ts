@@ -13,6 +13,7 @@ export interface LogEntry {
   context?: Record<string, unknown>
   storyId?: string
   durationMs?: number
+  extra?: Record<string, unknown>
 }
 
 export interface LogSummary {

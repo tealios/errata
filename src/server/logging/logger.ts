@@ -12,20 +12,23 @@ export class Logger {
   private component: string
   private storyId?: string
   private dataDir: string
+  private extra: Record<string, unknown>
 
-  constructor(component: string, options: { storyId?: string; dataDir?: string } = {}) {
+  constructor(component: string, options: { storyId?: string; dataDir?: string, extra?: Record<string, unknown> } = {}) {
     this.component = component
     this.storyId = options.storyId
     this.dataDir = options.dataDir ?? DATA_DIR
+    this.extra = {}
   }
 
   /**
    * Create a child logger with additional context.
    */
-  child(additionalContext: { storyId?: string }): Logger {
+  child(additionalContext: { storyId?: string, extra?: Record<string, unknown> }): Logger {
     return new Logger(this.component, {
       storyId: additionalContext.storyId ?? this.storyId,
       dataDir: this.dataDir,
+      extra: { ...this.extra, ...additionalContext.extra },
     })
   }
 
@@ -38,12 +41,17 @@ export class Logger {
       message,
       context,
       storyId: this.storyId,
+      extra: this.extra,
     }
 
     // Output to console for development/debugging
     const consoleMethod = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log
     const prefix = this.storyId ? `[${this.component}:${this.storyId}]` : `[${this.component}]`
-    consoleMethod(`${prefix} ${message}`, context ?? '')
+    // extra is (key="val") 
+    const extra = this.extra && Object.keys(this.extra).length > 0
+      ? Object.entries(this.extra).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ')
+      : ''
+    consoleMethod(`${prefix} ${message} ${extra}`, context ?? '')
 
     // Persist to storage (skip in test mode to avoid file cleanup issues)
     if (IS_TEST) return

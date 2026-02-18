@@ -29,6 +29,8 @@ import {
 } from '@/lib/fragment-clipboard'
 import { Upload } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { TimelineTabs } from '@/components/prose/TimelineTabs'
+import { useTimelineBar } from '@/lib/theme'
 import '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
@@ -54,6 +56,7 @@ function StoryEditorPage() {
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
+  const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
   const dragCounter = useRef(0)
 
   const { data: story, isLoading } = useQuery({
@@ -69,6 +72,11 @@ function StoryEditorPage() {
   const { data: plugins } = useQuery({
     queryKey: ['plugins'],
     queryFn: () => api.plugins.list(),
+  })
+
+  const { data: branchesIndex } = useQuery({
+    queryKey: ['branches', storyId],
+    queryFn: () => api.branches.list(storyId),
   })
 
   useEffect(() => {
@@ -399,6 +407,16 @@ function StoryEditorPage() {
           <SidebarTrigger className="size-9 bg-background/80 backdrop-blur-sm border border-border/40 shadow-sm" />
         </div>
 
+        {/* Timeline tabs — shown when multiple timelines exist and bar is visible */}
+        {timelineBarVisible && branchesIndex && branchesIndex.branches.length > 1 && (
+          <TimelineTabs
+            storyId={storyId}
+            branches={branchesIndex.branches}
+            activeBranchId={branchesIndex.activeBranchId}
+            onHide={() => setTimelineBarVisible(false)}
+          />
+        )}
+
         {/* Prose view — always mounted to preserve scroll position */}
         <ProseChainView
           storyId={storyId}
@@ -407,6 +425,10 @@ function StoryEditorPage() {
           onLaunchWizard={() => {
             setShowWizard(true)
             notifyPluginPanelOpen({ panel: 'wizard' }, { storyId })
+          }}
+          onAskLibrarian={(fragmentId) => {
+            setActiveSection('agent-activity')
+            window.dispatchEvent(new CustomEvent('errata:librarian:ask', { detail: { fragmentId } }))
           }}
         />
 

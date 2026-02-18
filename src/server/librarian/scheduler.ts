@@ -1,6 +1,7 @@
 import type { Fragment } from '../fragments/schema'
 import { invokeAgent } from '../agents'
 import { createLogger } from '../logging'
+import { getActiveBranchId, withBranch } from '../fragments/branches'
 
 const pending = new Map<string, ReturnType<typeof setTimeout>>()
 const runtimeStatus = new Map<string, LibrarianRuntimeStatus>()
@@ -36,12 +37,15 @@ function setRuntimeStatus(storyId: string, patch: Partial<LibrarianRuntimeStatus
   })
 }
 
-export function triggerLibrarian(
+export async function triggerLibrarian(
   dataDir: string,
   storyId: string,
   fragment: Fragment,
-): void {
+): Promise<void> {
   const requestLogger = logger.child({ storyId })
+
+  // Capture the active branch NOW, before the debounce delay
+  const branchId = await getActiveBranchId(dataDir, storyId)
 
   // Clear any pending run for this story
   const existing = pending.get(storyId)
@@ -51,7 +55,7 @@ export function triggerLibrarian(
   }
 
   // Schedule a new run
-  requestLogger.info('Scheduling librarian run', { fragmentId: fragment.id, debounceMs: DEBOUNCE_MS })
+  requestLogger.info('Scheduling librarian run', { fragmentId: fragment.id, branchId, debounceMs: DEBOUNCE_MS })
   setRuntimeStatus(storyId, {
     runStatus: 'scheduled',
     pendingFragmentId: fragment.id,
@@ -68,14 +72,14 @@ export function triggerLibrarian(
         runningFragmentId: fragment.id,
       })
       try {
-        requestLogger.info('Starting librarian analysis...', { fragmentId: fragment.id })
+        requestLogger.info('Starting librarian analysis...', { fragmentId: fragment.id, branchId })
         const startTime = Date.now()
-        await invokeAgent({
+        await withBranch(dataDir, storyId, () => invokeAgent({
           dataDir,
           storyId,
           agentName: 'librarian.analyze',
           input: { fragmentId: fragment.id },
-        })
+        }), branchId)
         const durationMs = Date.now() - startTime
         requestLogger.info('Librarian analysis completed', { fragmentId: fragment.id, durationMs })
         setRuntimeStatus(storyId, {

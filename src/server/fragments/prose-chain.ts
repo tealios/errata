@@ -2,11 +2,13 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ProseChain } from './schema'
+import { getContentRoot } from './branches'
 
 const PROSE_CHAIN_FILE = 'prose-chain.json'
 
-function proseChainPath(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId, PROSE_CHAIN_FILE)
+async function proseChainPath(dataDir: string, storyId: string): Promise<string> {
+  const root = await getContentRoot(dataDir, storyId)
+  return join(root, PROSE_CHAIN_FILE)
 }
 
 /**
@@ -17,7 +19,7 @@ export async function getProseChain(
   dataDir: string,
   storyId: string,
 ): Promise<ProseChain | null> {
-  const path = proseChainPath(dataDir, storyId)
+  const path = await proseChainPath(dataDir, storyId)
   if (!existsSync(path)) {
     return null
   }
@@ -33,7 +35,7 @@ export async function saveProseChain(
   storyId: string,
   chain: ProseChain,
 ): Promise<void> {
-  const path = proseChainPath(dataDir, storyId)
+  const path = await proseChainPath(dataDir, storyId)
   await writeFile(path, JSON.stringify(chain, null, 2), 'utf-8')
 }
 

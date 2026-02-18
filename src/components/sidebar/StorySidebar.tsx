@@ -35,6 +35,7 @@ import {
   PenLine,
   Home,
   CircleHelp,
+  GitBranch,
 } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { componentId } from '@/lib/dom-ids'
@@ -46,6 +47,7 @@ export type SidebarSection =
   | 'knowledge'
   | 'media'
   | 'archive'
+  | 'branches'
   | 'context-order'
   | 'block-editor'
   | 'settings'
@@ -254,6 +256,19 @@ export function StorySidebar({
                   </SidebarMenuItem>
                 </>
               )}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeSection === 'branches'}
+                    onClick={() => handleToggle('branches')}
+                    tooltip="Timelines"
+                    data-component-id="sidebar-section-branches"
+                  >
+                    <GitBranch className="size-4" />
+                    <span>Timelines</span>
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground/40" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
 
                 <SidebarMenuItem key={"media"}>
                   <SidebarMenuButton

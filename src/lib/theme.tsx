@@ -77,6 +77,31 @@ export function useCharacterMentions() {
   return useBoolPref('errata-character-mentions', false)
 }
 
+const TIMELINE_BAR_KEY = 'errata-timeline-bar'
+const TIMELINE_BAR_EVENT = 'errata-timeline-bar-change'
+
+export function useTimelineBar(): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const stored = localStorage.getItem(TIMELINE_BAR_KEY)
+    return stored === null ? true : stored === 'true'
+  })
+
+  useEffect(() => {
+    const handler = (e: Event) => setValue((e as CustomEvent<boolean>).detail)
+    window.addEventListener(TIMELINE_BAR_EVENT, handler)
+    return () => window.removeEventListener(TIMELINE_BAR_EVENT, handler)
+  }, [])
+
+  const set = useCallback((v: boolean) => {
+    setValue(v)
+    localStorage.setItem(TIMELINE_BAR_KEY, String(v))
+    window.dispatchEvent(new CustomEvent(TIMELINE_BAR_EVENT, { detail: v }))
+  }, [])
+
+  return [value, set]
+}
+
 // --- Prose width preference ---
 
 export type ProseWidth = 'narrow' | 'medium' | 'wide' | 'full'

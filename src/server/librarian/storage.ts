@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
+import { getContentRoot } from '../fragments/branches'
 
 // --- Types ---
 
@@ -57,20 +58,24 @@ export interface LibrarianState {
 
 // --- Path helpers ---
 
-function librarianDir(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId, 'librarian')
+async function librarianDir(dataDir: string, storyId: string): Promise<string> {
+  const root = await getContentRoot(dataDir, storyId)
+  return join(root, 'librarian')
 }
 
-function analysesDir(dataDir: string, storyId: string): string {
-  return join(librarianDir(dataDir, storyId), 'analyses')
+async function analysesDir(dataDir: string, storyId: string): Promise<string> {
+  const dir = await librarianDir(dataDir, storyId)
+  return join(dir, 'analyses')
 }
 
-function analysisPath(dataDir: string, storyId: string, analysisId: string): string {
-  return join(analysesDir(dataDir, storyId), `${analysisId}.json`)
+async function analysisPath(dataDir: string, storyId: string, analysisId: string): Promise<string> {
+  const dir = await analysesDir(dataDir, storyId)
+  return join(dir, `${analysisId}.json`)
 }
 
-function statePath(dataDir: string, storyId: string): string {
-  return join(librarianDir(dataDir, storyId), 'state.json')
+async function statePath(dataDir: string, storyId: string): Promise<string> {
+  const dir = await librarianDir(dataDir, storyId)
+  return join(dir, 'state.json')
 }
 
 // --- Storage functions ---
@@ -80,10 +85,10 @@ export async function saveAnalysis(
   storyId: string,
   analysis: LibrarianAnalysis,
 ): Promise<void> {
-  const dir = analysesDir(dataDir, storyId)
+  const dir = await analysesDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
   await writeFile(
-    analysisPath(dataDir, storyId, analysis.id),
+    await analysisPath(dataDir, storyId, analysis.id),
     JSON.stringify(analysis, null, 2),
     'utf-8',
   )
@@ -94,7 +99,7 @@ export async function getAnalysis(
   storyId: string,
   analysisId: string,
 ): Promise<LibrarianAnalysis | null> {
-  const path = analysisPath(dataDir, storyId, analysisId)
+  const path = await analysisPath(dataDir, storyId, analysisId)
   if (!existsSync(path)) return null
   const raw = await readFile(path, 'utf-8')
   return JSON.parse(raw) as LibrarianAnalysis
@@ -104,7 +109,7 @@ export async function listAnalyses(
   dataDir: string,
   storyId: string,
 ): Promise<LibrarianAnalysisSummary[]> {
-  const dir = analysesDir(dataDir, storyId)
+  const dir = await analysesDir(dataDir, storyId)
   if (!existsSync(dir)) return []
 
   const entries = await readdir(dir)
@@ -135,7 +140,7 @@ export async function getState(
   dataDir: string,
   storyId: string,
 ): Promise<LibrarianState> {
-  const path = statePath(dataDir, storyId)
+  const path = await statePath(dataDir, storyId)
   if (!existsSync(path)) {
     return {
       lastAnalyzedFragmentId: null,
@@ -153,9 +158,9 @@ export async function saveState(
   storyId: string,
   state: LibrarianState,
 ): Promise<void> {
-  const dir = librarianDir(dataDir, storyId)
+  const dir = await librarianDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
-  await writeFile(statePath(dataDir, storyId), JSON.stringify(state, null, 2), 'utf-8')
+  await writeFile(await statePath(dataDir, storyId), JSON.stringify(state, null, 2), 'utf-8')
 }
 
 // --- Chat history ---
@@ -171,15 +176,16 @@ export interface ChatHistory {
   updatedAt: string
 }
 
-function chatHistoryPath(dataDir: string, storyId: string): string {
-  return join(librarianDir(dataDir, storyId), 'chat-history.json')
+async function chatHistoryPath(dataDir: string, storyId: string): Promise<string> {
+  const dir = await librarianDir(dataDir, storyId)
+  return join(dir, 'chat-history.json')
 }
 
 export async function getChatHistory(
   dataDir: string,
   storyId: string,
 ): Promise<ChatHistory> {
-  const path = chatHistoryPath(dataDir, storyId)
+  const path = await chatHistoryPath(dataDir, storyId)
   if (!existsSync(path)) {
     return { messages: [], updatedAt: new Date().toISOString() }
   }
@@ -192,20 +198,20 @@ export async function saveChatHistory(
   storyId: string,
   messages: ChatHistoryMessage[],
 ): Promise<void> {
-  const dir = librarianDir(dataDir, storyId)
+  const dir = await librarianDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
   const history: ChatHistory = {
     messages,
     updatedAt: new Date().toISOString(),
   }
-  await writeFile(chatHistoryPath(dataDir, storyId), JSON.stringify(history, null, 2), 'utf-8')
+  await writeFile(await chatHistoryPath(dataDir, storyId), JSON.stringify(history, null, 2), 'utf-8')
 }
 
 export async function clearChatHistory(
   dataDir: string,
   storyId: string,
 ): Promise<void> {
-  const path = chatHistoryPath(dataDir, storyId)
+  const path = await chatHistoryPath(dataDir, storyId)
   if (existsSync(path)) {
     const { unlink } = await import('node:fs/promises')
     await unlink(path)

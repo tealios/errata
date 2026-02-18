@@ -13,6 +13,7 @@ export { proseChain } from './prose-chain'
 export { plugins } from './plugins'
 export { settings } from './settings'
 export { blocks } from './blocks'
+export { branches } from './branches'
 
 // HTTP Client utilities (exported for advanced use cases)
 export { apiFetch, fetchStream, fetchEventStream } from './client'
@@ -27,6 +28,7 @@ import { proseChain } from './prose-chain'
 import { plugins } from './plugins'
 import { settings } from './settings'
 import { blocks } from './blocks'
+import { branches } from './branches'
 
 export const api = {
   stories,
@@ -38,4 +40,5 @@ export const api = {
   plugins,
   settings,
   blocks,
+  branches,
 }

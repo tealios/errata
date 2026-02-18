@@ -14,6 +14,7 @@ import {
   migrateIfNeeded,
   clearMigrationCache,
   initBranches,
+  withBranch,
 } from '../../src/server/fragments/branches'
 import { createStory, createFragment, getFragment, listFragments } from '../../src/server/fragments/storage'
 import { getProseChain, addProseSection, saveProseChain } from '../../src/server/fragments/prose-chain'
@@ -434,6 +435,72 @@ describe('branches', () => {
 
       const mainChat = await getChatHistory(dataDir, TEST_STORY_ID)
       expect(mainChat.messages).toHaveLength(2)
+    })
+
+    it('withBranch pins getContentRoot to captured branch', async () => {
+      await createStory(dataDir, makeStory())
+
+      // Create content in main
+      await createFragment(dataDir, TEST_STORY_ID, makeFragment('pr-bakite', 'Main content'))
+      await addProseSection(dataDir, TEST_STORY_ID, 'pr-bakite')
+
+      // Create a second branch
+      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+
+      // Switch back to main so that's the active branch
+      await switchActiveBranch(dataDir, TEST_STORY_ID, 'main')
+
+      // Run a withBranch pinned to main, switch to alt mid-operation
+      await withBranch(dataDir, TEST_STORY_ID, async () => {
+        // getContentRoot should resolve to main
+        const root1 = await getContentRoot(dataDir, TEST_STORY_ID)
+        expect(root1).toContain(join('branches', 'main'))
+
+        // Switch active branch to alt DURING the operation
+        await switchActiveBranch(dataDir, TEST_STORY_ID, branch.id)
+
+        // getContentRoot should STILL resolve to main (pinned)
+        const root2 = await getContentRoot(dataDir, TEST_STORY_ID)
+        expect(root2).toContain(join('branches', 'main'))
+      })
+
+      // Outside withBranch, getContentRoot should follow the (now switched) active branch
+      const rootAfter = await getContentRoot(dataDir, TEST_STORY_ID)
+      expect(rootAfter).toContain(join('branches', branch.id))
+    })
+
+    it('nested withBranch inherits outer scope', async () => {
+      await createStory(dataDir, makeStory())
+      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+
+      // Switch back to main
+      await switchActiveBranch(dataDir, TEST_STORY_ID, 'main')
+
+      await withBranch(dataDir, TEST_STORY_ID, async () => {
+        // Outer scope pinned to main
+        const root1 = await getContentRoot(dataDir, TEST_STORY_ID)
+        expect(root1).toContain(join('branches', 'main'))
+
+        // Switch active branch mid-operation
+        await switchActiveBranch(dataDir, TEST_STORY_ID, branch.id)
+
+        // Nested withBranch should inherit the outer scope (main), not re-resolve
+        await withBranch(dataDir, TEST_STORY_ID, async () => {
+          const root2 = await getContentRoot(dataDir, TEST_STORY_ID)
+          expect(root2).toContain(join('branches', 'main'))
+        })
+      })
+    })
+
+    it('withBranch with explicit branchId uses provided ID', async () => {
+      await createStory(dataDir, makeStory())
+      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+
+      // Active branch is alt (createBranch switches to it), but we pin to main explicitly
+      await withBranch(dataDir, TEST_STORY_ID, async () => {
+        const root = await getContentRoot(dataDir, TEST_STORY_ID)
+        expect(root).toContain(join('branches', 'main'))
+      }, 'main')
     })
 
     it('librarian data is isolated between branches', async () => {

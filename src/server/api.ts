@@ -88,6 +88,13 @@ import {
 } from './librarian/storage'
 import { applyKnowledgeSuggestion } from './librarian/suggestions'
 import type { StoryMeta, Fragment } from './fragments/schema'
+import {
+  getBranchesIndex,
+  switchActiveBranch,
+  createBranch,
+  deleteBranch,
+  renameBranch,
+} from './fragments/branches'
 import { dirname, extname, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 
@@ -323,6 +330,96 @@ export function createApp(dataDir: string = DATA_DIR) {
           value: t.Number(),
         })),
       }),
+    })
+
+    // --- Branches ---
+    .get('/stories/:storyId/branches', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      return getBranchesIndex(dataDir, params.storyId)
+    })
+
+    .post('/stories/:storyId/branches', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      try {
+        const branch = await createBranch(
+          dataDir,
+          params.storyId,
+          body.name,
+          body.parentBranchId,
+          body.forkAfterIndex,
+        )
+        return branch
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to create branch' }
+      }
+    }, {
+      body: t.Object({
+        name: t.String(),
+        parentBranchId: t.String(),
+        forkAfterIndex: t.Optional(t.Number()),
+      }),
+    })
+
+    .patch('/stories/:storyId/branches/active', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      try {
+        await switchActiveBranch(dataDir, params.storyId, body.branchId)
+        return { ok: true }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to switch branch' }
+      }
+    }, {
+      body: t.Object({
+        branchId: t.String(),
+      }),
+    })
+
+    .put('/stories/:storyId/branches/:branchId', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      try {
+        const branch = await renameBranch(dataDir, params.storyId, params.branchId, body.name)
+        return branch
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to rename branch' }
+      }
+    }, {
+      body: t.Object({
+        name: t.String(),
+      }),
+    })
+
+    .delete('/stories/:storyId/branches/:branchId', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+      try {
+        await deleteBranch(dataDir, params.storyId, params.branchId)
+        return { ok: true }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to delete branch' }
+      }
     })
 
     // --- Fragment CRUD ---
@@ -1290,7 +1387,9 @@ export function createApp(dataDir: string = DATA_DIR) {
                 requestLogger.info('AfterSave hooks completed')
 
                 // Trigger librarian analysis (fire-and-forget)
-                triggerLibrarian(dataDir, params.storyId, fragment)
+                triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
+                  requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
+                })
                 requestLogger.info('Librarian analysis triggered')
               } else {
                 // Create new fragment (default generate mode)
@@ -1325,7 +1424,9 @@ export function createApp(dataDir: string = DATA_DIR) {
                 requestLogger.info('AfterSave hooks completed')
 
                 // Trigger librarian analysis (fire-and-forget)
-                triggerLibrarian(dataDir, params.storyId, fragment)
+                triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
+                  requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
+                })
                 requestLogger.info('Librarian analysis triggered')
               }
 

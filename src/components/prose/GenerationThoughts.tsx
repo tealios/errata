@@ -41,22 +41,10 @@ export function GenerationThoughts({
   const lastStep = steps[steps.length - 1]
   const isThinking = streaming && !hasText && lastStep?.type === 'reasoning'
 
-  // Build a header label based on the current state
-  const headerLabel = isThinking
-    ? 'Thinking...'
-    : `${steps.filter((s) => s.type === 'reasoning').length > 0 ? 'Reasoning' : 'Tool calls'}${
-        steps.filter((s) => s.type === 'tool-call').length > 0
-          ? ` \u00b7 ${steps.filter((s) => s.type === 'tool-call').length} tool call${steps.filter((s) => s.type === 'tool-call').length === 1 ? '' : 's'}`
-          : ''
-      }`
 
   return (
     <div className="mb-4" data-component-id="generation-thoughts-root">
       <ChainOfThought defaultOpen={true}>
-        <ChainOfThoughtHeader className="text-xs text-muted-foreground/60 hover:text-muted-foreground/80">
-          {isThinking && <Loader2 className="size-3 animate-spin" />}
-          {headerLabel}
-        </ChainOfThoughtHeader>
         <ChainOfThoughtContent>
           {steps.map((step, i) => {
             if (step.type === 'reasoning') {
