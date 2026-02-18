@@ -29,6 +29,7 @@ import {
 import {
   addProseSection,
   addProseVariation,
+  insertProseSection,
   findSectionIndex,
   getFullProseChain,
   switchActiveProse,
@@ -1508,6 +1509,7 @@ export function createApp(dataDir: string = DATA_DIR) {
               const fragment = await getFragment(dataDir, params.storyId, id)
               return fragment ? {
                 id: fragment.id,
+                type: fragment.type,
                 name: fragment.name,
                 description: fragment.description,
                 createdAt: fragment.createdAt,
@@ -1600,6 +1602,84 @@ export function createApp(dataDir: string = DATA_DIR) {
       } catch (err) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to remove prose section' }
+      }
+    })
+
+    // --- Chapters (marker fragments in prose chain) ---
+    .post('/stories/:storyId/chapters', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const now = new Date().toISOString()
+      const id = generateFragmentId('marker')
+      const fragment = await createFragment(dataDir, params.storyId, {
+        id,
+        type: 'marker',
+        name: body.name,
+        description: body.description ?? '',
+        content: body.content ?? '',
+        tags: [],
+        refs: [],
+        sticky: false,
+        placement: 'user',
+        createdAt: now,
+        updatedAt: now,
+        order: 0,
+        meta: {},
+      })
+
+      await insertProseSection(dataDir, params.storyId, id, body.position)
+
+      return { fragment }
+    }, {
+      body: t.Object({
+        name: t.String(),
+        description: t.Optional(t.String()),
+        content: t.Optional(t.String()),
+        position: t.Number(),
+      }),
+    })
+
+    .post('/stories/:storyId/chapters/:fragmentId/summarize', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const marker = await getFragment(dataDir, params.storyId, params.fragmentId)
+      if (!marker || marker.type !== 'marker') {
+        set.status = 404
+        return { error: 'Chapter marker not found' }
+      }
+
+      try {
+        const { output, trace: agentTrace } = await invokeAgent<{
+          summary: string
+          reasoning: string
+          modelId: string
+          durationMs: number
+          trace: Array<{ type: string; [key: string]: unknown }>
+        }>({
+          dataDir,
+          storyId: params.storyId,
+          agentName: 'chapters.summarize',
+          input: { fragmentId: params.fragmentId },
+        })
+        return {
+          summary: output.summary,
+          reasoning: output.reasoning,
+          modelId: output.modelId,
+          durationMs: output.durationMs,
+          trace: output.trace,
+          agentTrace,
+        }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to summarize chapter' }
       }
     })
 

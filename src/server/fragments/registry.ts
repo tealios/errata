@@ -115,6 +115,14 @@ export class FragmentTypeRegistry {
       shortlistFields: ['id', 'name', 'description'],
       llmTools: false,
     })
+
+    this.register({
+      type: 'marker',
+      prefix: 'mk',
+      stickyByDefault: false,
+      contextRenderer: () => '',
+      llmTools: false,
+    })
   }
 }
 

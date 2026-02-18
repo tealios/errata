@@ -236,7 +236,7 @@ export async function buildContextState(
         continue
       }
       const fragment = await getFragment(dataDir, storyId, proseId)
-      if (fragment && !fragment.archived) {
+      if (fragment && !fragment.archived && fragment.type !== 'marker') {
         proseFragments.push(fragment)
       } else if (!fragment) {
         requestLogger.warn('Prose fragment not found in chain', { proseId })

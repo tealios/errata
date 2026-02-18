@@ -5,6 +5,7 @@ export const PREFIXES: Record<string, string> = {
   knowledge: 'kn',
   image: 'im',
   icon: 'ic',
+  marker: 'mk',
 }
 
 // Consonant-vowel alternation produces pronounceable, LLM-friendly IDs.

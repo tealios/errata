@@ -14,6 +14,7 @@ export { plugins } from './plugins'
 export { settings } from './settings'
 export { blocks } from './blocks'
 export { branches } from './branches'
+export { chapters } from './chapters'
 
 // HTTP Client utilities (exported for advanced use cases)
 export { apiFetch, fetchStream, fetchEventStream } from './client'
@@ -29,6 +30,7 @@ import { plugins } from './plugins'
 import { settings } from './settings'
 import { blocks } from './blocks'
 import { branches } from './branches'
+import { chapters } from './chapters'
 
 export const api = {
   stories,
@@ -41,4 +43,5 @@ export const api = {
   settings,
   blocks,
   branches,
+  chapters,
 }

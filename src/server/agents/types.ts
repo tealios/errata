@@ -13,6 +13,7 @@ export interface AgentTraceEntry {
   durationMs: number
   status: AgentRunStatus
   error?: string
+  output?: Record<string, unknown>
 }
 
 export interface AgentCallOptions {

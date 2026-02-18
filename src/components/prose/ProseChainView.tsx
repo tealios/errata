@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment as ReactFragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
-import { Loader2, Wand2 } from 'lucide-react'
+import { Loader2, Wand2, Bookmark } from 'lucide-react'
 import { useQuickSwitch, useProseWidth, PROSE_WIDTH_VALUES, useCharacterMentions } from '@/lib/theme'
 import { ProseBlock } from './ProseBlock'
+import { ChapterMarker } from './ChapterMarker'
 import { InlineGenerationInput, type ThoughtStep } from './InlineGenerationInput'
 import { GenerationThoughts } from './GenerationThoughts'
 import { ProseOutlinePanel } from './ProseOutlinePanel'
@@ -16,6 +17,41 @@ interface ProseChainViewProps {
   onDebugLog?: (logId: string) => void
   onLaunchWizard?: () => void
   onAskLibrarian?: (fragmentId: string) => void
+}
+
+/** Thin hover zone between blocks that reveals a "+ Chapter" insert button */
+function InsertChapterDivider({
+  storyId,
+  position,
+}: {
+  storyId: string
+  position: number
+}) {
+  const queryClient = useQueryClient()
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.chapters.create(storyId, {
+        name: `Chapter ${position + 1}`,
+        position,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    },
+  })
+
+  return (
+    <div className="group/insert relative h-3 -my-1 flex items-center justify-center">
+      <button
+        onClick={() => createMutation.mutate()}
+        disabled={createMutation.isPending}
+        className="opacity-0 group-hover/insert:opacity-100 transition-opacity duration-200 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] text-amber-500/60 hover:text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/20"
+      >
+        <Bookmark className="size-2.5" />
+        <span>Chapter</span>
+      </button>
+    </div>
+  )
 }
 
 export function ProseChainView({
@@ -58,6 +94,11 @@ export function ProseChainView({
     queryFn: () => api.fragments.list(storyId, 'prose'),
   })
 
+  const { data: markerFragments = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'marker'],
+    queryFn: () => api.fragments.list(storyId, 'marker'),
+  })
+
   const { data: characterFragments = [] } = useQuery({
     queryKey: ['fragments', storyId, 'character'],
     queryFn: () => api.fragments.list(storyId, 'character'),
@@ -78,18 +119,33 @@ export function ProseChainView({
     return map
   }, [characterFragments])
 
-  // Get active fragment IDs from the chain (source of truth)
-  const activeFragmentIds = proseChain?.entries.map(entry => entry.active) ?? []
+  // Build combined fragment map from prose + markers
+  const allFragmentsMap = useMemo(() => {
+    const map = new Map<string, Fragment>()
+    for (const f of fragments) map.set(f.id, f)
+    for (const f of markerFragments) map.set(f.id, f)
+    return map
+  }, [fragments, markerFragments])
 
-  // Filter fragments to only show active ones from the chain, in chain order
-  const activeFragments = activeFragmentIds
-    .map(id => fragments.find(f => f.id === id))
-    .filter(Boolean) as Fragment[]
+  // Build ordered items from chain entries using the combined map
+  const orderedItems = useMemo(() => {
+    if (!proseChain?.entries.length) {
+      // Fallback: no chain, show prose sorted naturally (no markers possible)
+      return [...fragments].sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
+    }
+    const items: Fragment[] = []
+    for (const entry of proseChain.entries) {
+      const fragment = allFragmentsMap.get(entry.active)
+      if (fragment) items.push(fragment)
+    }
+    return items
+  }, [proseChain, allFragmentsMap, fragments])
 
-  // If chain exists, preserve chain order. Otherwise sort prose naturally.
-  const orderedFragments = activeFragments.length > 0
-    ? activeFragments
-    : [...fragments].sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
+  // Prose-only subset for generation count tracking
+  const orderedProseFragments = useMemo(
+    () => orderedItems.filter(f => f.type !== 'marker'),
+    [orderedItems],
+  )
 
   // Map fragments to their section index in the chain
   const getSectionIndex = (fragmentId: string): number => {
@@ -106,6 +162,13 @@ export function ProseChainView({
       entry.proseFragments.some(f => f.id === fragmentId)
     ) || null
   }
+
+  const handleDeleteSection = useCallback((sectionIndex: number) => {
+    api.proseChain.removeSection(storyId, sectionIndex).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    })
+  }, [storyId, queryClient])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -137,7 +200,7 @@ export function ProseChainView({
 
   // Restore scroll position once fragments are loaded
   useEffect(() => {
-    if (restoredRef.current || orderedFragments.length === 0) return
+    if (restoredRef.current || orderedItems.length === 0) return
     const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
     if (!viewport) return
 
@@ -151,7 +214,7 @@ export function ProseChainView({
       }
     }
     restoredRef.current = true
-  }, [orderedFragments, SCROLL_POS_KEY])
+  }, [orderedItems, SCROLL_POS_KEY])
 
   // Scroll to bottom when streaming new content (throttled to RAF)
   const scrollRafRef = useRef(0)
@@ -171,8 +234,8 @@ export function ProseChainView({
   useEffect(() => {
     if (!isGenerating && streamedText && fragmentCountBeforeGeneration !== null) {
       // Check if a new fragment was added (count increased) or if the last fragment's content matches
-      const currentCount = orderedFragments.length
-      const lastFragment = orderedFragments[orderedFragments.length - 1]
+      const currentCount = orderedProseFragments.length
+      const lastFragment = orderedProseFragments[orderedProseFragments.length - 1]
 
       // Clear if fragment count increased (new fragment added) or content matches
       if (currentCount > fragmentCountBeforeGeneration ||
@@ -194,12 +257,12 @@ export function ProseChainView({
       }, 500)
       return () => clearTimeout(retryTimeout)
     }
-  }, [orderedFragments, isGenerating, streamedText, fragmentCountBeforeGeneration, queryClient, storyId])
+  }, [orderedProseFragments, isGenerating, streamedText, fragmentCountBeforeGeneration, queryClient, storyId])
 
   // Track which prose block is currently visible
   useEffect(() => {
     const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (!viewport || orderedFragments.length === 0) return
+    if (!viewport || orderedItems.length === 0) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -216,7 +279,7 @@ export function ProseChainView({
     const blocks = viewport.querySelectorAll('[data-prose-index]')
     blocks.forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [orderedFragments])
+  }, [orderedItems])
 
   const scrollToIndex = useCallback((index: number) => {
     const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
@@ -267,26 +330,40 @@ export function ProseChainView({
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
         <div className="mx-auto py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
-          {orderedFragments.length > 0 ? (
-            orderedFragments.map((fragment, idx) => (
-              <ProseBlock
-                key={fragment.id}
-                storyId={storyId}
-                fragment={fragment}
-                displayIndex={idx}
-                sectionIndex={getSectionIndex(fragment.id)}
-                chainEntry={getChainEntry(fragment.id)}
-                isLast={idx === orderedFragments.length - 1 && !isGenerating}
-                isFirst={idx === 0}
-                onSelect={() => onSelectFragment(fragment)}
-                onDebugLog={onDebugLog}
-                onBranchFrom={handleBranchFrom}
-                onAskLibrarian={onAskLibrarian}
-                quickSwitch={quickSwitch}
-                mentionsEnabled={mentionsEnabled}
-                mentionColors={mentionColors}
-                onClickMention={handleMentionClick}
-              />
+          {orderedItems.length > 0 ? (
+            orderedItems.map((fragment, idx) => (
+              <ReactFragment key={fragment.id}>
+                {idx === 0 && <InsertChapterDivider storyId={storyId} position={0} />}
+                {fragment.type === 'marker' ? (
+                  <ChapterMarker
+                    storyId={storyId}
+                    fragment={fragment}
+                    displayIndex={idx}
+                    sectionIndex={getSectionIndex(fragment.id)}
+                    onSelect={() => onSelectFragment(fragment)}
+                    onDelete={handleDeleteSection}
+                  />
+                ) : (
+                  <ProseBlock
+                    storyId={storyId}
+                    fragment={fragment}
+                    displayIndex={idx}
+                    sectionIndex={getSectionIndex(fragment.id)}
+                    chainEntry={getChainEntry(fragment.id)}
+                    isLast={idx === orderedItems.length - 1 && !isGenerating}
+                    isFirst={idx === 0}
+                    onSelect={() => onSelectFragment(fragment)}
+                    onDebugLog={onDebugLog}
+                    onBranchFrom={handleBranchFrom}
+                    onAskLibrarian={onAskLibrarian}
+                    quickSwitch={quickSwitch}
+                    mentionsEnabled={mentionsEnabled}
+                    mentionColors={mentionColors}
+                    onClickMention={handleMentionClick}
+                  />
+                )}
+                <InsertChapterDivider storyId={storyId} position={idx + 1} />
+              </ReactFragment>
             ))
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center" data-component-id="prose-empty-state">
@@ -342,7 +419,7 @@ export function ProseChainView({
               setIsGenerating(true)
               setStreamedText('')
               setThoughtSteps([])
-              setFragmentCountBeforeGeneration(orderedFragments.length)
+              setFragmentCountBeforeGeneration(orderedProseFragments.length)
             }}
             onGenerationStream={(text) => setStreamedText(text)}
             onGenerationThoughts={(steps) => setThoughtSteps(steps)}
@@ -361,10 +438,11 @@ export function ProseChainView({
       </ScrollArea>
 
       {/* Outline toggle + panel — hidden on mobile */}
-      {orderedFragments.length > 1 && (
+      {orderedItems.length > 1 && (
         <div className="hidden md:flex">
           <ProseOutlinePanel
-            fragments={orderedFragments}
+            storyId={storyId}
+            fragments={orderedItems}
             activeIndex={activeIndex}
             onJump={scrollToIndex}
             onScrollToBottom={scrollToBottom}
@@ -374,4 +452,3 @@ export function ProseChainView({
     </div>
   )
 }
-

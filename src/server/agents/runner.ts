@@ -128,6 +128,18 @@ async function invokeInternal<TOutput>(args: {
     const finishedAt = new Date().toISOString()
     const durationMs = Date.now() - startedMs
 
+    // Attach serializable output to trace for visibility in the Activity panel.
+    // Only include plain-object outputs (skip streams, functions, etc.).
+    let traceOutput: Record<string, unknown> | undefined
+    if (output && typeof output === 'object' && !Array.isArray(output)) {
+      try {
+        // Round-trip through JSON to ensure serialisability and drop non-JSON values
+        traceOutput = JSON.parse(JSON.stringify(output)) as Record<string, unknown>
+      } catch {
+        // Not serializable — skip
+      }
+    }
+
     args.runtime.trace.push({
       runId,
       parentRunId: args.parentRunId,
@@ -137,6 +149,7 @@ async function invokeInternal<TOutput>(args: {
       finishedAt,
       durationMs,
       status: 'success',
+      output: traceOutput,
     })
     logger.info('Agent run completed', { runId, agentName: args.agentName, durationMs })
     return { runId, output: output as TOutput }

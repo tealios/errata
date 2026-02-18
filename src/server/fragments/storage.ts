@@ -4,6 +4,9 @@ import { existsSync } from 'node:fs'
 import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { PREFIXES } from '@/lib/fragment-ids'
 import { getContentRoot, initBranches } from './branches'
+import { createLogger } from '../logging'
+
+const requestLogger = createLogger('fragment-storage')
 
 // --- Path helpers ---
 
@@ -208,7 +211,9 @@ export async function updateFragment(
   fragment: Fragment
 ): Promise<void> {
   const normalized = normalizeFragment(fragment)
-  await writeJson(await fragmentPath(dataDir, storyId, fragment.id), normalized)
+  const path = await fragmentPath(dataDir, storyId, fragment.id)
+  requestLogger.info('Updating fragment', { path })
+  await writeJson(path, normalized)
 }
 
 export async function updateFragmentVersioned(

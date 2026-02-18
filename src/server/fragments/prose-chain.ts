@@ -79,6 +79,30 @@ export async function addProseSection(
 }
 
 /**
+ * Insert a new section at a specific position in the chain.
+ * Splices the entry at the given index, shifting subsequent entries down.
+ */
+export async function insertProseSection(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string,
+  position: number,
+): Promise<void> {
+  const chain = await getProseChain(dataDir, storyId)
+  if (!chain) {
+    await initProseChain(dataDir, storyId, fragmentId)
+    return
+  }
+
+  const clampedPosition = Math.max(0, Math.min(position, chain.entries.length))
+  chain.entries.splice(clampedPosition, 0, {
+    proseFragments: [fragmentId],
+    active: fragmentId,
+  })
+  await saveProseChain(dataDir, storyId, chain)
+}
+
+/**
  * Add a variation to an existing prose section.
  * Used when regenerating/refining - creates a new version of that section.
  * The new fragment becomes the active one.

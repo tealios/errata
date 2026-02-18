@@ -134,6 +134,7 @@ export interface AgentTraceEntry {
   durationMs: number
   status: 'success' | 'error'
   error?: string
+  output?: Record<string, unknown>
 }
 
 export interface AgentRunTraceRecord {
@@ -179,6 +180,7 @@ export interface GlobalConfigSafe {
 export interface ProseChainEntry {
   proseFragments: Array<{
     id: string
+    type: string
     name: string
     description: string
     createdAt: string

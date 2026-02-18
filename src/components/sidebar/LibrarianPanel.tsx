@@ -570,6 +570,7 @@ function TraceTree({ run }: { run: AgentRunTraceRecord }) {
             {node.error}
           </p>
         )}
+        {node.output && <TraceNodeOutput output={node.output} depth={depth} />}
         {children.map((child) => renderNode(child, depth + 1))}
       </div>
     )
@@ -580,6 +581,81 @@ function TraceTree({ run }: { run: AgentRunTraceRecord }) {
       {roots.map((root) => renderNode(root, 0))}
       {run.error && (
         <p className="text-[9px] text-red-500/60 px-2 mt-1">{run.error}</p>
+      )}
+    </div>
+  )
+}
+
+function TraceNodeOutput({ output, depth }: { output: Record<string, unknown>; depth: number }) {
+  const [expanded, setExpanded] = useState(false)
+  const indent = depth * 12 + 20
+
+  const summary = typeof output.summary === 'string' ? output.summary : null
+  const reasoning = typeof output.reasoning === 'string' ? output.reasoning : null
+  const modelId = typeof output.modelId === 'string' ? output.modelId : null
+  const durationMs = typeof output.durationMs === 'number' ? output.durationMs : null
+  const trace = Array.isArray(output.trace) ? output.trace as Array<{ type: string; [key: string]: unknown }> : null
+
+  // Show a compact preview, expandable for full details
+  return (
+    <div style={{ paddingLeft: `${indent}px` }} className="py-0.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+      >
+        {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
+        <span>Output</span>
+        {modelId && (
+          <Badge variant="outline" className="text-[8px] h-3 px-1">{modelId}</Badge>
+        )}
+        {durationMs != null && (
+          <span className="text-muted-foreground/25">{formatDuration(durationMs)}</span>
+        )}
+      </button>
+      {expanded && (
+        <div className="mt-1 space-y-1.5">
+          {reasoning && (
+            <TraceOutputSection icon={<Brain className="size-3 text-purple-400/60" />} label="Reasoning">
+              <p className="text-[9px] text-muted-foreground/50 leading-relaxed whitespace-pre-wrap break-words">
+                {reasoning}
+              </p>
+            </TraceOutputSection>
+          )}
+          {summary && (
+            <div className="rounded-md border border-border/15 px-2 py-1.5">
+              <p className="text-[10px] text-foreground/60 leading-relaxed">{summary}</p>
+            </div>
+          )}
+          {trace && trace.length > 0 && (
+            <StoredTraceViewer trace={trace} />
+          )}
+          {/* Fallback: show raw output for unknown shapes */}
+          {!summary && !reasoning && !trace && (
+            <pre className="text-[9px] text-muted-foreground/40 leading-relaxed whitespace-pre-wrap break-all px-2">
+              {JSON.stringify(output, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TraceOutputSection({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="rounded-md border border-border/15 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] hover:bg-accent/20 transition-colors"
+      >
+        {icon}
+        <span className="text-muted-foreground/50">{label}</span>
+      </button>
+      {expanded && (
+        <div className="border-t border-border/10 px-2 py-1.5">
+          {children}
+        </div>
       )}
     </div>
   )

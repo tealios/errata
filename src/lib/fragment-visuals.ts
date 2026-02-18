@@ -152,6 +152,11 @@ const TYPE_PALETTES: Record<string, { bg: string; colors: string[]; shape: Bubbl
     colors: ['oklch(0.66 0.15 300)', 'oklch(0.72 0.12 280)', 'oklch(0.60 0.14 320)', 'oklch(0.76 0.10 290)', 'oklch(0.68 0.15 310)'],
     shape: 'diamond',
   },
+  marker: {
+    bg: 'oklch(0.42 0.08 85)',
+    colors: ['oklch(0.72 0.14 85)', 'oklch(0.78 0.12 70)', 'oklch(0.66 0.16 95)', 'oklch(0.80 0.10 75)', 'oklch(0.74 0.13 60)'],
+    shape: 'diamond',
+  },
 }
 
 export function generateBubbles(id: string, type: string): BubbleSet {

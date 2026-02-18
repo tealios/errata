@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 
 export const FragmentIdSchema = z.string().regex(/^[a-z]{2,4}-[a-z0-9]{4,12}$/)
 
-export const FRAGMENT_TYPES = ['prose', 'character', 'guideline', 'knowledge', 'image', 'icon'] as const
+export const FRAGMENT_TYPES = ['prose', 'character', 'guideline', 'knowledge', 'image', 'icon', 'marker'] as const
 
 export const FragmentTypeSchema = z.string().min(1)
 
