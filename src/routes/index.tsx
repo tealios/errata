@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, useRef, useCallback } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { api, type StoryMeta } from '@/lib/api'
 import {
@@ -26,6 +26,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { ErrataLogo } from '@/components/ErrataLogo'
+import {
+  isTavernCardPng,
+  extractParsedCard,
+  parseCardJson,
+} from '@/lib/importers/tavern-card'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -37,6 +42,8 @@ function StoryListPage() {
   const [description, setDescription] = useState('')
   const [importing, setImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const [fileDragOver, setFileDragOver] = useState(false)
+  const dragCounter = useRef(0)
 
   // Options section state
   const [showOptions, setShowOptions] = useState(false)
@@ -216,6 +223,145 @@ function StoryListPage() {
       if (importInputRef.current) importInputRef.current.value = ''
     }
   }
+
+  // Global drag-and-drop for character card files (JSON + PNG)
+  // Creates a new story and navigates, passing card data via sessionStorage
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => {
+      if (!e.dataTransfer) return false
+      for (let i = 0; i < e.dataTransfer.types.length; i++) {
+        if (e.dataTransfer.types[i] === 'Files') return true
+      }
+      return false
+    }
+
+    const handleDragEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragCounter.current++
+      if (dragCounter.current === 1) setFileDragOver(true)
+    }
+
+    const handleDragLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragCounter.current--
+      if (dragCounter.current === 0) setFileDragOver(false)
+    }
+
+    const handleDragOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+    }
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault()
+      dragCounter.current = 0
+      setFileDragOver(false)
+
+      const files = e.dataTransfer?.files
+      if (!files || files.length === 0) return
+
+      // Try PNG character cards first
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
+          try {
+            const buffer = await file.arrayBuffer()
+            if (isTavernCardPng(buffer)) {
+              const parsed = extractParsedCard(buffer)
+              if (parsed) {
+                // Store image data URL for the dialog
+                const bytes = new Uint8Array(buffer)
+                let binary = ''
+                for (let j = 0; j < bytes.length; j++) {
+                  binary += String.fromCharCode(bytes[j])
+                }
+                const imageDataUrl = `data:image/png;base64,${btoa(binary)}`
+
+                // Create story and navigate
+                const newStory = await api.stories.create({
+                  name: parsed.card.name,
+                  description: parsed.card.description.slice(0, 250) || 'Imported from character card',
+                })
+                sessionStorage.setItem('errata:pending-card-import', JSON.stringify({
+                  type: 'png',
+                  imageDataUrl,
+                  cardJson: JSON.stringify({
+                    data: {
+                      name: parsed.card.name,
+                      description: parsed.card.description,
+                      personality: parsed.card.personality,
+                      first_mes: parsed.card.firstMessage,
+                      mes_example: parsed.card.messageExamples,
+                      scenario: parsed.card.scenario,
+                      creator_notes: parsed.card.creatorNotes,
+                      system_prompt: parsed.card.systemPrompt,
+                      post_history_instructions: parsed.card.postHistoryInstructions,
+                      alternate_greetings: parsed.card.alternateGreetings,
+                      tags: parsed.card.tags,
+                      creator: parsed.card.creator,
+                      character_version: parsed.card.characterVersion,
+                      character_book: parsed.book ? { name: parsed.book.name, entries: parsed.book.entries.map(e => ({
+                        keys: e.keys, secondary_keys: e.secondaryKeys, content: e.content,
+                        comment: e.comment, name: e.name, enabled: e.enabled, constant: e.constant,
+                        selective: e.selective, insertion_order: e.insertionOrder,
+                        position: e.position, priority: e.priority, id: e.id,
+                      })) } : undefined,
+                    },
+                    spec: parsed.card.spec,
+                    spec_version: parsed.card.specVersion,
+                  }),
+                }))
+                await queryClient.invalidateQueries({ queryKey: ['stories'] })
+                navigate({ to: '/story/$storyId', params: { storyId: newStory.id } })
+                return
+              }
+            }
+          } catch {
+            // Not a valid tavern card PNG
+          }
+        }
+      }
+
+      // Try JSON character card
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        if (file.name.toLowerCase().endsWith('.json') || file.type === 'application/json') {
+          try {
+            const text = await file.text()
+            const parsed = parseCardJson(text)
+            if (parsed) {
+              const newStory = await api.stories.create({
+                name: parsed.card.name,
+                description: parsed.card.description.slice(0, 250) || 'Imported from character card',
+              })
+              sessionStorage.setItem('errata:pending-card-import', JSON.stringify({
+                type: 'json',
+                cardJson: text,
+              }))
+              await queryClient.invalidateQueries({ queryKey: ['stories'] })
+              navigate({ to: '/story/$storyId', params: { storyId: newStory.id } })
+              return
+            }
+          } catch {
+            // Not a valid JSON card
+          }
+        }
+      }
+    }
+
+    document.addEventListener('dragenter', handleDragEnter)
+    document.addEventListener('dragleave', handleDragLeave)
+    document.addEventListener('dragover', handleDragOver)
+    document.addEventListener('drop', handleDrop)
+    return () => {
+      document.removeEventListener('dragenter', handleDragEnter)
+      document.removeEventListener('dragleave', handleDragLeave)
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('drop', handleDrop)
+    }
+  }, [navigate, queryClient])
 
   if (showOnboarding) {
     return (
@@ -463,6 +609,17 @@ function StoryListPage() {
           ))}
         </div>
       </main>
+
+      {/* Global file drag-drop overlay */}
+      {fileDragOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 px-16 py-12">
+            <Upload className="size-8 text-primary/50" />
+            <p className="text-sm font-medium text-primary/70">Drop to create story</p>
+            <p className="text-xs text-muted-foreground/50">Character card JSON or PNG</p>
+          </div>
+        </div>
+      )}
 
       {/* Re-run onboarding */}
       <button

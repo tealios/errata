@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { importTavernCard, isTavernCardPng, type ImportedCharacter } from '@/lib/importers/tavern-card'
+import { importTavernCard, isTavernCardPng, parseCardJson, type ImportedCharacter, type ParsedCharacterCard } from '@/lib/importers/tavern-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -32,6 +32,8 @@ interface TavernCardImportDialogProps {
   /** Pre-loaded PNG buffers (e.g. from drag-and-drop). */
   initialBuffers?: ArrayBuffer[]
   onImported?: () => void
+  /** Called when a JSON character card file is detected, so the parent can route to CharacterCardImportDialog. */
+  onJsonCardDetected?: (data: ParsedCharacterCard) => void
 }
 
 export function TavernCardImportDialog({
@@ -40,6 +42,7 @@ export function TavernCardImportDialog({
   onOpenChange,
   initialBuffers,
   onImported,
+  onJsonCardDetected,
 }: TavernCardImportDialogProps) {
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -105,6 +108,23 @@ export function TavernCardImportDialog({
   const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
+
+    // Check if any file is JSON — route to CharacterCardImportDialog
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (file.name.toLowerCase().endsWith('.json') || file.type === 'application/json') {
+        try {
+          const text = await file.text()
+          const parsed = parseCardJson(text)
+          if (parsed && onJsonCardDetected) {
+            e.target.value = ''
+            onJsonCardDetected(parsed)
+            return
+          }
+        } catch { /* not a valid JSON card */ }
+      }
+    }
+
     const buffers: ArrayBuffer[] = []
     for (let i = 0; i < files.length; i++) {
       try {
@@ -113,7 +133,7 @@ export function TavernCardImportDialog({
     }
     if (buffers.length > 0) parseBuffers(buffers)
     e.target.value = ''
-  }, [parseBuffers])
+  }, [parseBuffers, onJsonCardDetected])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
@@ -332,7 +352,7 @@ export function TavernCardImportDialog({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,.png"
+            accept="image/png,.png,.json,application/json"
             multiple
             className="hidden"
             onChange={handleFileInput}
