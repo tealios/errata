@@ -17,6 +17,7 @@ export const settings = {
     enabledBuiltinTools?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
     summaryCompact?: { maxCharacters: number; targetCharacters: number }
+    enableHierarchicalSummary?: boolean
   }) =>
     apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
       method: 'PATCH',

@@ -23,6 +23,7 @@ function makeState(overrides: Partial<ContextBuildState> = {}): ContextBuildStat
       settings: makeTestSettings(),
     } as StoryMeta,
     proseFragments: [],
+    chapterSummaries: [],
     stickyGuidelines: [],
     stickyKnowledge: [],
     stickyCharacters: [],

@@ -17,6 +17,7 @@ function makeState(overrides: Partial<ContextBuildState> = {}): ContextBuildStat
       settings: makeTestSettings(),
     },
     proseFragments: [],
+    chapterSummaries: [],
     stickyGuidelines: [],
     stickyKnowledge: [],
     stickyCharacters: [],

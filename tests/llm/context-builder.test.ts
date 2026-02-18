@@ -806,6 +806,57 @@ describe('context blocks', () => {
         expect(block.source).toBe('builtin')
       }
     })
+
+    it('includes hierarchical chapter summaries when enabled', async () => {
+      const story = makeStory({
+        settings: makeTestSettings({
+          enableHierarchicalSummary: true,
+          contextCompact: { type: 'proseLimit', value: 2 },
+        }),
+      })
+      await createStory(dataDir, story)
+
+      const marker1 = makeFragment({ id: 'mk-0001', type: 'marker', name: 'Chapter 1', content: 'Meso summary for chapter 1.' })
+      const marker2 = makeFragment({ id: 'mk-0002', type: 'marker', name: 'Chapter 2', content: 'Meso summary for chapter 2.' })
+      const marker3 = makeFragment({ id: 'mk-0003', type: 'marker', name: 'Chapter 3', content: 'Meso summary for chapter 3.' })
+      const prose1 = makeFragment({ id: 'pr-0001', type: 'prose', content: 'Prose 1', order: 1 })
+      const prose2 = makeFragment({ id: 'pr-0002', type: 'prose', content: 'Prose 2', order: 2 })
+      const prose3 = makeFragment({ id: 'pr-0003', type: 'prose', content: 'Prose 3', order: 3 })
+      const prose4 = makeFragment({ id: 'pr-0004', type: 'prose', content: 'Prose 4', order: 4 })
+      const prose5 = makeFragment({ id: 'pr-0005', type: 'prose', content: 'Prose 5', order: 5 })
+
+      for (const fragment of [marker1, prose1, prose2, marker2, prose3, prose4, marker3, prose5]) {
+        await createFragment(dataDir, story.id, fragment)
+        await addProseSection(dataDir, story.id, fragment.id)
+      }
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      const chapterSummaries = findBlock(blocks, 'chapter-summaries')
+      expect(chapterSummaries).toBeDefined()
+      expect(chapterSummaries!.content).toContain('Meso summary for chapter 2.')
+      expect(chapterSummaries!.content).toContain('Meso summary for chapter 3.')
+      expect(chapterSummaries!.content).not.toContain('Meso summary for chapter 1.')
+    })
+
+    it('does not include chapter summaries block when hierarchical summaries are disabled', async () => {
+      const story = makeStory({
+        settings: makeTestSettings({
+          enableHierarchicalSummary: false,
+        }),
+      })
+      await createStory(dataDir, story)
+
+      const marker = makeFragment({ id: 'mk-0001', type: 'marker', name: 'Chapter 1', content: 'Meso summary.' })
+      await createFragment(dataDir, story.id, marker)
+      await addProseSection(dataDir, story.id, marker.id)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'chapter-summaries')).toBeUndefined()
+    })
   })
 
   describe('compileBlocks', () => {

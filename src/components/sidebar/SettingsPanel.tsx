@@ -203,7 +203,7 @@ export function SettingsPanel({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[]; contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }; summaryCompact?: { maxCharacters: number; targetCharacters: number } }) =>
+    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[]; contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }; summaryCompact?: { maxCharacters: number; targetCharacters: number }; enableHierarchicalSummary?: boolean }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -471,6 +471,18 @@ export function SettingsPanel({
               </div>
             </div>
           </div>
+          <SettingRow
+            label="Hierarchical summaries"
+            description="Include chapter marker summaries with rolling story summary"
+            helpTopic="generation#hierarchical-summaries"
+          >
+            <ToggleSwitch
+              on={story.settings.enableHierarchicalSummary ?? false}
+              onToggle={() => updateMutation.mutate({ enableHierarchicalSummary: !(story.settings.enableHierarchicalSummary ?? false) })}
+              disabled={updateMutation.isPending}
+              label="Toggle hierarchical summaries"
+            />
+          </SettingRow>
           {/* Context limit — stacked layout for breathing room */}
           <div className="px-3 py-2.5">
             <div className="flex items-center gap-1">

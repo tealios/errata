@@ -22,6 +22,7 @@ export interface StoryMeta {
     enabledBuiltinTools?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
     summaryCompact?: { maxCharacters: number; targetCharacters: number }
+    enableHierarchicalSummary?: boolean
   }
 }
 

@@ -100,6 +100,12 @@ import { existsSync } from 'node:fs'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
 
+function hasMaterialProseChange(before: Fragment, after: Fragment): boolean {
+  return before.name !== after.name
+    || before.description !== after.description
+    || before.content !== after.content
+}
+
 function contentTypeForPath(path: string): string {
   const ext = extname(path).toLowerCase()
   switch (ext) {
@@ -206,6 +212,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           enabledBuiltinTools: [],
           contextCompact: { type: 'proseLimit' as const, value: 10 },
           summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 },
+          enableHierarchicalSummary: false,
         },
       }
       await createStory(dataDir, story)
@@ -322,6 +329,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           ...(body.enabledBuiltinTools !== undefined ? { enabledBuiltinTools: body.enabledBuiltinTools } : {}),
           ...(body.contextCompact !== undefined ? { contextCompact: body.contextCompact } : {}),
           ...(body.summaryCompact !== undefined ? { summaryCompact: body.summaryCompact } : {}),
+          ...(body.enableHierarchicalSummary !== undefined ? { enableHierarchicalSummary: body.enableHierarchicalSummary } : {}),
         },
         updatedAt: new Date().toISOString(),
       }
@@ -349,6 +357,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           maxCharacters: t.Number(),
           targetCharacters: t.Number(),
         })),
+        enableHierarchicalSummary: t.Optional(t.Boolean()),
       }),
     })
 
@@ -502,6 +511,7 @@ export function createApp(dataDir: string = DATA_DIR) {
     })
 
     .put('/stories/:storyId/fragments/:fragmentId', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId, extra: { fragmentId: params.fragmentId } })
       const existing = await getFragment(
         dataDir,
         params.storyId,
@@ -535,6 +545,15 @@ export function createApp(dataDir: string = DATA_DIR) {
         updatedAt: new Date().toISOString(),
       }
       await updateFragment(dataDir, params.storyId, updated)
+
+      if (existing.type === 'prose' && hasMaterialProseChange(existing, updated)) {
+        Promise.resolve(triggerLibrarian(dataDir, params.storyId, updated)).catch((err) => {
+          requestLogger.error('triggerLibrarian failed after prose update', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+      }
+
       return updated
     }, {
       body: t.Object({
@@ -549,6 +568,7 @@ export function createApp(dataDir: string = DATA_DIR) {
     })
 
     .patch('/stories/:storyId/fragments/:fragmentId', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId, extra: { fragmentId: params.fragmentId } })
       const existing = await getFragment(
         dataDir,
         params.storyId,
@@ -570,6 +590,15 @@ export function createApp(dataDir: string = DATA_DIR) {
         set.status = 404
         return { error: 'Fragment not found' }
       }
+
+      if (existing.type === 'prose' && hasMaterialProseChange(existing, updated)) {
+        Promise.resolve(triggerLibrarian(dataDir, params.storyId, updated)).catch((err) => {
+          requestLogger.error('triggerLibrarian failed after prose edit', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+      }
+
       return updated
     }, {
       body: t.Object({

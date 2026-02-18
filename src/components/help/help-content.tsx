@@ -269,12 +269,48 @@ export const HELP_SECTIONS: HelpSection[] = [
               toward <strong className="text-foreground/75">Target characters</strong> so summary growth
               does not consume your prompt budget over time.
             </P>
+            <P>
+              If you also use chapter markers, see <strong className="text-foreground/75">Hierarchical summaries</strong>
+              for a meso-level memory layer between the rolling summary and recent prose.
+            </P>
             <Tip>
               Summarization and the context limit work as a pair: the context limit controls how
               much raw prose the model sees, and summarization ensures everything before that
               window is still represented. If you increase the context limit, you may be able to
               lower the summarization threshold (or vice versa). For very long stories, use
               summary compaction to keep the summary stable while still preserving continuity.
+            </Tip>
+          </>
+        ),
+      },
+      {
+        id: 'hierarchical-summaries',
+        title: 'Hierarchical summaries',
+        content: (
+          <>
+            <P>
+              The <strong className="text-foreground/75">Hierarchical summaries</strong> toggle adds
+              chapter-level summaries into generation context when available. This works with marker
+              fragments: when a marker has summary content, that summary can be included as a meso-level
+              memory layer between the global rolling summary and recent raw prose.
+            </P>
+            <P>
+              In practice, this gives the model three memory tiers:
+            </P>
+            <div className="rounded-md border border-border/25 bg-accent/10 px-3 py-2.5 mb-2.5 space-y-0.5">
+              {[
+                'Macro: rolling story summary maintained by the librarian.',
+                'Meso: chapter/arc summaries from marker fragments near the current prose window.',
+                'Micro: recent prose fragments included by your context limit.',
+              ].map((item, i) => (
+                <p key={item} className="text-[11.5px] text-foreground/55 leading-snug">
+                  <span className="text-muted-foreground/30 mr-1.5">{i + 1}.</span>{item}
+                </p>
+              ))}
+            </div>
+            <Tip>
+              Enable this for long stories with chapter markers. It helps preserve arc-level continuity
+              without increasing raw prose context as much.
             </Tip>
           </>
         ),
