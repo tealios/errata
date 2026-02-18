@@ -53,12 +53,24 @@ function readSavedTab(storyId: string): TabValue {
 
 export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
   const [activeTab, setActiveTab] = useState<TabValue>(() => readSavedTab(storyId))
+  const [chatInitialInput, setChatInitialInput] = useState<string>('')
   const { openHelp } = useHelp()
   const queryClient = useQueryClient()
 
   useEffect(() => {
     setActiveTab(readSavedTab(storyId))
   }, [storyId])
+
+  // Listen for ask librarian events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { fragmentId } = (e as CustomEvent).detail
+      setActiveTab('chat')
+      setChatInitialInput(`@${fragmentId} `)
+    }
+    window.addEventListener('errata:librarian:ask', handler)
+    return () => window.removeEventListener('errata:librarian:ask', handler)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -158,11 +170,18 @@ export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
 
       {/* Tab content */}
       <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
-        <LibrarianChat storyId={storyId} />
+        <LibrarianChat storyId={storyId} initialInput={chatInitialInput} />
       </TabsContent>
 
       <TabsContent value="story" className="flex-1 min-h-0 mt-0">
-        <StoryContent storyId={storyId} status={status} />
+        <StoryContent
+          storyId={storyId}
+          status={status}
+          onOpenChat={(message) => {
+            setChatInitialInput(message)
+            setActiveTab('chat')
+          }}
+        />
       </TabsContent>
 
       <TabsContent value="activity" className="flex-1 min-h-0 mt-0">
@@ -250,7 +269,7 @@ function StatusStrip({ status, runStatus }: StatusStripProps) {
 
 // ─── Story Tab ─────────────────────────────────────────────
 
-function StoryContent({ storyId, status }: LibrarianPanelProps & { status: LibrarianState | undefined }) {
+function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { status: LibrarianState | undefined; onOpenChat?: (message: string) => void }) {
   const [refineTarget, setRefineTarget] = useState<{ fragmentId: string; fragmentName: string; instructions?: string } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -334,11 +353,8 @@ function StoryContent({ storyId, status }: LibrarianPanelProps & { status: Libra
                   expanded={expandedId === summary.id}
                   analysis={expandedId === summary.id ? expandedAnalysis ?? null : null}
                   onToggle={() => setExpandedId(expandedId === summary.id ? null : summary.id)}
-                  onRefineFragment={(fragmentId, fragmentName, instructions) =>
-                    setRefineTarget({ fragmentId, fragmentName, instructions })
-                  }
+                  onOpenChat={onOpenChat}
                   charName={charName}
-                  refinableFragments={refinableFragments}
                 />
               ))}
             </div>
@@ -575,18 +591,16 @@ function AnalysisItem({
   expanded,
   analysis,
   onToggle,
-  onRefineFragment,
+  onOpenChat,
   charName,
-  refinableFragments,
 }: {
   storyId: string
   summary: LibrarianAnalysisSummary
   expanded: boolean
   analysis: LibrarianAnalysis | null
   onToggle: () => void
-  onRefineFragment?: (fragmentId: string, fragmentName: string, instructions: string) => void
+  onOpenChat?: (message: string) => void
   charName: (id: string) => string
-  refinableFragments?: Array<{ id: string; name: string; type: string }>
 }) {
   const queryClient = useQueryClient()
   const date = new Date(summary.createdAt)
@@ -661,12 +675,8 @@ function AnalysisItem({
             <div className="space-y-1.5">
               <span className="text-destructive/70 text-[10px] font-medium">Contradictions</span>
               {analysis.contradictions.map((c, i) => {
-                const fixableId = c.fragmentIds.find((fid) =>
-                  refinableFragments?.some((rf) => rf.id === fid)
-                )
-                const fixableFragment = fixableId
-                  ? refinableFragments?.find((rf) => rf.id === fixableId)
-                  : null
+                // Collect all unique fragment IDs: the analyzed prose + those cited in the contradiction
+                const allIds = [...new Set([summary.fragmentId, ...c.fragmentIds])]
                 return (
                   <div key={`contradiction-${c.fragmentIds.join('-')}-${i}`} className="bg-destructive/5 border border-destructive/10 rounded-md p-2">
                     <div className="flex items-start justify-between gap-1">
@@ -678,21 +688,18 @@ function AnalysisItem({
                           </p>
                         )}
                       </div>
-                      {fixableFragment && onRefineFragment && (
+                      {onOpenChat && (
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-5 text-[9px] gap-1 shrink-0 text-destructive/60 hover:text-destructive px-1.5"
                           onClick={(e) => {
                             e.stopPropagation()
-                            onRefineFragment(
-                              fixableFragment.id,
-                              fixableFragment.name,
-                              `Fix this contradiction: ${c.description}`,
-                            )
+                            const refs = allIds.map((id) => `@${id}`).join(' ')
+                            onOpenChat(`Fix this contradiction: ${c.description}\n\n${refs}`)
                           }}
                         >
-                          <Wrench className="size-2.5" />
+                          <MessageSquare className="size-2.5" />
                           Fix
                         </Button>
                       )}
@@ -706,7 +713,7 @@ function AnalysisItem({
           {analysis.knowledgeSuggestions.length > 0 && (
             <div className="space-y-1.5">
               <span className="text-primary/70 text-[10px] font-medium">Suggestions</span>
-              {analysis.knowledgeSuggestions.map((s) => (
+              {analysis.knowledgeSuggestions.map((s, i) => (
                 <div
                   key={`${s.type ?? 'knowledge'}-${s.name}`}
                   className={`rounded-md p-2 flex items-start justify-between gap-1 ${
