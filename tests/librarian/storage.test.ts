@@ -7,6 +7,8 @@ import {
   listAnalyses,
   getState,
   saveState,
+  getLatestAnalysisIdsByFragment,
+  rebuildAnalysisIndex,
   type LibrarianAnalysis,
   type LibrarianState,
 } from '@/server/librarian/storage'
@@ -104,6 +106,47 @@ describe('librarian storage', () => {
     it('returns empty list when no analyses exist', async () => {
       const summaries = await listAnalyses(dataDir, storyId)
       expect(summaries).toEqual([])
+    })
+
+    it('updates latest-analysis index on save and reanalysis', async () => {
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-old',
+        fragmentId: 'pr-0001',
+        createdAt: '2025-01-01T00:00:00.000Z',
+      }))
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-new',
+        fragmentId: 'pr-0001',
+        createdAt: '2025-01-02T00:00:00.000Z',
+      }))
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-other',
+        fragmentId: 'pr-0002',
+        createdAt: '2025-01-03T00:00:00.000Z',
+      }))
+
+      const latest = await getLatestAnalysisIdsByFragment(dataDir, storyId)
+      expect(latest.get('pr-0001')).toBe('analysis-new')
+      expect(latest.get('pr-0002')).toBe('analysis-other')
+    })
+
+    it('rebuilds analysis index from analysis files', async () => {
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-a',
+        fragmentId: 'pr-0001',
+        createdAt: '2025-01-01T00:00:00.000Z',
+      }))
+      await saveAnalysis(dataDir, storyId, makeAnalysis({
+        id: 'analysis-b',
+        fragmentId: 'pr-0001',
+        createdAt: '2025-01-05T00:00:00.000Z',
+      }))
+
+      const rebuilt = await rebuildAnalysisIndex(dataDir, storyId)
+      expect(rebuilt.latestByFragmentId['pr-0001']?.analysisId).toBe('analysis-b')
+
+      const latest = await getLatestAnalysisIdsByFragment(dataDir, storyId)
+      expect(latest.get('pr-0001')).toBe('analysis-b')
     })
   })
 

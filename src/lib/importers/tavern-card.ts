@@ -1,16 +1,40 @@
 /**
- * TavernAI / SillyTavern character card PNG importer.
+ * TavernAI / SillyTavern character card importer.
  *
- * Character cards embed JSON data as base64 inside PNG tEXt chunks.
- * Two formats exist:
+ * Supports two input formats:
+ *   1. PNG files with JSON data embedded as base64 in tEXt chunks
+ *   2. Raw JSON files (V2/V3 character card spec)
+ *
+ * Card specs:
  *   - "chara"  → chara_card_v2 (spec_version "2.0")
  *   - "ccv3"   → chara_card_v3 (spec_version "3.0")
  *
  * Both carry the same payload shape for the fields we care about.
+ * Also parses `character_book` (lorebook) entries into importable items.
  * This module is browser-safe (no Node APIs) and fully self-contained.
  */
 
 // ── Types ──────────────────────────────────────────────────────────────
+
+export interface CharacterBookEntry {
+  keys: string[]
+  secondaryKeys: string[]
+  content: string
+  comment: string
+  name: string
+  enabled: boolean
+  constant: boolean
+  selective: boolean
+  insertionOrder: number
+  position: 'before_char' | 'after_char' | ''
+  priority: number
+  id: number | string
+}
+
+export interface CharacterBook {
+  name: string
+  entries: CharacterBookEntry[]
+}
 
 export interface TavernCardData {
   name: string
@@ -28,6 +52,30 @@ export interface TavernCardData {
   characterVersion: string
   spec: string
   specVersion: string
+  characterBook: CharacterBook | null
+}
+
+export type ImportableItemType = 'character' | 'knowledge' | 'guideline' | 'prose'
+
+export interface ImportableItem {
+  key: string
+  suggestedType: ImportableItemType
+  name: string
+  description: string
+  content: string
+  tags: string[]
+  sticky: boolean
+  placement: 'system' | 'user'
+  order: number
+  enabled: boolean
+  source: 'main-character' | 'scenario' | 'first-message' | 'system-prompt' | 'lorebook-entry'
+  meta: Record<string, unknown>
+}
+
+export interface ParsedCharacterCard {
+  card: TavernCardData
+  book: CharacterBook | null
+  items: ImportableItem[]
 }
 
 /** Mapped to Errata's fragment shape, ready for creation. */
@@ -141,7 +189,178 @@ function parseCardData(raw: Record<string, unknown>): TavernCardData {
     characterVersion: String(data.character_version ?? ''),
     spec: String(raw.spec ?? ''),
     specVersion: String(raw.spec_version ?? ''),
+    characterBook: parseCharacterBook(data.character_book),
   }
+}
+
+// ── Character book / lorebook parsing ──────────────────────────────────
+
+function parseCharacterBookEntry(raw: unknown): CharacterBookEntry | null {
+  if (!raw || typeof raw !== 'object') return null
+  const e = raw as Record<string, unknown>
+  // Must have at least content to be useful
+  const content = String(e.content ?? '')
+  if (!content) return null
+  return {
+    keys: Array.isArray(e.keys) ? e.keys.map(String) : [],
+    secondaryKeys: Array.isArray(e.secondary_keys ?? e.secondaryKeys)
+      ? (Array.isArray(e.secondary_keys) ? e.secondary_keys : e.secondaryKeys as unknown[]).map(String)
+      : [],
+    content,
+    comment: String(e.comment ?? ''),
+    name: String(e.name ?? ''),
+    enabled: e.enabled !== false,
+    constant: e.constant === true,
+    selective: e.selective === true,
+    insertionOrder: Number(e.insertion_order ?? e.insertionOrder ?? 0),
+    position: (['before_char', 'after_char'].includes(String(e.position ?? ''))
+      ? String(e.position)
+      : '') as CharacterBookEntry['position'],
+    priority: Number(e.priority ?? 0),
+    id: (typeof e.id === 'number' || typeof e.id === 'string') ? e.id : 0,
+  }
+}
+
+function parseCharacterBook(raw: unknown): CharacterBook | null {
+  if (!raw || typeof raw !== 'object') return null
+  const book = raw as Record<string, unknown>
+  const rawEntries = Array.isArray(book.entries) ? book.entries : []
+  const entries = rawEntries
+    .map(parseCharacterBookEntry)
+    .filter((e): e is CharacterBookEntry => e !== null)
+  if (entries.length === 0 && !book.name) return null
+  return {
+    name: String(book.name ?? ''),
+    entries,
+  }
+}
+
+/** Heuristic to guess the best Errata fragment type for a lorebook entry. */
+export function inferEntryType(entry: CharacterBookEntry): 'character' | 'knowledge' | 'guideline' {
+  if (entry.constant || entry.position === 'before_char') return 'guideline'
+  return 'knowledge'
+}
+
+function truncateDescription(text: string, max = 250): string {
+  if (text.length <= max) return text
+  return text.slice(0, max - 3) + '...'
+}
+
+/** Build the full list of importable items from a parsed card + book. */
+export function buildImportableItems(card: TavernCardData, book: CharacterBook | null): ImportableItem[] {
+  const items: ImportableItem[] = []
+  let order = 0
+
+  // Main character — always first, always enabled
+  const charSections: string[] = []
+  if (card.description) charSections.push(card.description)
+  if (card.personality) charSections.push(`## Personality\n${card.personality}`)
+
+  items.push({
+    key: 'main-character',
+    suggestedType: 'character',
+    name: card.name,
+    description: truncateDescription(card.description),
+    content: charSections.join('\n\n'),
+    tags: card.tags,
+    sticky: false,
+    placement: 'user',
+    order: order++,
+    enabled: true,
+    source: 'main-character',
+    meta: {
+      importSource: 'tavern-card',
+      tavernSpec: card.spec,
+      tavernCreator: card.creator,
+    },
+  })
+
+  // Scenario → knowledge
+  if (card.scenario) {
+    items.push({
+      key: 'scenario',
+      suggestedType: 'knowledge',
+      name: `${card.name} — Scenario`,
+      description: truncateDescription(card.scenario),
+      content: card.scenario,
+      tags: [],
+      sticky: false,
+      placement: 'user',
+      order: order++,
+      enabled: true,
+      source: 'scenario',
+      meta: { importSource: 'tavern-card' },
+    })
+  }
+
+  // First message → prose
+  if (card.firstMessage) {
+    items.push({
+      key: 'first-message',
+      suggestedType: 'prose',
+      name: `${card.name} — Opening`,
+      description: truncateDescription(card.firstMessage),
+      content: card.firstMessage,
+      tags: [],
+      sticky: false,
+      placement: 'user',
+      order: order++,
+      enabled: true,
+      source: 'first-message',
+      meta: { importSource: 'tavern-card' },
+    })
+  }
+
+  // System prompt → guideline, sticky, placement=system
+  if (card.systemPrompt) {
+    items.push({
+      key: 'system-prompt',
+      suggestedType: 'guideline',
+      name: `${card.name} — System Prompt`,
+      description: truncateDescription(card.systemPrompt),
+      content: card.systemPrompt,
+      tags: [],
+      sticky: true,
+      placement: 'system',
+      order: order++,
+      enabled: true,
+      source: 'system-prompt',
+      meta: { importSource: 'tavern-card' },
+    })
+  }
+
+  // Lorebook entries
+  if (book) {
+    for (const entry of book.entries) {
+      const entryName = entry.name || entry.comment || entry.keys.slice(0, 3).join(' / ') || `Entry ${entry.id}`
+      const entryType = inferEntryType(entry)
+      items.push({
+        key: `lorebook-${entry.id}`,
+        suggestedType: entryType,
+        name: entryName,
+        description: truncateDescription(entry.content),
+        content: entry.content,
+        tags: entry.keys,
+        sticky: entry.constant,
+        placement: entry.position === 'before_char' ? 'system' : 'user',
+        order: order++,
+        enabled: entry.enabled,
+        source: 'lorebook-entry',
+        meta: {
+          importSource: 'tavern-card',
+          lorebookEntryId: entry.id,
+          insertionOrder: entry.insertionOrder,
+          priority: entry.priority,
+          selective: entry.selective,
+          secondaryKeys: entry.secondaryKeys,
+          constant: entry.constant,
+          position: entry.position,
+        },
+      })
+    }
+  }
+
+  return items
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
@@ -230,4 +449,55 @@ export function importTavernCard(buffer: ArrayBuffer): ImportedCharacter {
     tags: card.tags,
     meta,
   }
+}
+
+/**
+ * Parse a raw JSON string as a character card (V2 or V3).
+ * Returns null if the JSON is not a recognized card format.
+ */
+export function parseCardJson(text: string): ParsedCharacterCard | null {
+  let raw: Record<string, unknown>
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return null
+  }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+
+  // Reject Errata export format
+  if ('_errata' in raw) return null
+
+  // Detect tavern card shape: needs `data.name` or root `name`, and
+  // either `spec` field or `data` wrapper with character fields
+  const data = (raw.data ?? raw) as Record<string, unknown>
+  if (!data.name || typeof data.name !== 'string') return null
+
+  // Must have at least one character-card-specific field
+  const cardFields = ['description', 'personality', 'first_mes', 'scenario', 'system_prompt', 'character_book']
+  const hasCardField = cardFields.some((f) => f in data && data[f] !== undefined)
+  if (!hasCardField && !raw.spec) return null
+
+  const card = parseCardData(raw)
+  const book = card.characterBook
+  const items = buildImportableItems(card, book)
+  return { card, book, items }
+}
+
+/** Quick detection: is this JSON text a tavern character card? */
+export function isTavernCardJson(text: string): boolean {
+  return parseCardJson(text) !== null
+}
+
+/**
+ * Extract a ParsedCharacterCard from a PNG buffer.
+ * Returns null if no card data is found.
+ */
+export function extractParsedCard(buffer: ArrayBuffer): ParsedCharacterCard | null {
+  const cards = extractTavernCards(buffer)
+  if (cards.length === 0) return null
+  const card = cards.find((c) => c.spec === 'chara_card_v3') ?? cards[0]
+  const book = card.characterBook
+  const items = buildImportableItems(card, book)
+  return { card, book, items }
 }

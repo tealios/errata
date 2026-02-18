@@ -11,6 +11,7 @@ An LLM assisted writing app built around a fragment system. Prose, characters, g
 - **Block-based context** — visual editor for reordering, overriding, and extending LLM prompt structure
 - **Multi-provider LLM** — DeepSeek, OpenAI, Anthropic, OpenRouter, or any OpenAI-compatible API
 - **Librarian agent** — background continuity management (rolling summary, contradictions, timeline, knowledge suggestions, interactive chat)
+- **SillyTavern import** — drag-and-drop character card PNGs or JSON files (V2/V3), including lorebook/world book entries
 - **Plugin system** — bundled + external runtime plugins with iframe UI panels
 - **No database** — filesystem storage, compiles to a single binary
 

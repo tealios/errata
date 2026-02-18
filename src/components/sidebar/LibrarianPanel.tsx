@@ -736,6 +736,51 @@ function AnalysisItem({
             </div>
           )}
 
+          {analysis.structuredSummary && (
+            <div className="space-y-1.5">
+              <span className="text-muted-foreground/45 text-[10px]">Structured summary</span>
+
+              {analysis.structuredSummary.events.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-foreground/45 uppercase tracking-wide">Events</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {analysis.structuredSummary.events.map((event, i) => (
+                      <li key={`structured-event-${i}`} className="text-foreground/60 leading-relaxed">
+                        - {event}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysis.structuredSummary.stateChanges.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-foreground/45 uppercase tracking-wide">State changes</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {analysis.structuredSummary.stateChanges.map((change, i) => (
+                      <li key={`structured-state-${i}`} className="text-foreground/60 leading-relaxed">
+                        - {change}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysis.structuredSummary.openThreads.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-foreground/45 uppercase tracking-wide">Open threads</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {analysis.structuredSummary.openThreads.map((thread, i) => (
+                      <li key={`structured-thread-${i}`} className="text-foreground/60 leading-relaxed">
+                        - {thread}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {analysis.mentionedCharacters.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
               <span className="text-muted-foreground/45 text-[10px] mr-1">Characters</span>

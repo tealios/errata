@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
@@ -10,6 +10,11 @@ export interface LibrarianAnalysis {
   createdAt: string
   fragmentId: string
   summaryUpdate: string
+  structuredSummary?: {
+    events: string[]
+    stateChanges: string[]
+    openThreads: string[]
+  }
   mentionedCharacters: string[]
   mentions?: Array<{ characterId: string; text: string }>
   contradictions: Array<{
@@ -37,6 +42,29 @@ export interface LibrarianAnalysis {
   }>
 }
 
+export function selectLatestAnalysesByFragment(
+  summaries: LibrarianAnalysisSummary[],
+): Map<string, LibrarianAnalysisSummary> {
+  const latest = new Map<string, LibrarianAnalysisSummary>()
+
+  for (const summary of summaries) {
+    const prev = latest.get(summary.fragmentId)
+    if (!prev) {
+      latest.set(summary.fragmentId, summary)
+      continue
+    }
+
+    if (
+      summary.createdAt > prev.createdAt
+      || (summary.createdAt === prev.createdAt && summary.id > prev.id)
+    ) {
+      latest.set(summary.fragmentId, summary)
+    }
+  }
+
+  return latest
+}
+
 export interface LibrarianAnalysisSummary {
   id: string
   createdAt: string
@@ -54,6 +82,18 @@ export interface LibrarianState {
   summarizedUpTo: string | null
   recentMentions: Record<string, string[]>
   timeline: Array<{ event: string; fragmentId: string }>
+}
+
+export interface LibrarianAnalysisIndexEntry {
+  analysisId: string
+  createdAt: string
+}
+
+export interface LibrarianAnalysisIndex {
+  version: 1
+  updatedAt: string
+  latestByFragmentId: Record<string, LibrarianAnalysisIndexEntry>
+  appliedSummarySequence?: string[]
 }
 
 // --- Path helpers ---
@@ -78,6 +118,94 @@ async function statePath(dataDir: string, storyId: string): Promise<string> {
   return join(dir, 'state.json')
 }
 
+async function analysisIndexPath(dataDir: string, storyId: string): Promise<string> {
+  const dir = await librarianDir(dataDir, storyId)
+  return join(dir, 'index.json')
+}
+
+async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  const tmpPath = `${path}.tmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  await writeFile(tmpPath, JSON.stringify(value, null, 2), 'utf-8')
+  await rename(tmpPath, path)
+}
+
+function shouldReplaceIndexEntry(
+  previous: LibrarianAnalysisIndexEntry | undefined,
+  incoming: { createdAt: string; analysisId: string },
+): boolean {
+  if (!previous) return true
+  if (incoming.createdAt > previous.createdAt) return true
+  if (incoming.createdAt < previous.createdAt) return false
+  return incoming.analysisId > previous.analysisId
+}
+
+function defaultAnalysisIndex(): LibrarianAnalysisIndex {
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    latestByFragmentId: {},
+  }
+}
+
+async function saveAnalysisIndex(
+  dataDir: string,
+  storyId: string,
+  index: LibrarianAnalysisIndex,
+): Promise<void> {
+  const dir = await librarianDir(dataDir, storyId)
+  await mkdir(dir, { recursive: true })
+  await writeJsonAtomic(await analysisIndexPath(dataDir, storyId), index)
+}
+
+export async function getAnalysisIndex(
+  dataDir: string,
+  storyId: string,
+): Promise<LibrarianAnalysisIndex | null> {
+  const path = await analysisIndexPath(dataDir, storyId)
+  if (!existsSync(path)) return null
+  const raw = await readFile(path, 'utf-8')
+  const parsed = JSON.parse(raw) as Partial<LibrarianAnalysisIndex>
+  return {
+    version: 1,
+    updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+    latestByFragmentId: parsed.latestByFragmentId ?? {},
+    appliedSummarySequence: Array.isArray(parsed.appliedSummarySequence) ? parsed.appliedSummarySequence : undefined,
+  }
+}
+
+function analysisSummaryToIndexEntry(summary: LibrarianAnalysisSummary): LibrarianAnalysisIndexEntry {
+  return {
+    analysisId: summary.id,
+    createdAt: summary.createdAt,
+  }
+}
+
+export async function rebuildAnalysisIndex(
+  dataDir: string,
+  storyId: string,
+): Promise<LibrarianAnalysisIndex> {
+  const summaries = await listAnalyses(dataDir, storyId)
+  const latest = selectLatestAnalysesByFragment(summaries)
+  const rebuilt: LibrarianAnalysisIndex = defaultAnalysisIndex()
+  for (const [fragmentId, summary] of latest.entries()) {
+    rebuilt.latestByFragmentId[fragmentId] = analysisSummaryToIndexEntry(summary)
+  }
+  rebuilt.updatedAt = new Date().toISOString()
+  await saveAnalysisIndex(dataDir, storyId, rebuilt)
+  return rebuilt
+}
+
+export async function getLatestAnalysisIdsByFragment(
+  dataDir: string,
+  storyId: string,
+): Promise<Map<string, string>> {
+  const index = await getAnalysisIndex(dataDir, storyId) ?? await rebuildAnalysisIndex(dataDir, storyId)
+  return new Map(
+    Object.entries(index.latestByFragmentId)
+      .map(([fragmentId, entry]) => [fragmentId, entry.analysisId]),
+  )
+}
+
 // --- Storage functions ---
 
 export async function saveAnalysis(
@@ -92,6 +220,17 @@ export async function saveAnalysis(
     JSON.stringify(analysis, null, 2),
     'utf-8',
   )
+
+  const currentIndex = await getAnalysisIndex(dataDir, storyId) ?? defaultAnalysisIndex()
+  const previous = currentIndex.latestByFragmentId[analysis.fragmentId]
+  if (shouldReplaceIndexEntry(previous, { createdAt: analysis.createdAt, analysisId: analysis.id })) {
+    currentIndex.latestByFragmentId[analysis.fragmentId] = {
+      analysisId: analysis.id,
+      createdAt: analysis.createdAt,
+    }
+  }
+  currentIndex.updatedAt = new Date().toISOString()
+  await saveAnalysisIndex(dataDir, storyId, currentIndex)
 }
 
 export async function getAnalysis(

@@ -1,13 +1,18 @@
 import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
-import { getActiveProseIds, findSectionIndex } from '../fragments/prose-chain'
-import { listAnalyses, getAnalysis } from '../librarian/storage'
+import { getActiveProseIds, findSectionIndex, getFullProseChain } from '../fragments/prose-chain'
+import { getAnalysis, getLatestAnalysisIdsByFragment } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 
 export interface ContextBuildState {
   story: StoryMeta
   proseFragments: Fragment[]
+  chapterSummaries: Array<{
+    markerId: string
+    name: string
+    summary: string
+  }>
   stickyGuidelines: Fragment[]
   stickyKnowledge: Fragment[]
   stickyCharacters: Fragment[]
@@ -126,20 +131,20 @@ async function buildSummaryBeforeFragment(
 ): Promise<string> {
   if (fragmentIdsInOrder.length === 0) return ''
 
-  const summaries = await listAnalyses(dataDir, storyId)
-  if (summaries.length === 0) return ''
+  const latestByFragment = await getLatestAnalysisIdsByFragment(dataDir, storyId)
+  if (latestByFragment.size === 0) return ''
 
-  const analyses = await Promise.all(
-    summaries.map((s) => getAnalysis(dataDir, storyId, s.id)),
-  )
+  const analysisIds = fragmentIdsInOrder
+    .map((fragmentId) => latestByFragment.get(fragmentId))
+    .filter((analysisId): analysisId is string => !!analysisId)
 
-  const position = new Map(fragmentIdsInOrder.map((id, idx) => [id, idx]))
+  if (analysisIds.length === 0) return ''
+
+  const analyses = await Promise.all(analysisIds.map((analysisId) => getAnalysis(dataDir, storyId, analysisId)))
   const updates = analyses
     .filter((a): a is NonNullable<typeof a> => !!a)
-    .filter((a) => position.has(a.fragmentId))
-    .filter((a) => a.summaryUpdate.trim().length > 0)
-    .sort((a, b) => (position.get(a.fragmentId) ?? 0) - (position.get(b.fragmentId) ?? 0))
     .map((a) => a.summaryUpdate.trim())
+    .filter((summary) => summary.length > 0)
 
   return updates.join(' ').trim()
 }
@@ -266,6 +271,54 @@ export async function buildContextState(
   // Apply the prose limit
   const recentProse = applyProseLimit(sortedProse, effectiveCompact)
 
+  let chapterSummaries: Array<{ markerId: string; name: string; summary: string }> = []
+  if (story.settings.enableHierarchicalSummary && activeProseIds.length > 0 && recentProse.length > 0) {
+    const chain = await getFullProseChain(dataDir, storyId)
+    if (chain) {
+      const sectionByFragmentId = new Map(activeProseIds.map((id, idx) => [id, idx]))
+      const recentSectionIndexes = recentProse
+        .map((p) => sectionByFragmentId.get(p.id))
+        .filter((idx): idx is number => idx !== undefined)
+
+      if (recentSectionIndexes.length > 0) {
+        const start = Math.min(...recentSectionIndexes)
+        const end = Math.max(...recentSectionIndexes)
+        const markerIndexes: number[] = []
+
+        for (let i = 0; i < chain.entries.length; i++) {
+          const entry = chain.entries[i]
+          const activeId = entry.active
+          const fragment = await getFragment(dataDir, storyId, activeId)
+          if (fragment?.type === 'marker') {
+            markerIndexes.push(i)
+          }
+        }
+
+        for (let i = 0; i < markerIndexes.length; i++) {
+          const markerIndex = markerIndexes[i]
+          const nextMarkerIndex = markerIndexes[i + 1] ?? chain.entries.length
+          const chapterStart = markerIndex + 1
+          const chapterEnd = nextMarkerIndex - 1
+
+          if (chapterEnd < chapterStart) continue
+          if (chapterEnd < start || chapterStart > end) continue
+
+          const markerId = chain.entries[markerIndex].active
+          const marker = await getFragment(dataDir, storyId, markerId)
+          if (!marker || marker.type !== 'marker') continue
+          const summary = marker.content.trim()
+          if (!summary) continue
+
+          chapterSummaries.push({
+            markerId: marker.id,
+            name: marker.name,
+            summary,
+          })
+        }
+      }
+    }
+  }
+
   let effectiveSummary = story.summary
   if (excludeStorySummary) {
     effectiveSummary = ''
@@ -309,6 +362,7 @@ export async function buildContextState(
   const state = {
     story: { ...story, summary: effectiveSummary },
     proseFragments: recentProse,
+    chapterSummaries,
     stickyGuidelines,
     stickyKnowledge,
     stickyCharacters,
@@ -394,6 +448,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
   const {
     story,
     proseFragments,
+    chapterSummaries,
     stickyGuidelines,
     stickyKnowledge,
     stickyCharacters,
@@ -499,6 +554,19 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       role: 'user',
       content: `## Story Summary So Far\n${story.summary}`,
       order: 200,
+      source: 'builtin',
+    })
+  }
+
+  if (chapterSummaries.length > 0) {
+    blocks.push({
+      id: 'chapter-summaries',
+      role: 'user',
+      content: [
+        '## Chapter/Arc Summaries',
+        ...chapterSummaries.map((c) => `[@chapter=${c.markerId}]\n### ${c.name}\n${c.summary}`),
+      ].join('\n\n'),
+      order: 210,
       source: 'builtin',
     })
   }

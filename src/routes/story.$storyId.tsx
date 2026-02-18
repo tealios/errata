@@ -22,13 +22,19 @@ import {
 } from '@/lib/plugin-panels'
 import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
 import { TavernCardImportDialog } from '@/components/fragments/TavernCardImportDialog'
+import { CharacterCardImportDialog } from '@/components/fragments/CharacterCardImportDialog'
 import {
   parseErrataExport,
   readFileAsText,
   downloadTextFile,
   type ErrataExportData,
 } from '@/lib/fragment-clipboard'
-import { isTavernCardPng } from '@/lib/importers/tavern-card'
+import {
+  isTavernCardPng,
+  extractParsedCard,
+  parseCardJson,
+  type ParsedCharacterCard,
+} from '@/lib/importers/tavern-card'
 import { Upload } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { TimelineTabs } from '@/components/prose/TimelineTabs'
@@ -56,6 +62,9 @@ function StoryEditorPage() {
   const [importInitialData, setImportInitialData] = useState<ErrataExportData | null>(null)
   const [showTavernImport, setShowTavernImport] = useState(false)
   const [tavernImportBuffers, setTavernImportBuffers] = useState<ArrayBuffer[]>([])
+  const [showCardImport, setShowCardImport] = useState(false)
+  const [cardImportData, setCardImportData] = useState<ParsedCharacterCard | null>(null)
+  const [cardImportImageUrl, setCardImportImageUrl] = useState<string | null>(null)
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
@@ -123,6 +132,24 @@ function StoryEditorPage() {
 
   useEffect(() => {
     localStorage.setItem(`errata:last-accessed:${storyId}`, new Date().toISOString())
+  }, [storyId])
+
+  // Check for pending card import (from homepage drag-drop)
+  useEffect(() => {
+    const raw = sessionStorage.getItem('errata:pending-card-import')
+    if (!raw) return
+    sessionStorage.removeItem('errata:pending-card-import')
+    try {
+      const pending = JSON.parse(raw) as { type: 'json' | 'png'; cardJson: string; imageDataUrl?: string }
+      const parsed = parseCardJson(pending.cardJson)
+      if (parsed) {
+        setCardImportData(parsed)
+        setCardImportImageUrl(pending.type === 'png' ? pending.imageDataUrl ?? null : null)
+        setShowCardImport(true)
+      }
+    } catch {
+      // Invalid pending data, ignore
+    }
   }, [storyId])
 
   useEffect(() => {
@@ -245,6 +272,13 @@ function StoryEditorPage() {
     setShowTavernImport(true)
   }, [])
 
+  const handleJsonCardDetected = useCallback((data: ParsedCharacterCard) => {
+    setShowTavernImport(false)
+    setCardImportData(data)
+    setCardImportImageUrl(null)
+    setShowCardImport(true)
+  }, [])
+
   const handleExportProse = useCallback(async () => {
     const [chain, fragments] = await Promise.all([
       api.proseChain.get(storyId),
@@ -344,15 +378,41 @@ function StoryEditorPage() {
       }
 
       if (cardBuffers.length > 0) {
-        setTavernImportBuffers(cardBuffers)
-        setShowTavernImport(true)
+        // Check if the first card has a character_book — route to full import dialog
+        const parsed = extractParsedCard(cardBuffers[0])
+        if (parsed && parsed.book && parsed.book.entries.length > 0) {
+          // PNG with lorebook → CharacterCardImportDialog
+          const bytes = new Uint8Array(cardBuffers[0])
+          let binary = ''
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i])
+          }
+          setCardImportImageUrl(`data:image/png;base64,${btoa(binary)}`)
+          setCardImportData(parsed)
+          setShowCardImport(true)
+        } else {
+          // PNG without lorebook → existing TavernCardImportDialog
+          setTavernImportBuffers(cardBuffers)
+          setShowTavernImport(true)
+        }
         return
       }
 
-      // Fall through to JSON import with the first non-card file
+      // Fall through to JSON/text file import
       if (nonCardFile) {
         try {
           const text = await readFileAsText(nonCardFile)
+
+          // Try tavern card JSON first
+          const cardParsed = parseCardJson(text)
+          if (cardParsed) {
+            setCardImportData(cardParsed)
+            setCardImportImageUrl(null)
+            setShowCardImport(true)
+            return
+          }
+
+          // Then try Errata export
           const parsed = parseErrataExport(text)
           if (parsed) {
             setImportInitialData(parsed)
@@ -539,7 +599,7 @@ function StoryEditorPage() {
           <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 px-16 py-12">
             <Upload className="size-8 text-primary/50" />
             <p className="text-sm font-medium text-primary/70">Drop file to import</p>
-            <p className="text-xs text-muted-foreground/50">JSON fragment, bundle, or PNG character card</p>
+            <p className="text-xs text-muted-foreground/50">JSON fragment, bundle, character card, or PNG</p>
           </div>
         </div>
       )}
@@ -556,6 +616,15 @@ function StoryEditorPage() {
         open={showTavernImport}
         onOpenChange={setShowTavernImport}
         initialBuffers={tavernImportBuffers}
+        onJsonCardDetected={handleJsonCardDetected}
+      />
+
+      <CharacterCardImportDialog
+        storyId={storyId}
+        open={showCardImport}
+        onOpenChange={setShowCardImport}
+        initialCardData={cardImportData}
+        imageDataUrl={cardImportImageUrl}
       />
     </SidebarProvider>
   )

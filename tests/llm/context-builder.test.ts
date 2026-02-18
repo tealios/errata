@@ -7,6 +7,9 @@ import {
 import { addProseSection } from '@/server/fragments/prose-chain'
 import { addProseVariation } from '@/server/fragments/prose-chain'
 import { saveAnalysis } from '@/server/librarian/storage'
+import { unlink } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 import {
   buildContext,
@@ -528,6 +531,113 @@ describe('context-builder', () => {
     expect(user.content).not.toContain('Summary C2')
   })
 
+  it('uses latest analysis per fragment when rebuilding summaryBeforeFragmentId', async () => {
+    const story = makeStory({ summary: 'Global summary should not leak in.' })
+    await createStory(dataDir, story)
+
+    const proseA = makeFragment({ id: 'pr-0001', type: 'prose', name: 'A', content: 'A', order: 1 })
+    const proseB = makeFragment({ id: 'pr-0002', type: 'prose', name: 'B', content: 'B', order: 2 })
+    const proseC = makeFragment({ id: 'pr-0003', type: 'prose', name: 'C', content: 'C', order: 3 })
+    await createFragment(dataDir, story.id, proseA)
+    await createFragment(dataDir, story.id, proseB)
+    await createFragment(dataDir, story.id, proseC)
+    await addProseSection(dataDir, story.id, proseA.id)
+    await addProseSection(dataDir, story.id, proseB.id)
+    await addProseSection(dataDir, story.id, proseC.id)
+
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-a',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      fragmentId: 'pr-0001',
+      summaryUpdate: 'Summary A',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-b-old',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      fragmentId: 'pr-0002',
+      summaryUpdate: 'Summary B old',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-b-new',
+      createdAt: '2025-01-02T00:00:00.000Z',
+      fragmentId: 'pr-0002',
+      summaryUpdate: 'Summary B new',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+
+    const messages = await buildContext(dataDir, story.id, 'Regenerate C', {
+      proseBeforeFragmentId: 'pr-0003',
+      summaryBeforeFragmentId: 'pr-0003',
+      excludeFragmentId: 'pr-0003',
+    })
+    const user = messages.find((m) => m.role === 'user')!
+
+    expect(user.content).toContain('Summary A Summary B new')
+    expect(user.content).not.toContain('Summary B old')
+  })
+
+  it('rebuilds summaryBeforeFragmentId correctly when analysis index is missing', async () => {
+    const story = makeStory({ summary: 'Global summary should not leak in.' })
+    await createStory(dataDir, story)
+
+    const proseA = makeFragment({ id: 'pr-0001', type: 'prose', name: 'A', content: 'A', order: 1 })
+    const proseB = makeFragment({ id: 'pr-0002', type: 'prose', name: 'B', content: 'B', order: 2 })
+    const proseC = makeFragment({ id: 'pr-0003', type: 'prose', name: 'C', content: 'C', order: 3 })
+    await createFragment(dataDir, story.id, proseA)
+    await createFragment(dataDir, story.id, proseB)
+    await createFragment(dataDir, story.id, proseC)
+    await addProseSection(dataDir, story.id, proseA.id)
+    await addProseSection(dataDir, story.id, proseB.id)
+    await addProseSection(dataDir, story.id, proseC.id)
+
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-a',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      fragmentId: 'pr-0001',
+      summaryUpdate: 'Summary A',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+    await saveAnalysis(dataDir, story.id, {
+      id: 'la-b',
+      createdAt: '2025-01-02T00:00:00.000Z',
+      fragmentId: 'pr-0002',
+      summaryUpdate: 'Summary B',
+      mentionedCharacters: [],
+      contradictions: [],
+      knowledgeSuggestions: [],
+      timelineEvents: [],
+    })
+
+    const indexPath = join(dataDir, 'stories', story.id, 'branches', 'main', 'librarian', 'index.json')
+    if (existsSync(indexPath)) {
+      await unlink(indexPath)
+    }
+
+    const messages = await buildContext(dataDir, story.id, 'Regenerate C', {
+      proseBeforeFragmentId: 'pr-0003',
+      summaryBeforeFragmentId: 'pr-0003',
+      excludeFragmentId: 'pr-0003',
+    })
+    const user = messages.find((m) => m.role === 'user')!
+
+    expect(user.content).toContain('Summary A Summary B')
+    expect(user.content).not.toContain('Global summary should not leak in.')
+  })
+
   it('limits prose by maxCharacters', async () => {
     const story = makeStory()
     await createStory(dataDir, story)
@@ -749,6 +859,57 @@ describe('context blocks', () => {
       for (const block of blocks) {
         expect(block.source).toBe('builtin')
       }
+    })
+
+    it('includes hierarchical chapter summaries when enabled', async () => {
+      const story = makeStory({
+        settings: makeTestSettings({
+          enableHierarchicalSummary: true,
+          contextCompact: { type: 'proseLimit', value: 2 },
+        }),
+      })
+      await createStory(dataDir, story)
+
+      const marker1 = makeFragment({ id: 'mk-0001', type: 'marker', name: 'Chapter 1', content: 'Meso summary for chapter 1.' })
+      const marker2 = makeFragment({ id: 'mk-0002', type: 'marker', name: 'Chapter 2', content: 'Meso summary for chapter 2.' })
+      const marker3 = makeFragment({ id: 'mk-0003', type: 'marker', name: 'Chapter 3', content: 'Meso summary for chapter 3.' })
+      const prose1 = makeFragment({ id: 'pr-0001', type: 'prose', content: 'Prose 1', order: 1 })
+      const prose2 = makeFragment({ id: 'pr-0002', type: 'prose', content: 'Prose 2', order: 2 })
+      const prose3 = makeFragment({ id: 'pr-0003', type: 'prose', content: 'Prose 3', order: 3 })
+      const prose4 = makeFragment({ id: 'pr-0004', type: 'prose', content: 'Prose 4', order: 4 })
+      const prose5 = makeFragment({ id: 'pr-0005', type: 'prose', content: 'Prose 5', order: 5 })
+
+      for (const fragment of [marker1, prose1, prose2, marker2, prose3, prose4, marker3, prose5]) {
+        await createFragment(dataDir, story.id, fragment)
+        await addProseSection(dataDir, story.id, fragment.id)
+      }
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      const chapterSummaries = findBlock(blocks, 'chapter-summaries')
+      expect(chapterSummaries).toBeDefined()
+      expect(chapterSummaries!.content).toContain('Meso summary for chapter 2.')
+      expect(chapterSummaries!.content).toContain('Meso summary for chapter 3.')
+      expect(chapterSummaries!.content).not.toContain('Meso summary for chapter 1.')
+    })
+
+    it('does not include chapter summaries block when hierarchical summaries are disabled', async () => {
+      const story = makeStory({
+        settings: makeTestSettings({
+          enableHierarchicalSummary: false,
+        }),
+      })
+      await createStory(dataDir, story)
+
+      const marker = makeFragment({ id: 'mk-0001', type: 'marker', name: 'Chapter 1', content: 'Meso summary.' })
+      await createFragment(dataDir, story.id, marker)
+      await addProseSection(dataDir, story.id, marker.id)
+
+      const state = await buildContextState(dataDir, story.id, 'Continue')
+      const blocks = createDefaultBlocks(state)
+
+      expect(findBlock(blocks, 'chapter-summaries')).toBeUndefined()
     })
   })
 

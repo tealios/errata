@@ -451,7 +451,7 @@ This section maps SillyTavern concepts to Errata fragments and walks through imp
 | Character card — scenario | `knowledge` fragment | The scenario/setting becomes world knowledge. |
 | Character card — first message | First `prose` fragment in chain | The greeting becomes the opening prose entry. |
 | Character card — example messages | `guideline` fragment | Example dialogue becomes a style/voice guideline. |
-| World Info / Lorebook entry | `knowledge` fragment | Each lorebook entry becomes a knowledge fragment. Tags can carry the activation keywords. |
+| World Info / Lorebook entry | `knowledge` or `guideline` fragment | Each lorebook entry becomes a fragment. Type is inferred from `constant`/`position` fields (see [lorebook heuristic](#lorebook-entry-type-heuristic)). Activation `keys` become fragment tags. The UI import dialog allows overriding the inferred type per-entry. |
 | Author's Note | `guideline` fragment with `sticky: true` | Author's notes that should always be in context. |
 | System prompt (global) | `guideline` fragment with `sticky: true`, `placement: "system"` | Use `placement: "system"` to put it in the system message. |
 
@@ -565,32 +565,114 @@ curl -X POST http://localhost:7739/api/stories/imported-chat-lk5abc/chapters \
 
 The `position` is the index in the prose chain where the marker is inserted (0-based, shifts subsequent entries).
 
-### TavernAI character card PNG import
+### Character card import (PNG + JSON)
 
-Errata includes a built-in parser for TavernAI character card PNGs (`src/lib/importers/tavern-card.ts`). These PNGs embed JSON data as base64 inside PNG `tEXt` chunks.
+Errata includes a built-in importer for TavernAI / SillyTavern character cards (`src/lib/importers/tavern-card.ts`). Both PNG and raw JSON formats are supported, including `character_book` (lorebook/world book) entries.
 
-The importer:
-1. Reads the PNG's `tEXt` chunks looking for `ccv3` (v3 spec) or `chara` (v2 spec) keywords.
-2. Decodes the base64 JSON payload.
-3. Maps the card data to an Errata character fragment:
-   - `name` → fragment `name`
-   - `description` + `personality` → fragment `content`
-   - `description` (truncated to 250 chars) → fragment `description`
-   - `tags` → fragment `tags`
-   - `scenario`, `first_mes`, `mes_example`, `system_prompt`, `post_history_instructions`, `alternate_greetings`, `creator_notes` → fragment `meta`
+#### Supported formats
 
-The UI supports drag-and-drop of `.png` character card files. Programmatically, you can use the exported functions:
+| Format | Spec | How it works |
+|---|---|---|
+| PNG (`.png`) | V2 `chara` / V3 `ccv3` | JSON embedded as base64 in PNG `tEXt` chunks |
+| JSON (`.json`) | V2 / V3 | Raw JSON with `data.name` + card fields, or `spec` field |
+
+Both formats can contain a `character_book` object with lorebook entries.
+
+#### What gets imported
+
+The importer builds a list of **importable items** from a card. Each item maps to an Errata fragment:
+
+| Card field | Errata type | Sticky | Placement | Notes |
+|---|---|---|---|---|
+| Main character (`name` + `description` + `personality`) | `character` | No | `user` | Always present, always enabled |
+| `scenario` | `knowledge` | No | `user` | Only when non-empty |
+| `first_mes` | `prose` | No | `user` | Added to prose chain on import |
+| `system_prompt` | `guideline` | Yes | `system` | Only when non-empty |
+| `character_book` entries | Inferred | Varies | Varies | See heuristic below |
+
+#### Lorebook entry type heuristic
+
+Each lorebook entry is assigned an Errata fragment type based on its properties:
+
+- `constant: true` OR `position: "before_char"` → **guideline** (sticky, system placement)
+- Otherwise → **knowledge**
+
+Users can override the suggested type per-entry in the import dialog before importing.
+
+#### Lorebook entry mapping
+
+| Lorebook field | Errata field | Notes |
+|---|---|---|
+| `name` or `comment` or first 3 `keys` | Fragment `name` | Falls back in order |
+| `content` | Fragment `content` | Full text |
+| `content` (truncated to 250 chars) | Fragment `description` | Auto-truncated |
+| `keys` | Fragment `tags` | Activation keywords become tags |
+| `constant: true` | `sticky: true` | Always in context |
+| `position: "before_char"` | `placement: "system"` | Placed in system message |
+| `enabled` | Pre-checked in UI | Disabled entries are unchecked by default |
+| `insertion_order`, `priority`, `selective`, `secondary_keys` | Fragment `meta` | Preserved for reference |
+
+#### UI import flows
+
+**Drag-and-drop onto a story:**
+- PNG without lorebook → simple character card import (portrait + character fragment)
+- PNG with lorebook → full import dialog with grouped item list and portrait thumbnail
+- JSON file → full import dialog with grouped item list
+
+**Drag-and-drop onto the homepage (no story):**
+- Auto-creates a new story named after the character
+- Navigates to the story and opens the import dialog
+
+**URL fetch:**
+- Paste a raw JSON URL (GitHub gist, CDN, etc.) into the import dialog
+- Fetches and parses the card, showing all entries for selection
+
+The import dialog groups items by source (Character, Card Extras, Lorebook) and allows per-entry type override, select/deselect all, and shows content previews with tag badges.
+
+#### Programmatic API
 
 ```ts
-import { extractTavernCards, importTavernCard, isTavernCardPng } from '@/lib/importers/tavern-card'
+import {
+  // PNG functions
+  extractTavernCards,
+  importTavernCard,
+  isTavernCardPng,
+  extractParsedCard,
+  // JSON functions
+  parseCardJson,
+  isTavernCardJson,
+  // Shared
+  buildImportableItems,
+  inferEntryType,
+} from '@/lib/importers/tavern-card'
 
-// Check if a file is a tavern card
+// PNG character card (simple — character fragment only)
 const buffer: ArrayBuffer = await file.arrayBuffer()
 if (isTavernCardPng(buffer)) {
   const character = importTavernCard(buffer)
   // character.type === 'character'
   // character.name, .description, .content, .tags, .meta
 }
+
+// PNG character card (full — with lorebook items)
+const parsed = extractParsedCard(buffer)
+if (parsed) {
+  // parsed.card — TavernCardData (name, description, characterBook, etc.)
+  // parsed.book — CharacterBook | null (lorebook entries)
+  // parsed.items — ImportableItem[] (all items ready for import)
+}
+
+// JSON character card
+const text = await file.text()
+const parsed = parseCardJson(text)
+if (parsed) {
+  // Same shape as extractParsedCard result
+  // parsed.card, parsed.book, parsed.items
+}
+
+// Quick detection
+isTavernCardJson(jsonString) // true if valid card JSON
+isTavernCardPng(arrayBuffer) // true if valid card PNG
 ```
 
 ### Writing a bulk importer script
@@ -655,5 +737,7 @@ async function importChat(storyName: string, messages: Array<{ role: string; con
 | `src/server/fragments/associations.ts` | Tag and ref index management |
 | `src/lib/fragment-ids.ts` | ID generation with prefix map and consonant-vowel alternation |
 | `src/lib/fragment-clipboard.ts` | Export/import JSON envelope format |
-| `src/lib/importers/tavern-card.ts` | TavernAI character card PNG parser |
+| `src/lib/importers/tavern-card.ts` | TavernAI / SillyTavern character card parser (PNG + JSON, lorebook) |
+| `src/components/fragments/CharacterCardImportDialog.tsx` | Import dialog for character cards with lorebook entries |
+| `src/components/fragments/TavernCardImportDialog.tsx` | Simple PNG character card import dialog (no lorebook) |
 | `src/server/api.ts` | All HTTP API endpoints |

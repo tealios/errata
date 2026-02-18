@@ -513,6 +513,12 @@ Triggered after prose saves. Performs continuity management:
 4. Suggests knowledge fragments
 5. Tracks timeline events
 
+Recent behavior updates:
+
+- Reanalysis-safe summary application: when multiple analyses exist for the same prose fragment, summary rebuild/apply resolves to the latest analysis (`createdAt`, then `id` tie-break).
+- `updateSummary` accepts structured signals (`events`, `stateChanges`, `openThreads`) and can derive canonical `summaryUpdate` text when freeform summary text is empty.
+- Structured summary payload is persisted on each librarian analysis and surfaced in the sidebar Librarian panel.
+
 Also supports interactive chat (ask questions about the story) and fragment refinement (improve a fragment via agent).
 
 Storage at `data/stories/<storyId>/librarian/` — state, analyses, and chat history.

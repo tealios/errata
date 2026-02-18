@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { createEmptyCollector, createAnalysisTools } from '@/server/librarian/analysis-tools'
+import { createEmptyCollector, createAnalysisTools, updateSummaryInputSchema } from '@/server/librarian/analysis-tools'
 
 describe('analysis-tools', () => {
   describe('createEmptyCollector', () => {
     it('creates a collector with empty fields', () => {
       const collector = createEmptyCollector()
       expect(collector.summaryUpdate).toBe('')
+      expect(collector.structuredSummary).toEqual({
+        events: [],
+        stateChanges: [],
+        openThreads: [],
+      })
       expect(collector.mentions).toEqual([])
       expect(collector.contradictions).toEqual([])
       expect(collector.knowledgeSuggestions).toEqual([])
@@ -35,6 +40,38 @@ describe('analysis-tools', () => {
 
       await tools.updateSummary.execute!({ summary: 'Second summary' }, { toolCallId: 'b', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.summaryUpdate).toBe('Second summary')
+    })
+
+    it('updateSummary accepts structured signals and derives canonical summary when summary is empty', async () => {
+      const collector = createEmptyCollector()
+      const tools = createAnalysisTools(collector)
+
+      await tools.updateSummary.execute!({
+        summary: '   ',
+        events: ['Found the map', 'Found the map', 'Met the guide'],
+        stateChanges: ['Trust in the guide increased'],
+        openThreads: ['Who sent the letter?'],
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+
+      expect(collector.structuredSummary).toEqual({
+        events: ['Found the map', 'Met the guide'],
+        stateChanges: ['Trust in the guide increased'],
+        openThreads: ['Who sent the letter?'],
+      })
+      expect(collector.summaryUpdate).toContain('Events: Found the map; Met the guide.')
+      expect(collector.summaryUpdate).toContain('State changes: Trust in the guide increased.')
+      expect(collector.summaryUpdate).toContain('Open threads: Who sent the letter?.')
+    })
+
+    it('updateSummary rejects empty payload with no summary and no structured signals', async () => {
+      await expect(
+        updateSummaryInputSchema.parseAsync({
+          summary: '  ',
+          events: [],
+          stateChanges: [],
+          openThreads: [],
+        }),
+      ).rejects.toThrow()
     })
 
     it('reportMentions accumulates mentions', async () => {

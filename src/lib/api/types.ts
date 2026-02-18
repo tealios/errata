@@ -21,6 +21,8 @@ export interface StoryMeta {
     fragmentOrder?: string[]
     enabledBuiltinTools?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
+    summaryCompact?: { maxCharacters: number; targetCharacters: number }
+    enableHierarchicalSummary?: boolean
   }
 }
 
@@ -86,6 +88,11 @@ export interface LibrarianAnalysis {
   createdAt: string
   fragmentId: string
   summaryUpdate: string
+  structuredSummary?: {
+    events: string[]
+    stateChanges: string[]
+    openThreads: string[]
+  }
   mentionedCharacters: string[]
   mentions?: Array<{ characterId: string; text: string }>
   contradictions: Array<{
