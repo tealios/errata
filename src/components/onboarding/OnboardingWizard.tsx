@@ -661,6 +661,10 @@ function ProviderSetupStep({
       } else {
         setFetchedModels(result.models)
         setUseCustomModel(false)
+        // Auto-select first model if current selection is empty or not in the list
+        if (result.models.length > 0 && (!defaultModel || !result.models.some(m => m.id === defaultModel))) {
+          setDefaultModel(result.models[0].id)
+        }
       }
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to fetch models')
