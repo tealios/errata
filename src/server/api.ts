@@ -191,7 +191,22 @@ export function createApp(dataDir: string = DATA_DIR) {
         summary: '',
         createdAt: now,
         updatedAt: now,
-        settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple' as const, fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit' as const, value: 10 } },
+        settings: {
+          outputFormat: 'markdown',
+          enabledPlugins: [],
+          summarizationThreshold: 4,
+          maxSteps: 10,
+          providerId: null,
+          modelId: null,
+          librarianProviderId: null,
+          librarianModelId: null,
+          autoApplyLibrarianSuggestions: false,
+          contextOrderMode: 'simple' as const,
+          fragmentOrder: [],
+          enabledBuiltinTools: [],
+          contextCompact: { type: 'proseLimit' as const, value: 10 },
+          summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 },
+        },
       }
       await createStory(dataDir, story)
       return story
@@ -306,6 +321,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
           ...(body.enabledBuiltinTools !== undefined ? { enabledBuiltinTools: body.enabledBuiltinTools } : {}),
           ...(body.contextCompact !== undefined ? { contextCompact: body.contextCompact } : {}),
+          ...(body.summaryCompact !== undefined ? { summaryCompact: body.summaryCompact } : {}),
         },
         updatedAt: new Date().toISOString(),
       }
@@ -328,6 +344,10 @@ export function createApp(dataDir: string = DATA_DIR) {
         contextCompact: t.Optional(t.Object({
           type: t.Union([t.Literal('proseLimit'), t.Literal('maxTokens'), t.Literal('maxCharacters')]),
           value: t.Number(),
+        })),
+        summaryCompact: t.Optional(t.Object({
+          maxCharacters: t.Number(),
+          targetCharacters: t.Number(),
         })),
       }),
     })

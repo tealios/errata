@@ -21,6 +21,7 @@ export interface StoryMeta {
     fragmentOrder?: string[]
     enabledBuiltinTools?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
+    summaryCompact?: { maxCharacters: number; targetCharacters: number }
   }
 }
 

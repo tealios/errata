@@ -257,15 +257,24 @@ export const HELP_SECTIONS: HelpSection[] = [
             </P>
             <P>
               The <strong className="text-foreground/75">summarization threshold</strong> controls
-              how many prose positions back the librarian looks when building its analysis.
-              A higher number gives the librarian more context to work with; a lower number
-              keeps analysis faster. Setting it to 0 disables summarization entirely.
+              how many most-recent prose positions are kept out of the rolling summary.
+              In other words, the newest N prose sections stay as raw prose context first,
+              and older sections are folded into the summary as they age past that threshold.
+              Setting it to 0 means new summaries are applied immediately.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Summary compaction</strong> keeps the rolling
+              summary bounded for long stories. When the summary would exceed
+              <strong className="text-foreground/75"> Max characters</strong>, Errata compacts it down
+              toward <strong className="text-foreground/75">Target characters</strong> so summary growth
+              does not consume your prompt budget over time.
             </P>
             <Tip>
               Summarization and the context limit work as a pair: the context limit controls how
               much raw prose the model sees, and summarization ensures everything before that
               window is still represented. If you increase the context limit, you may be able to
-              lower the summarization threshold (or vice versa).
+              lower the summarization threshold (or vice versa). For very long stories, use
+              summary compaction to keep the summary stable while still preserving continuity.
             </Tip>
           </>
         ),

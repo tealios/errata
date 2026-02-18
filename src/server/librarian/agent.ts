@@ -45,6 +45,49 @@ If there are no contradictions, suggestions, mentions, or timeline events, don't
 Only return 'Analysis complete' in your final output. 
 `
 
+const DEFAULT_SUMMARY_COMPACT = {
+  maxCharacters: 12000,
+  targetCharacters: 9000,
+} as const
+
+function resolveSummaryCompact(story: Awaited<ReturnType<typeof getStory>> & {}): {
+  maxCharacters: number
+  targetCharacters: number
+} {
+  const raw = story?.settings && typeof story.settings === 'object'
+    ? (story.settings as Record<string, unknown>).summaryCompact
+    : null
+
+  if (!raw || typeof raw !== 'object') return DEFAULT_SUMMARY_COMPACT
+
+  const max = typeof (raw as Record<string, unknown>).maxCharacters === 'number'
+    ? Math.max(100, Math.floor((raw as Record<string, unknown>).maxCharacters as number))
+    : DEFAULT_SUMMARY_COMPACT.maxCharacters
+  const targetCandidate = typeof (raw as Record<string, unknown>).targetCharacters === 'number'
+    ? Math.max(100, Math.floor((raw as Record<string, unknown>).targetCharacters as number))
+    : DEFAULT_SUMMARY_COMPACT.targetCharacters
+
+  return {
+    maxCharacters: max,
+    targetCharacters: Math.min(targetCandidate, max),
+  }
+}
+
+function compactSummaryByCharacters(summary: string, maxCharacters: number, targetCharacters: number): string {
+  const normalized = summary.trim()
+  if (normalized.length <= maxCharacters) return normalized
+
+  const target = Math.min(Math.max(100, targetCharacters), maxCharacters)
+  if (normalized.length <= target) return normalized
+
+  // Keep the newest summary information by preserving the tail.
+  const prefix = '... '
+  const bodyLimit = Math.max(1, target - prefix.length)
+  const tail = normalized.slice(-bodyLimit).trimStart()
+  const compacted = `${prefix}${tail}`
+  return compacted.length <= target ? compacted : compacted.slice(-target)
+}
+
 function buildUserPrompt(
   summary: string,
   characters: Array<{ id: string; name: string; description: string }>,
@@ -415,9 +458,6 @@ async function applyDeferredSummaries(
     return
   }
 
-  // Get the fragment IDs that need summarizing
-  const toSummarize = proseIds.slice(startIndex, cutoffIndex)
-
   // Load all analyses and build a fragmentId -> analysis map
   const analysisSummaries = await listAnalyses(dataDir, storyId)
   const analysisByFragment = new Map<string, string>()
@@ -425,18 +465,33 @@ async function applyDeferredSummaries(
     analysisByFragment.set(s.fragmentId, s.id)
   }
 
-  // Collect summaries in prose-chain order
+  // Collect summaries in prose-chain order, stopping at first gap.
+  // This guarantees contiguous progress from summarizedUpTo.
   const summaryParts: string[] = []
   let lastAppliedId: string | null = state.summarizedUpTo
 
-  for (const proseId of toSummarize) {
+  for (let i = startIndex; i < cutoffIndex; i++) {
+    const proseId = proseIds[i]
     const analysisId = analysisByFragment.get(proseId)
-    if (!analysisId) continue
+    if (!analysisId) {
+      requestLogger.debug('Deferred summarization stopped at gap', {
+        gapFragmentId: proseId,
+        gapReason: 'missing_analysis',
+      })
+      break
+    }
 
     const analysis = await getAnalysis(dataDir, storyId, analysisId)
-    if (!analysis?.summaryUpdate) continue
+    const update = analysis?.summaryUpdate?.trim()
+    if (!update) {
+      requestLogger.debug('Deferred summarization stopped at gap', {
+        gapFragmentId: proseId,
+        gapReason: 'empty_summary_update',
+      })
+      break
+    }
 
-    summaryParts.push(analysis.summaryUpdate)
+    summaryParts.push(update)
     lastAppliedId = proseId
   }
 
@@ -450,9 +505,15 @@ async function applyDeferredSummaries(
   if (!currentStory) return
 
   const separator = currentStory.summary ? ' ' : ''
+  const summaryCompact = resolveSummaryCompact(currentStory)
+  const combinedSummary = currentStory.summary + separator + summaryParts.join(' ')
   const updatedStory = {
     ...currentStory,
-    summary: currentStory.summary + separator + summaryParts.join(' '),
+    summary: compactSummaryByCharacters(
+      combinedSummary,
+      summaryCompact.maxCharacters,
+      summaryCompact.targetCharacters,
+    ),
     updatedAt: new Date().toISOString(),
   }
   await updateStory(dataDir, updatedStory)

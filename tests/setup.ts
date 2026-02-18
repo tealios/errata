@@ -23,6 +23,7 @@ export function makeTestSettings(overrides?: Partial<StorySettings>): StorySetti
     contextOrderMode: 'simple',
     fragmentOrder: [],
     contextCompact: { type: 'proseLimit', value: 10 },
+    summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 },
     ...overrides,
   }
 }

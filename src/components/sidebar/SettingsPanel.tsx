@@ -203,7 +203,7 @@ export function SettingsPanel({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[]; contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number } }) =>
+    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[]; contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }; summaryCompact?: { maxCharacters: number; targetCharacters: number } }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -258,6 +258,8 @@ export function SettingsPanel({
       : [...enabledBuiltinTools, toolName]
     updateMutation.mutate({ enabledBuiltinTools: next })
   }
+
+  const summaryCompact = story.settings.summaryCompact ?? { maxCharacters: 12000, targetCharacters: 9000 }
 
   if (customCssPanelOpen) {
     return <CustomCssPanel onClose={() => setCustomCssPanelOpen(false)} />
@@ -424,6 +426,51 @@ export function SettingsPanel({
               disabled={updateMutation.isPending}
             />
           </SettingRow>
+          <div className="px-3 py-2.5 border-t border-border/20">
+            <p className="text-[12px] font-medium text-foreground/80">Summary compaction</p>
+            <p className="text-[10px] text-muted-foreground/40 mt-0.5 leading-snug">Keeps rolling summary bounded as stories grow</p>
+
+            <div className="mt-2.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground/55">Max characters</span>
+                <NumberStepper
+                  value={summaryCompact.maxCharacters}
+                  min={100}
+                  max={100000}
+                  onChange={(v) => {
+                    const nextMax = Math.max(100, v)
+                    updateMutation.mutate({
+                      summaryCompact: {
+                        maxCharacters: nextMax,
+                        targetCharacters: Math.min(summaryCompact.targetCharacters, nextMax),
+                      },
+                    })
+                  }}
+                  disabled={updateMutation.isPending}
+                  wide
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground/55">Target characters</span>
+                <NumberStepper
+                  value={summaryCompact.targetCharacters}
+                  min={100}
+                  max={summaryCompact.maxCharacters}
+                  onChange={(v) => {
+                    updateMutation.mutate({
+                      summaryCompact: {
+                        maxCharacters: summaryCompact.maxCharacters,
+                        targetCharacters: Math.min(Math.max(100, v), summaryCompact.maxCharacters),
+                      },
+                    })
+                  }}
+                  disabled={updateMutation.isPending}
+                  wide
+                />
+              </div>
+            </div>
+          </div>
           {/* Context limit — stacked layout for breathing room */}
           <div className="px-3 py-2.5">
             <div className="flex items-center gap-1">
