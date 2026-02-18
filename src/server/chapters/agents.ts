@@ -8,7 +8,7 @@ const SummarizeInputSchema = z.object({
   fragmentId: z.string(),
 })
 
-const summarizeDefinition: AgentDefinition = {
+const summarizeDefinition: AgentDefinition<typeof SummarizeInputSchema> = {
   name: 'chapters.summarize',
   description: 'Summarize a chapter by collecting prose from marker to next marker and generating a summary.',
   inputSchema: SummarizeInputSchema,

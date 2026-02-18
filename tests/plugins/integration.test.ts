@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { tool } from 'ai'
-import { z } from 'zod/v4'
-import { createTempDir, seedTestProvider } from '../setup'
+import { createTempDir, seedTestProvider, makeTestSettings } from '../setup'
 import {
   createStory,
   createFragment,
-  listFragments,
 } from '@/server/fragments/storage'
 import { pluginRegistry } from '@/server/plugins/registry'
 import type { WritingPlugin } from '@/server/plugins/types'
@@ -43,7 +40,7 @@ function makeStory(enabledPlugins: string[] = []): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins, summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+    settings: makeTestSettings({ enabledPlugins }),
   }
 }
 
@@ -115,7 +112,8 @@ describe('plugin integration', () => {
     await createStory(dataDir, makeStory(['hook-test']))
 
     // Create initial prose
-    const fragment: Omit<Fragment, 'id' | 'createdAt' | 'updatedAt' | 'order'> = {
+    const fragment: Fragment = {
+      id: 'pr-hooktest',
       type: 'prose',
       name: 'Opening',
       description: 'The story begins',
@@ -126,6 +124,9 @@ describe('plugin integration', () => {
       placement: 'user',
       meta: {},
       archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: 0,
     }
     await createFragment(dataDir, storyId, fragment)
 
@@ -158,9 +159,9 @@ describe('plugin integration', () => {
         version: '1.0.0',
         description: 'Test plugin with tools',
       },
-      tools: {
+      tools: (_dataDir, _storyId) => ({
         customTool: () => 'test',
-      },
+      }),
     }
 
     pluginRegistry.register(testPlugin)
@@ -209,7 +210,8 @@ describe('plugin integration', () => {
     await createStory(dataDir, makeStory([]))
 
     // Create initial prose
-    const fragment: Omit<Fragment, 'id' | 'createdAt' | 'updatedAt' | 'order'> = {
+    const fragment: Fragment = {
+      id: 'pr-noplug',
       type: 'prose',
       name: 'Opening',
       description: 'The story begins',
@@ -220,6 +222,9 @@ describe('plugin integration', () => {
       placement: 'user',
       meta: {},
       archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: 0,
     }
     await createFragment(dataDir, storyId, fragment)
 

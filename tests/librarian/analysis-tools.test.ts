@@ -29,18 +29,18 @@ describe('analysis-tools', () => {
     it('updateSummary sets summary (last call wins)', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      const result1 = await tools.updateSummary.execute({ summary: 'First summary' }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+      const result1 = await tools.updateSummary.execute!({ summary: 'First summary' }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(result1).toEqual({ ok: true })
       expect(collector.summaryUpdate).toBe('First summary')
 
-      await tools.updateSummary.execute({ summary: 'Second summary' }, { toolCallId: 'b', messages: [], abortSignal: undefined as unknown as AbortSignal })
+      await tools.updateSummary.execute!({ summary: 'Second summary' }, { toolCallId: 'b', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.summaryUpdate).toBe('Second summary')
     })
 
     it('reportMentions accumulates mentions', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      await tools.reportMentions.execute({
+      await tools.reportMentions.execute!({
         mentions: [
           { characterId: 'ch-001', text: 'Alice' },
           { characterId: 'ch-002', text: 'Bob' },
@@ -48,7 +48,7 @@ describe('analysis-tools', () => {
       }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.mentions).toHaveLength(2)
 
-      await tools.reportMentions.execute({
+      await tools.reportMentions.execute!({
         mentions: [{ characterId: 'ch-001', text: 'Detective' }],
       }, { toolCallId: 'b', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.mentions).toHaveLength(3)
@@ -57,7 +57,7 @@ describe('analysis-tools', () => {
     it('reportContradictions accumulates contradictions', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      await tools.reportContradictions.execute({
+      await tools.reportContradictions.execute!({
         contradictions: [{
           description: 'Eye color mismatch',
           fragmentIds: ['pr-001'],
@@ -70,7 +70,7 @@ describe('analysis-tools', () => {
     it('suggestKnowledge accumulates suggestions', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      await tools.suggestKnowledge.execute({
+      await tools.suggestKnowledge.execute!({
         suggestions: [{
           type: 'knowledge',
           name: 'Valdris',
@@ -85,7 +85,7 @@ describe('analysis-tools', () => {
     it('suggestKnowledge handles targetFragmentId', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      await tools.suggestKnowledge.execute({
+      await tools.suggestKnowledge.execute!({
         suggestions: [{
           type: 'character',
           targetFragmentId: 'ch-001',
@@ -101,7 +101,7 @@ describe('analysis-tools', () => {
     it('reportTimeline accumulates timeline events', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
-      await tools.reportTimeline.execute({
+      await tools.reportTimeline.execute!({
         events: [
           { event: 'Battle started', position: 'during' },
           { event: 'Flashback', position: 'before' },

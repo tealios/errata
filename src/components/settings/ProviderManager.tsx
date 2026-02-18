@@ -4,7 +4,6 @@ import { api, type ProviderConfigSafe } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Zap, Copy } from 'lucide-react'
-import { componentId } from '@/lib/dom-ids'
 
 const PRESETS = {
   deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },

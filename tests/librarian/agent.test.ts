@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir, seedTestProvider } from '../setup'
+import { createTempDir, seedTestProvider, makeTestSettings } from '../setup'
 import {
   createStory,
   getStory,
@@ -37,20 +37,10 @@ function makeStory(
   overrides: Omit<Partial<StoryMeta>, 'settings'> & { settings?: Partial<StoryMeta['settings']> } = {},
 ): StoryMeta {
   const now = new Date().toISOString()
-  const defaultSettings: StoryMeta['settings'] = {
-    outputFormat: 'markdown',
-    enabledPlugins: [],
+  const defaultSettings: StoryMeta['settings'] = makeTestSettings({
     summarizationThreshold: 0,
-    maxSteps: 10,
-    providerId: null,
-    modelId: null,
-    librarianProviderId: null,
-    librarianModelId: null,
-    autoApplyLibrarianSuggestions: false,
-    contextOrderMode: 'simple',
-    fragmentOrder: [],
     enabledBuiltinTools: [],
-  }
+  })
 
   const baseStory: StoryMeta = {
     id: 'story-test',

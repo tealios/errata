@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { makeTestSettings } from '../setup'
 import { applyBlockConfig } from '@/server/blocks/apply'
 import type { ContextBlock, ContextBuildState } from '@/server/llm/context-builder'
 import type { BlockConfig } from '@/server/blocks/schema'
@@ -13,7 +14,7 @@ function makeState(overrides: Partial<ContextBuildState> = {}): ContextBuildStat
       summary: '',
       createdAt: now,
       updatedAt: now,
-      settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+      settings: makeTestSettings(),
     },
     proseFragments: [],
     stickyGuidelines: [],

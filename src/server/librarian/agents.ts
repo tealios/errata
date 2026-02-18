@@ -23,7 +23,7 @@ const ChatInputSchema = z.object({
   maxSteps: z.number().int().positive().optional(),
 })
 
-const analyzeDefinition: AgentDefinition = {
+const analyzeDefinition: AgentDefinition<typeof AnalyzeInputSchema> = {
   name: 'librarian.analyze',
   description: 'Analyze a prose fragment for continuity signals and summary updates.',
   inputSchema: AnalyzeInputSchema,
@@ -32,7 +32,7 @@ const analyzeDefinition: AgentDefinition = {
   },
 }
 
-const refineDefinition: AgentDefinition = {
+const refineDefinition: AgentDefinition<typeof RefineInputSchema> = {
   name: 'librarian.refine',
   description: 'Refine a non-prose fragment using story context and fragment tools.',
   inputSchema: RefineInputSchema,
@@ -42,7 +42,7 @@ const refineDefinition: AgentDefinition = {
   },
 }
 
-const chatDefinition: AgentDefinition = {
+const chatDefinition: AgentDefinition<typeof ChatInputSchema> = {
   name: 'librarian.chat',
   description: 'Run conversational librarian assistant with write-enabled tools.',
   inputSchema: ChatInputSchema,

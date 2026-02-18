@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useTheme, useFontPreferences, getActiveFont, FONT_CATALOGUE } from '@/lib/theme'
-import { componentId } from '@/lib/dom-ids'
 import { Button } from '@/components/ui/button'
 import {
   Sun,

@@ -1,9 +1,9 @@
-import { ToolLoopAgent, stepCountIs, type LanguageModel } from 'ai'
+import { ToolLoopAgent, stepCountIs, type LanguageModel, type ToolSet } from 'ai'
 
 export function createLibrarianChatAgent(args: {
   model: LanguageModel
   instructions: string
-  tools: Record<string, unknown>
+  tools: ToolSet
   maxSteps: number
 }) {
   return new ToolLoopAgent({
@@ -18,7 +18,7 @@ export function createLibrarianChatAgent(args: {
 export function createLibrarianRefineAgent(args: {
   model: LanguageModel
   instructions: string
-  tools: Record<string, unknown>
+  tools: ToolSet
   maxSteps: number
 }) {
   return new ToolLoopAgent({
@@ -33,7 +33,7 @@ export function createLibrarianRefineAgent(args: {
 export function createLibrarianAnalyzeToolAgent(args: {
   model: LanguageModel
   instructions: string
-  tools: Record<string, unknown>
+  tools: ToolSet
   maxSteps?: number
 }) {
   return new ToolLoopAgent({

@@ -1,5 +1,5 @@
 import { fetchEventStream } from './client'
-import type { GenerationLogSummary, GenerationLog, ChatEvent } from './types'
+import type { GenerationLogSummary, GenerationLog } from './types'
 
 export const generation = {
   /** Stream prose generation (returns ReadableStream of ChatEvent) */

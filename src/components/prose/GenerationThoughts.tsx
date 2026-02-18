@@ -1,6 +1,5 @@
 import {
   ChainOfThought,
-  ChainOfThoughtHeader,
   ChainOfThoughtContent,
   ChainOfThoughtStep,
 } from '@/components/ui/chain-of-thought'

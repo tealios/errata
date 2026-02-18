@@ -32,7 +32,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: typeof BookOpen }> = {
 
 const EXPORTABLE_TYPES = ['guideline', 'character', 'knowledge']
 
-function BubbleSvgShape({ b, i }: { b: Bubble; i: number }) {
+function BubbleSvgShape({ b }: { b: Bubble; i: number }) {
   const transform = b.shape !== 'circle' ? `rotate(${b.rotation} ${b.cx} ${b.cy})` : undefined
   switch (b.shape) {
     case 'rounded-rect':

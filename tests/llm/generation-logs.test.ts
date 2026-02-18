@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import {
   saveGenerationLog,
@@ -25,7 +25,7 @@ describe('generation-logs storage', () => {
       summary: '',
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',
-      settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+      settings: makeTestSettings(),
     })
   })
 

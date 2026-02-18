@@ -10,7 +10,7 @@ const childAgent: AgentDefinition = {
   description: 'Child test agent',
   inputSchema: z.object({ value: z.number() }),
   outputSchema: z.object({ value: z.number() }),
-  run: async (_ctx, input) => ({ value: input.value + 1 }),
+  run: async (_ctx, input) => ({ value: (input as { value: number }).value + 1 }),
 }
 
 const parentAgent: AgentDefinition = {
@@ -20,7 +20,7 @@ const parentAgent: AgentDefinition = {
   outputSchema: z.object({ value: z.number() }),
   allowedCalls: [`${prefix}.child`],
   run: async (ctx, input) => {
-    const child = await ctx.invokeAgent<{ value: number }, { value: number }>(`${prefix}.child`, { value: input.value })
+    const child = await ctx.invokeAgent<{ value: number }, { value: number }>(`${prefix}.child`, { value: (input as { value: number }).value })
     return { value: child.value + 1 }
   },
 }

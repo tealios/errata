@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import { saveGlobalConfig } from '@/server/config/storage'
 import { getModel } from '@/server/llm/client'
@@ -14,19 +14,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: {
-      outputFormat: 'markdown',
-      enabledPlugins: [],
-      summarizationThreshold: 4,
-      maxSteps: 10,
-      providerId: null,
-      modelId: null,
-      librarianProviderId: null,
-      librarianModelId: null,
-      contextOrderMode: 'simple' as const,
-      fragmentOrder: [],
-      enabledBuiltinTools: [],
-    },
+    settings: makeTestSettings({ librarianProviderId: null, librarianModelId: null, enabledBuiltinTools: [] }),
   }
 }
 

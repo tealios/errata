@@ -53,7 +53,7 @@ vi.mock('ai', async () => {
   }
 })
 
-import { createTempDir, seedTestProvider } from '../setup'
+import { createTempDir, seedTestProvider, makeTestSettings } from '../setup'
 import { createApp } from '@/server/api'
 import { createStory } from '@/server/fragments/storage'
 import { saveGenerationLog, type GenerationLog } from '@/server/llm/generation-logs'
@@ -99,7 +99,7 @@ describe('generation-logs API routes', () => {
       summary: '',
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',
-      settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+      settings: makeTestSettings(),
     })
   })
 

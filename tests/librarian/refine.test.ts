@@ -6,12 +6,11 @@ vi.mock('@/server/agents', () => ({
   invokeAgent: (...args: unknown[]) => mockInvokeAgent(...args),
 }))
 
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import {
   createStory,
   createFragment,
 } from '@/server/fragments/storage'
-import { initProseChain } from '@/server/fragments/prose-chain'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 import { createApp } from '@/server/api'
 
@@ -24,16 +23,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: 'A hero enters a forest.',
     createdAt: now,
     updatedAt: now,
-    settings: {
-      outputFormat: 'markdown',
-      enabledPlugins: [],
-      summarizationThreshold: 4,
-      maxSteps: 5,
-      providerId: null,
-      modelId: null,
-      contextOrderMode: 'simple' as const,
-      fragmentOrder: [],
-    },
+    settings: makeTestSettings({ maxSteps: 5 }),
     ...overrides,
   }
 }

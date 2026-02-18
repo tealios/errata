@@ -111,7 +111,7 @@ export function NamesPanel(_props: PluginPanelProps) {
           <label className="text-xs text-muted-foreground mb-1 block">History</label>
           <ScrollArea className="h-full">
             <div className="space-y-1">
-              {history.map((item, i) => (
+              {history.map((item) => (
                 <div
                   key={`${item.name}-${item.theme}-${item.gender}`}
                   role="button"

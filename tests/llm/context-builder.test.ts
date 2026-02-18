@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import {
   createStory,
   createFragment,
@@ -20,7 +20,6 @@ import {
   insertBlockBefore,
   insertBlockAfter,
   reorderBlock,
-  type ContextBuildState,
   type ContextBlock,
 } from '@/server/llm/context-builder'
 
@@ -33,7 +32,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: 'The hero embarked on a journey.',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+    settings: makeTestSettings(),
     ...overrides,
   }
 }
@@ -604,17 +603,7 @@ describe('context-builder', () => {
 
   it('reads contextCompact from story settings when not passed via opts', async () => {
     const story = makeStory({
-      settings: {
-        outputFormat: 'markdown',
-        enabledPlugins: [],
-        summarizationThreshold: 4,
-        maxSteps: 10,
-        providerId: null,
-        modelId: null,
-        contextOrderMode: 'simple' as const,
-        fragmentOrder: [],
-        contextCompact: { type: 'maxCharacters', value: 150 },
-      },
+      settings: makeTestSettings({ contextCompact: { type: 'maxCharacters', value: 150 } }),
     })
     await createStory(dataDir, story)
 

@@ -13,14 +13,13 @@ import {
   renameBranch,
   migrateIfNeeded,
   clearMigrationCache,
-  initBranches,
   withBranch,
 } from '../../src/server/fragments/branches'
 import { createStory, createFragment, getFragment, listFragments } from '../../src/server/fragments/storage'
-import { getProseChain, addProseSection, saveProseChain } from '../../src/server/fragments/prose-chain'
+import { getProseChain, addProseSection } from '../../src/server/fragments/prose-chain'
 import { saveState, getState, saveAnalysis, getAnalysis, saveChatHistory, getChatHistory } from '../../src/server/librarian/storage'
 import type { LibrarianAnalysis, LibrarianState } from '../../src/server/librarian/storage'
-import type { StoryMeta, Fragment, ProseChain } from '../../src/server/fragments/schema'
+import type { StoryMeta, Fragment } from '../../src/server/fragments/schema'
 
 let dataDir: string
 let cleanup: () => Promise<void>
@@ -256,7 +255,7 @@ describe('branches', () => {
       await addProseSection(dataDir, TEST_STORY_ID, 'pr-cccccc')
 
       // Fork after index 1 (keep sections 0 and 1)
-      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Fork', 'main', 1)
+      await createBranch(dataDir, TEST_STORY_ID, 'Fork', 'main', 1)
 
       // Verify new branch's prose chain is truncated
       const chain = await getProseChain(dataDir, TEST_STORY_ID)
@@ -338,7 +337,7 @@ describe('branches', () => {
       await addProseSection(dataDir, TEST_STORY_ID, 'pr-bakite')
 
       // Branch from main
-      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+      await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
 
       // Modify fragment in the branch
       const fragment = await getFragment(dataDir, TEST_STORY_ID, 'pr-bakite')
@@ -407,7 +406,7 @@ describe('branches', () => {
       ])
 
       // Create a branch — should copy all librarian data
-      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt Timeline', 'main')
+      await createBranch(dataDir, TEST_STORY_ID, 'Alt Timeline', 'main')
 
       // Verify: new branch has librarian state
       const branchState = await getState(dataDir, TEST_STORY_ID)
@@ -494,7 +493,7 @@ describe('branches', () => {
 
     it('withBranch with explicit branchId uses provided ID', async () => {
       await createStory(dataDir, makeStory())
-      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+      await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
 
       // Active branch is alt (createBranch switches to it), but we pin to main explicitly
       await withBranch(dataDir, TEST_STORY_ID, async () => {
@@ -517,7 +516,7 @@ describe('branches', () => {
       })
 
       // Branch from main
-      const branch = await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
+      await createBranch(dataDir, TEST_STORY_ID, 'Alt', 'main')
 
       // Modify librarian state in the branch
       await saveState(dataDir, TEST_STORY_ID, {

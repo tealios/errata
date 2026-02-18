@@ -69,8 +69,8 @@ function processChildren(children: ReactNode, textTransform: (text: string) => R
     if (typeof child === 'string') {
       return textTransform(child)
     }
-    if (isValidElement(child) && child.props.children) {
-      return cloneElement(child, {}, processChildren(child.props.children, textTransform))
+    if (isValidElement(child) && (child.props as Record<string, unknown>).children) {
+      return cloneElement(child, {}, processChildren((child.props as Record<string, unknown>).children as ReactNode, textTransform))
     }
     return child
   })

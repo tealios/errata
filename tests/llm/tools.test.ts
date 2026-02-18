@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import {
   createStory,
   createFragment,
@@ -18,7 +18,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+    settings: makeTestSettings(),
   }
 }
 
@@ -108,7 +108,7 @@ describe('LLM tools', () => {
   describe('createFragment (write)', () => {
     it('creates a new fragment in storage', async () => {
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      const result = await tools.createFragment.execute(
+      const result = await tools.createFragment.execute!(
         {
           type: 'knowledge',
           name: 'Moon Ritual',
@@ -183,7 +183,7 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.getTesttype.execute(
+      const result = await tools.getTesttype.execute!(
         { id: 'te-0001' },
         { toolCallId: 'tc-1', messages: [] },
       )
@@ -201,7 +201,7 @@ describe('LLM tools', () => {
         llmTools: true,
       })
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.getTesttype.execute(
+      const result = await tools.getTesttype.execute!(
         { id: 'te-9999' },
         { toolCallId: 'tc-1', messages: [] },
       )
@@ -247,7 +247,7 @@ describe('LLM tools', () => {
 
       const tools = createFragmentTools(dataDir, storyId)
 
-      const result = await tools.listTesttypes.execute(
+      const result = await tools.listTesttypes.execute!(
         {},
         { toolCallId: 'tc-1', messages: [] },
       )
@@ -269,7 +269,7 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      const result = await tools.updateFragment.execute(
+      const result = await tools.updateFragment.execute!(
         {
           fragmentId: 'pr-0001',
           newContent: 'New content',
@@ -298,7 +298,7 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      const result = await tools.editFragment.execute(
+      const result = await tools.editFragment.execute!(
         {
           fragmentId: 'pr-0001',
           oldText: 'cat',
@@ -324,7 +324,7 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      const result = await tools.editFragment.execute(
+      const result = await tools.editFragment.execute!(
         {
           fragmentId: 'pr-0001',
           oldText: 'elephant',
@@ -343,7 +343,7 @@ describe('LLM tools', () => {
       await createFragment(dataDir, storyId, frag)
 
       const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
-      const result = await tools.deleteFragment.execute(
+      const result = await tools.deleteFragment.execute!(
         { fragmentId: 'pr-0001' },
         { toolCallId: 'tc-1', messages: [] },
       )
@@ -358,7 +358,7 @@ describe('LLM tools', () => {
   describe('listFragmentTypes', () => {
     it('returns all registered fragment types', async () => {
       const tools = createFragmentTools(dataDir, storyId)
-      const result = await tools.listFragmentTypes.execute(
+      const result = await tools.listFragmentTypes.execute!(
         {},
         { toolCallId: 'tc-1', messages: [] },
       )

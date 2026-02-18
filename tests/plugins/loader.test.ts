@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { join } from 'node:path'
 import { discoverPlugins, loadPlugin } from '@/server/plugins/loader'
-import { PluginRegistry } from '@/server/plugins/registry'
 
 const fixturesDir = join(__dirname, 'fixtures')
 

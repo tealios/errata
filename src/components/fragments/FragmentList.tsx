@@ -21,7 +21,7 @@ interface FragmentListProps {
   selectedId?: string
 }
 
-function BubbleSvgShape({ b, i }: { b: Bubble; i: number }) {
+function BubbleSvgShape({ b }: { b: Bubble; i: number }) {
   const transform = b.shape !== 'circle' ? `rotate(${b.rotation} ${b.cx} ${b.cy})` : undefined
   switch (b.shape) {
     case 'rounded-rect':

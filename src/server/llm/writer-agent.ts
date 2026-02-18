@@ -1,8 +1,8 @@
-import { ToolLoopAgent, stepCountIs, type LanguageModel } from 'ai'
+import { ToolLoopAgent, stepCountIs, type LanguageModel, type ToolSet } from 'ai'
 
 export function createWriterAgent(args: {
   model: LanguageModel
-  tools: Record<string, unknown>
+  tools: ToolSet
   maxSteps: number
 }) {
   return new ToolLoopAgent({

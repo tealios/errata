@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Download, Package, Wand2, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { componentId } from '@/lib/dom-ids'
 
 interface StoryInfoPanelProps {
   storyId: string

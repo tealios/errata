@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import { createApp } from '@/server/api'
 import { createStory, createFragment, getFragment } from '@/server/fragments/storage'
 import {
@@ -69,19 +69,7 @@ describe('librarian API routes', () => {
       summary: '',
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',
-      settings: {
-        outputFormat: 'markdown',
-        enabledPlugins: [],
-        summarizationThreshold: 4,
-        maxSteps: 10,
-        providerId: null,
-        modelId: null,    
-        librarianProviderId: null,
-        librarianModelId: null,
-        contextOrderMode: 'simple' as const,
-        fragmentOrder: [],
-        enabledBuiltinTools: [],
-      },
+      settings: makeTestSettings({ librarianProviderId: null, librarianModelId: null, enabledBuiltinTools: [] }),
     })
   })
 
@@ -111,6 +99,7 @@ describe('librarian API routes', () => {
     it('returns saved state', async () => {
       const state: LibrarianState = {
         lastAnalyzedFragmentId: 'pr-0001',
+        summarizedUpTo: null,
         recentMentions: { 'ch-0001': ['pr-0001'] },
         timeline: [{ event: 'Battle', fragmentId: 'pr-0001' }],
       }

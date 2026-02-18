@@ -1,6 +1,31 @@
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { StoryMeta } from '../src/server/fragments/schema'
+
+type StorySettings = StoryMeta['settings']
+
+/**
+ * Creates a default test story settings object.
+ * Accepts optional overrides for any field.
+ */
+export function makeTestSettings(overrides?: Partial<StorySettings>): StorySettings {
+  return {
+    outputFormat: 'markdown',
+    enabledPlugins: [],
+    summarizationThreshold: 4,
+    maxSteps: 10,
+    providerId: null,
+    modelId: null,
+    librarianProviderId: null,
+    librarianModelId: null,
+    autoApplyLibrarianSuggestions: false,
+    contextOrderMode: 'simple',
+    fragmentOrder: [],
+    contextCompact: { type: 'proseLimit', value: 10 },
+    ...overrides,
+  }
+}
 
 /**
  * Creates a temporary directory for test isolation.

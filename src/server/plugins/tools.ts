@@ -1,12 +1,12 @@
-import type { tool } from 'ai'
+import type { ToolSet } from 'ai'
 import type { WritingPlugin } from './types'
 
 export function collectPluginTools(
   plugins: WritingPlugin[],
   dataDir: string,
   storyId: string,
-): Record<string, ReturnType<typeof tool>> {
-  const merged: Record<string, ReturnType<typeof tool>> = {}
+): ToolSet {
+  const merged: ToolSet = {}
   for (const plugin of plugins) {
     if (plugin.tools) {
       const tools = plugin.tools(dataDir, storyId)
@@ -21,14 +21,14 @@ export function collectPluginToolsWithOrigin(
   plugins: WritingPlugin[],
   dataDir: string,
   storyId: string,
-): { tools: Record<string, ReturnType<typeof tool>>; origins: Record<string, string> } {
-  const tools: Record<string, ReturnType<typeof tool>> = {}
+): { tools: ToolSet; origins: Record<string, string> } {
+  const tools: ToolSet = {}
   const origins: Record<string, string> = {}
   for (const plugin of plugins) {
     if (plugin.tools) {
       const pluginTools = plugin.tools(dataDir, storyId)
       for (const [name, t] of Object.entries(pluginTools)) {
-        tools[name] = t
+        tools[name] = t as ToolSet[string]
         origins[name] = plugin.manifest.name
       }
     }

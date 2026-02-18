@@ -1,4 +1,4 @@
-import { tool } from 'ai'
+import { tool, type ToolSet } from 'ai'
 import { z } from 'zod/v4'
 import {
   createFragment as createFragmentInStorage,
@@ -105,7 +105,7 @@ export function createFragmentTools(
 ) {
   const { readOnly = true } = opts
 
-  const tools: Record<string, ReturnType<typeof tool>> = {}
+  const tools: ToolSet = {}
   const types = registry.listTypes()
 
   for (const typeDef of types) {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { makeTestSettings } from '../setup'
 import {
   runBeforeContext,
   runBeforeGeneration,
@@ -19,7 +20,7 @@ function makeState(overrides: Partial<ContextBuildState> = {}): ContextBuildStat
       summary: '',
       createdAt: now,
       updatedAt: now,
-      settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+      settings: makeTestSettings(),
     } as StoryMeta,
     proseFragments: [],
     stickyGuidelines: [],

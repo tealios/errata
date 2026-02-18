@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTempDir, seedTestProvider } from '../setup'
+import { createTempDir, seedTestProvider, makeTestSettings } from '../setup'
 import {
   createStory,
   createFragment,
@@ -38,16 +38,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     summary: 'A hero enters a forest.',
     createdAt: now,
     updatedAt: now,
-    settings: {
-      outputFormat: 'markdown',
-      enabledPlugins: [],
-      summarizationThreshold: 4,
-      maxSteps: 10,
-      providerId: null,
-      modelId: null,
-      contextOrderMode: 'simple' as const,
-      fragmentOrder: [],
-    },
+    settings: makeTestSettings(),
     ...overrides,
   }
 }

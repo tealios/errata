@@ -105,8 +105,8 @@ async function invokeInternal<TOutput>(args: {
       parentRunId: args.parentRunId,
       rootRunId: args.runtime.rootRunId,
       depth: args.depth,
-      invokeAgent: async (name, input) => {
-        const nested = await invokeInternal({
+      invokeAgent: async <_TInput, TNestedOutput>(name: string, input: _TInput) => {
+        const nested = await invokeInternal<TNestedOutput>({
           dataDir: args.dataDir,
           storyId: args.storyId,
           agentName: name,

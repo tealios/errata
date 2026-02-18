@@ -56,7 +56,7 @@ function normalizeFragment(fragment: Fragment | null): Fragment | null {
 
 function makeVersionSnapshot(fragment: Fragment, reason?: string): FragmentVersion {
   return {
-    version: fragment.version,
+    version: fragment.version ?? 1,
     name: fragment.name,
     description: fragment.description,
     content: fragment.content,
@@ -242,8 +242,8 @@ export async function updateFragmentVersioned(
         description: nextDescription,
         content: nextContent,
         updatedAt: now,
-        version: existing.version + 1,
-        versions: [...existing.versions, makeVersionSnapshot(existing, opts?.reason)],
+        version: (existing.version ?? 1) + 1,
+        versions: [...(existing.versions ?? []), makeVersionSnapshot(existing, opts?.reason)],
       }
     : {
         ...existing,
@@ -264,7 +264,7 @@ export async function listFragmentVersions(
 ): Promise<FragmentVersion[] | null> {
   const fragment = await getFragment(dataDir, storyId, fragmentId)
   if (!fragment) return null
-  return [...fragment.versions]
+  return [...(fragment.versions ?? [])]
 }
 
 export async function revertFragmentToVersion(
@@ -276,13 +276,14 @@ export async function revertFragmentToVersion(
   const fragment = await getFragment(dataDir, storyId, fragmentId)
   if (!fragment) return null
 
+  const versions = fragment.versions ?? []
   const snapshot = targetVersion === undefined
-    ? fragment.versions.at(-1)
-    : fragment.versions.find((v) => v.version === targetVersion)
+    ? versions.at(-1)
+    : versions.find((v) => v.version === targetVersion)
   if (!snapshot) return null
 
   const now = new Date().toISOString()
-  const nextVersion = fragment.version + 1
+  const nextVersion = (fragment.version ?? 1) + 1
   const updated: Fragment = {
     ...fragment,
     name: snapshot.name,
@@ -291,7 +292,7 @@ export async function revertFragmentToVersion(
     updatedAt: now,
     version: nextVersion,
     versions: [
-      ...fragment.versions,
+      ...versions,
       makeVersionSnapshot(fragment, targetVersion === undefined
         ? `revert-to-${snapshot.version}`
         : `revert-to-${targetVersion}`),

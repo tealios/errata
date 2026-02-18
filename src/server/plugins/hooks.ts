@@ -21,7 +21,9 @@ export async function runBeforeContext(
     if (plugin.hooks?.beforeContext) {
       const startTime = Date.now()
       requestLogger.debug(`Running beforeContext for plugin: ${plugin.manifest.name}`)
-      result = await plugin.hooks.beforeContext(result)
+      // Cast needed: plugin SDK's ContextBuildState has a narrower StorySettings type
+      // than the local one, but plugins pass through the full object unchanged.
+      result = await plugin.hooks.beforeContext(result as Parameters<NonNullable<NonNullable<WritingPlugin['hooks']>['beforeContext']>>[0]) as ContextBuildState
       const durationMs = Date.now() - startTime
       requestLogger.debug(`beforeContext completed for plugin: ${plugin.manifest.name}`, { durationMs })
     }

@@ -20,7 +20,6 @@ import { createLogger } from './logging'
 import {
   addTag,
   removeTag,
-  getAssociations,
   addRef,
   removeRef,
   getRefs,
@@ -38,9 +37,9 @@ import {
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { registry } from './fragments/registry'
 import { buildContextState, createDefaultBlocks, compileBlocks } from './llm/context-builder'
-import { getBlockConfig, saveBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from './blocks/storage'
+import { getBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from './blocks/storage'
 import { applyBlockConfig } from './blocks/apply'
-import { CustomBlockDefinitionSchema, BlockOverrideSchema } from './blocks/schema'
+import { CustomBlockDefinitionSchema } from './blocks/schema'
 import { createFragmentTools } from './llm/tools'
 import { getModel } from './llm/client'
 import { createWriterAgent } from './llm/writer-agent'
@@ -1252,9 +1251,9 @@ export function createApp(dataDir: string = DATA_DIR) {
 
       // Completion promise resolved when the stream ends — used by save path
       let completionResolve: ((val: void) => void) | null = null
-      const completion = body.saveResult
-        ? new Promise<void>((resolve) => { completionResolve = resolve })
-        : null
+      if (body.saveResult) {
+        new Promise<void>((resolve) => { completionResolve = resolve })
+      }
 
       const eventStream = new ReadableStream<Uint8Array>({
         async start(controller) {

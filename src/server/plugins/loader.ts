@@ -81,16 +81,19 @@ export async function loadPlugin(
         )
       }
 
+      const existingPanel = plugin.manifest.panel
+
       if (pluginJson.panel?.title) {
         plugin.manifest.panel = {
-          ...plugin.manifest.panel,
+          ...existingPanel,
           title: pluginJson.panel.title,
         }
       }
 
       if (typeof pluginJson.panel?.showInSidebar === 'boolean') {
         plugin.manifest.panel = {
-          ...plugin.manifest.panel,
+          title: existingPanel?.title ?? plugin.manifest.name,
+          ...existingPanel,
           showInSidebar: pluginJson.panel.showInSidebar,
         }
       }
@@ -98,13 +101,15 @@ export async function loadPlugin(
       const icon = pluginJson.panel?.icon
       if (icon?.type === 'lucide' && icon.name) {
         plugin.manifest.panel = {
-          ...plugin.manifest.panel,
+          title: existingPanel?.title ?? plugin.manifest.name,
+          ...existingPanel,
           icon: { type: 'lucide', name: icon.name },
         }
       }
       if (icon?.type === 'svg' && icon.src) {
         plugin.manifest.panel = {
-          ...plugin.manifest.panel,
+          title: existingPanel?.title ?? plugin.manifest.name,
+          ...existingPanel,
           icon: { type: 'svg', src: icon.src },
         }
       }

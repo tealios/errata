@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import {
   createStory,
   getStory,
@@ -39,7 +39,7 @@ const makeStory = (overrides: Partial<StoryMeta> = {}): StoryMeta => ({
   summary: '',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-  settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+  settings: makeTestSettings(),
   ...overrides,
 })
 
@@ -82,7 +82,7 @@ describe('Story CRUD', () => {
     const updated = { ...story, name: 'Updated Name' }
     await updateStory(dataDir, updated)
     const retrieved = await getStory(dataDir, story.id)
-    expect(retrieved.name).toBe('Updated Name')
+    expect(retrieved!.name).toBe('Updated Name')
   })
 
   it('deletes a story', async () => {
@@ -274,7 +274,7 @@ describe('Fragment Archive', () => {
   it('defaults archived to false for legacy fragments without the field', async () => {
     // Create a fragment without the archived field (simulating legacy data)
     const legacy = makeFragment({ id: 'pr-lega' })
-    delete (legacy as Record<string, unknown>).archived
+    delete (legacy as unknown as Record<string, unknown>).archived
     await createFragment(dataDir, storyId, legacy)
 
     const fragments = await listFragments(dataDir, storyId)

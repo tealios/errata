@@ -1,15 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createTempDir, seedTestProvider } from '../setup'
-import {
-  createStory,
-  createFragment,
-  listFragments,
-  getStory,
-} from '@/server/fragments/storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
 // Track mock calls
-const mockAgentInstances: Array<{ stream: ReturnType<typeof vi.fn> }> = []
 const mockAgentCtor = vi.fn()
 const mockAgentStream = vi.fn()
 
@@ -21,7 +14,6 @@ vi.mock('ai', async () => {
     ToolLoopAgent: class MockToolLoopAgent {
       constructor(config: unknown) {
         mockAgentCtor(config)
-        mockAgentInstances.push(this)
       }
 
       stream(args: unknown) {
@@ -33,39 +25,7 @@ vi.mock('ai', async () => {
 
 import { createApp } from '@/server/api'
 
-function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
-  const now = new Date().toISOString()
-  return {
-    id: 'story-int',
-    name: 'Integration Story',
-    description: 'A story for integration tests',
-    summary: 'An epic adventure begins.',
-    createdAt: now,
-    updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
-    ...overrides,
-  }
-}
-
-function makeFragment(overrides: Partial<Fragment>): Fragment {
-  const now = new Date().toISOString()
-  return {
-    id: 'pr-0001',
-    type: 'prose',
-    name: 'Test',
-    description: 'A test fragment',
-    content: 'Test content',
-    tags: [],
-    refs: [],
-    sticky: false,
-    placement: 'user' as const,
-    createdAt: now,
-    updatedAt: now,
-    order: 0,
-    meta: {},
-    ...overrides,
-  }
-}
+// makeStory and makeFragment removed — stories/fragments created via API in this integration test
 
 function createMockStreamResult(text: string) {
   const encoder = new TextEncoder()
@@ -114,7 +74,6 @@ describe('end-to-end generation integration', () => {
   let dataDir: string
   let cleanup: () => Promise<void>
   let app: ReturnType<typeof createApp>
-  const storyId = 'story-int'
 
   async function api(path: string, init?: RequestInit) {
     return app.fetch(new Request(`http://localhost/api${path}`, init))
@@ -126,7 +85,6 @@ describe('end-to-end generation integration', () => {
     cleanup = temp.cleanup
     await seedTestProvider(dataDir)
     app = createApp(dataDir)
-    mockAgentInstances.length = 0
     mockAgentCtor.mockClear()
     mockAgentStream.mockClear()
   })

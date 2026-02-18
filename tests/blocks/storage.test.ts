@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createTempDir } from '../setup'
+import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import type { StoryMeta } from '@/server/fragments/schema'
 import {
@@ -25,7 +25,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: { outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, contextOrderMode: 'simple' as const, fragmentOrder: [] },
+    settings: makeTestSettings(),
   }
 }
 
