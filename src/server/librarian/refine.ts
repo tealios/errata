@@ -117,7 +117,7 @@ async function refineFragmentInner(
   const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
 
   // Resolve model
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarianRefine' })
   requestLogger.info('Resolved model', { modelId })
 
   const refineAgent = createLibrarianRefineAgent({

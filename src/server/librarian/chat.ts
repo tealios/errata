@@ -221,7 +221,7 @@ async function librarianChatInner(
   })
 
   // Resolve model
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarianChat' })
   requestLogger.info('Resolved model', { modelId })
 
   const chatAgent = createLibrarianChatAgent({

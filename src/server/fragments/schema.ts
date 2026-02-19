@@ -81,6 +81,12 @@ export const StoryMetaSchema = z.object({
       librarianModelId: z.string().nullable().default(null),
       characterChatProviderId: z.string().nullable().default(null),
       characterChatModelId: z.string().nullable().default(null),
+      proseTransformProviderId: z.string().nullable().default(null),
+      proseTransformModelId: z.string().nullable().default(null),
+      librarianChatProviderId: z.string().nullable().default(null),
+      librarianChatModelId: z.string().nullable().default(null),
+      librarianRefineProviderId: z.string().nullable().default(null),
+      librarianRefineModelId: z.string().nullable().default(null),
       autoApplyLibrarianSuggestions: z.boolean().default(false),
       contextOrderMode: z.enum(['simple', 'advanced']).default('simple'),
       fragmentOrder: z.array(z.string()).default([]),
@@ -95,7 +101,7 @@ export const StoryMetaSchema = z.object({
       }).default({ maxCharacters: 12000, targetCharacters: 9000 }),
       enableHierarchicalSummary: z.boolean().default(false),
     })
-    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, characterChatProviderId: null, characterChatModelId: null, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
+    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, characterChatProviderId: null, characterChatModelId: null, proseTransformProviderId: null, proseTransformModelId: null, librarianChatProviderId: null, librarianChatModelId: null, librarianRefineProviderId: null, librarianRefineModelId: null, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
 })
 
 export type StoryMeta = z.infer<typeof StoryMetaSchema>

@@ -525,7 +525,7 @@ function StoryEditorPage() {
 
         {/* View toggle — hidden in character chat since ChatConfig has its own close button */}
         {mainView === 'prose' && (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm border border-border/40 rounded-lg p-0.5 shadow-sm">
+          <div className="absolute top-3 right-10 z-20 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm border border-border/40 rounded-lg p-0.5 shadow-sm">
             <Button
               variant="secondary"
               size="icon"

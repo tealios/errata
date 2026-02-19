@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { getGlobalConfig } from '../config/storage'
 import { getStory } from '../fragments/storage'
+import { MODEL_ROLES, roleSettingsKeys } from '@/lib/model-roles'
 import type { LanguageModel } from 'ai'
 
 // Provider cache: keyed by `id:baseURL:apiKey`
@@ -34,31 +35,34 @@ export interface ResolvedModel {
 }
 
 export interface GetModelOptions {
-  role?: 'generation' | 'librarian' | 'character-chat'
+  role?: string
 }
 
 /**
  * Resolve the model to use for a given story.
- * Resolution chain: story.settings.providerId -> globalConfig.defaultProviderId -> error
+ * Walks the role's fallback chain defined in MODEL_ROLES, then falls back to global default.
  */
 export async function getModel(dataDir: string, storyId?: string, opts: GetModelOptions = {}): Promise<ResolvedModel> {
   const role = opts.role ?? 'generation'
-  // 1. Try to resolve from story settings
+  const roleConfig = MODEL_ROLES.find(r => r.key === role) ?? MODEL_ROLES[0]
+  const chain = [role, ...roleConfig.fallback]
+
+  // 1. Try to resolve from story settings by walking the fallback chain
   let targetProviderId: string | null = null
   let targetModelId: string | null = null
 
   if (storyId) {
     const story = await getStory(dataDir, storyId)
     if (story?.settings) {
-      if (role === 'librarian') {
-        targetProviderId = story.settings.librarianProviderId ?? story.settings.providerId ?? null
-        targetModelId = story.settings.librarianModelId ?? story.settings.modelId ?? null
-      } else if (role === 'character-chat') {
-        targetProviderId = story.settings.characterChatProviderId ?? story.settings.providerId ?? null
-        targetModelId = story.settings.characterChatModelId ?? story.settings.modelId ?? null
-      } else {
-        targetProviderId = story.settings.providerId ?? null
-        targetModelId = story.settings.modelId ?? null
+      const settings = story.settings as Record<string, unknown>
+      for (const r of chain) {
+        const keys = roleSettingsKeys(r)
+        const pid = settings[keys.providerId] as string | null | undefined
+        if (pid) {
+          targetProviderId = pid
+          targetModelId = (settings[keys.modelId] as string | null | undefined) ?? null
+          break
+        }
       }
     }
   }

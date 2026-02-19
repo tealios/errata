@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
-import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
-import { Settings2, ChevronRight, ChevronDown, ExternalLink, Eye, EyeOff, Puzzle, Wrench, RotateCcw, CircleHelp, Code } from 'lucide-react'
+import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
+import { Settings2, ChevronRight, ChevronDown, ExternalLink, Eye, EyeOff, Puzzle, Wrench, RotateCcw, CircleHelp, Code, Wand2 } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
+import { CustomTransformsPanel } from '@/components/settings/CustomTransformsPanel'
+import { ModelSelect } from '@/components/settings/ModelSelect'
+import { MODEL_ROLES, roleSettingsKeys } from '@/lib/model-roles'
 
 interface SettingsPanelProps {
   storyId: string
@@ -148,15 +151,22 @@ function FontPicker({ role, label, description, activeFont, onSelect }: {
   )
 }
 
-function ProviderSelect({ value, globalConfig, onChange, disabled }: {
+function ProviderSelect({ value, globalConfig, onChange, disabled, inheritLabel }: {
   value: string | null
   globalConfig: GlobalConfigSafe | null
   onChange: (providerId: string | null) => void
   disabled?: boolean
+  inheritLabel?: string
 }) {
   const defaultProvider = globalConfig?.defaultProviderId
     ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)
     : null
+
+  const emptyLabel = inheritLabel
+    ? inheritLabel
+    : defaultProvider
+      ? defaultProvider.name
+      : 'DeepSeek (env)'
 
   return (
     <select
@@ -166,14 +176,143 @@ function ProviderSelect({ value, globalConfig, onChange, disabled }: {
       disabled={disabled}
     >
       <option value="">
-        {defaultProvider ? defaultProvider.name : 'DeepSeek (env)'}
+        {emptyLabel}
       </option>
-      {(globalConfig?.providers ?? [])
-        .filter(p => p.id !== globalConfig?.defaultProviderId)
-        .map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
+      {(globalConfig?.providers ?? []).map((p) => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
     </select>
+  )
+}
+
+/** Resolve the effective providerId for a role by walking the fallback chain */
+function resolveProvider(
+  roleKey: string,
+  settings: StoryMeta['settings'],
+  globalConfig: GlobalConfigSafe | null,
+): string | null {
+  const roleConfig = MODEL_ROLES.find(r => r.key === roleKey)
+  if (!roleConfig) return null
+  const chain = [roleKey, ...roleConfig.fallback]
+  const s = settings as Record<string, unknown>
+  for (const r of chain) {
+    const keys = roleSettingsKeys(r)
+    const pid = s[keys.providerId] as string | null | undefined
+    if (pid) return pid
+  }
+  return globalConfig?.defaultProviderId ?? null
+}
+
+/** Get the inherit label for a role's provider dropdown (e.g. "Inherit (Librarian)") */
+function getInheritLabel(
+  roleKey: string,
+  settings: StoryMeta['settings'],
+  globalConfig: GlobalConfigSafe | null,
+): string {
+  const roleConfig = MODEL_ROLES.find(r => r.key === roleKey)
+  if (!roleConfig) return 'Inherit'
+
+  // Walk fallback chain to find which parent has a provider set
+  for (const parentKey of roleConfig.fallback) {
+    const s = settings as Record<string, unknown>
+    const keys = roleSettingsKeys(parentKey)
+    const pid = s[keys.providerId] as string | null | undefined
+    if (pid) {
+      const provider = globalConfig?.providers.find(p => p.id === pid)
+      const parentRole = MODEL_ROLES.find(r => r.key === parentKey)
+      return `Inherit${parentRole ? ` \u00b7 ${parentRole.label}` : ''}${provider ? ` (${provider.name})` : ''}`
+    }
+  }
+
+  // Falls through to global default
+  const defaultProvider = globalConfig?.defaultProviderId
+    ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)
+    : null
+  return `Inherit${defaultProvider ? ` (${defaultProvider.name})` : ''}`
+}
+
+function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: {
+  story: StoryMeta
+  globalConfig: GlobalConfigSafe | null
+  updateMutation: { mutate: (data: Parameters<typeof api.settings.update>[1]) => void; isPending: boolean }
+  onManageProviders: () => void
+}) {
+  const { openHelp } = useHelp()
+  const settings = story.settings
+  const s = settings as Record<string, unknown>
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">LLM</label>
+        <button
+          type="button"
+          onClick={() => openHelp('settings#providers')}
+          className="text-muted-foreground/25 hover:text-primary/60 transition-colors"
+          title="About model configuration"
+        >
+          <CircleHelp className="size-3" />
+        </button>
+      </div>
+      <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+        {MODEL_ROLES.map((role) => {
+          const keys = roleSettingsKeys(role.key)
+          const directProviderId = (s[keys.providerId] as string | null | undefined) ?? null
+          const directModelId = (s[keys.modelId] as string | null | undefined) ?? null
+          const effectiveProviderId = resolveProvider(role.key, settings, globalConfig)
+          const isGeneration = role.key === 'generation'
+
+          return (
+            <div key={role.key} className="px-3 py-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="min-w-0">
+                  <p className="text-[12px] font-medium text-foreground/80">{role.label}</p>
+                  <p className="text-[10px] text-muted-foreground/40 leading-snug">{role.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <ProviderSelect
+                    value={directProviderId}
+                    globalConfig={globalConfig}
+                    onChange={(id) => {
+                      const update: Record<string, unknown> = { [keys.providerId]: id, [keys.modelId]: null }
+                      updateMutation.mutate(update as Parameters<typeof api.settings.update>[1])
+                    }}
+                    disabled={updateMutation.isPending}
+                    inheritLabel={isGeneration ? undefined : getInheritLabel(role.key, settings, globalConfig)}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <ModelSelect
+                    providerId={effectiveProviderId}
+                    value={directModelId}
+                    onChange={(mid) => {
+                      const update: Record<string, unknown> = { [keys.modelId]: mid }
+                      updateMutation.mutate(update as Parameters<typeof api.settings.update>[1])
+                    }}
+                    disabled={updateMutation.isPending}
+                    defaultLabel={isGeneration ? 'Default' : 'Inherit'}
+                  />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          onClick={onManageProviders}
+          className="w-full flex items-center justify-between px-3 py-2 text-[11px] text-muted-foreground/40 hover:text-foreground/60 hover:bg-accent/20 transition-colors rounded-b-lg"
+          data-component-id="settings-manage-providers"
+        >
+          <span className="flex items-center gap-1.5">
+            <Settings2 className="size-3" />
+            Manage providers
+          </span>
+          <ChevronRight className="size-3" />
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -203,7 +342,7 @@ export function SettingsPanel({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: { enabledPlugins?: string[]; outputFormat?: 'plaintext' | 'markdown'; summarizationThreshold?: number; maxSteps?: number; providerId?: string | null; modelId?: string | null; librarianProviderId?: string | null; librarianModelId?: string | null; autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; fragmentOrder?: string[]; enabledBuiltinTools?: string[]; contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }; summaryCompact?: { maxCharacters: number; targetCharacters: number }; enableHierarchicalSummary?: boolean }) =>
+    mutationFn: (data: Parameters<typeof api.settings.update>[1]) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -220,6 +359,9 @@ export function SettingsPanel({
 
   const [toolsOpen, setToolsOpen] = useState(false)
   const [customCssPanelOpen, setCustomCssPanelOpen] = useState(false)
+  const [transformsPanelOpen, setTransformsPanelOpen] = useState(false)
+  const [writingTransforms] = useWritingTransforms()
+  const enabledTransformCount = writingTransforms.filter(t => t.enabled).length
   const { openHelp } = useHelp()
   const { theme, setTheme } = useTheme()
   const [quickSwitch, setQuickSwitch] = useQuickSwitch()
@@ -263,6 +405,10 @@ export function SettingsPanel({
 
   if (customCssPanelOpen) {
     return <CustomCssPanel onClose={() => setCustomCssPanelOpen(false)} />
+  }
+
+  if (transformsPanelOpen) {
+    return <CustomTransformsPanel onClose={() => setTransformsPanelOpen(false)} />
   }
 
   return (
@@ -378,6 +524,29 @@ export function SettingsPanel({
             activeFont={getActiveFont('mono', fontPrefs)}
             onSelect={(name) => setFont('mono', name)}
           />
+        </div>
+      </div>
+
+      {/* Writing */}
+      <div>
+        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">Writing</label>
+        <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+          <button
+            type="button"
+            onClick={() => setTransformsPanelOpen(true)}
+            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors rounded-lg"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <Wand2 className="size-3 text-muted-foreground/40" />
+                <p className="text-[12px] font-medium text-foreground/80">Selection transforms</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground/40 mt-0.5 leading-snug">
+                {enabledTransformCount} custom transform{enabledTransformCount !== 1 ? 's' : ''} active
+              </p>
+            </div>
+            <ChevronRight className="size-3.5 text-muted-foreground/40 shrink-0" />
+          </button>
         </div>
       </div>
 
@@ -615,39 +784,12 @@ export function SettingsPanel({
       </div>
 
       {/* LLM */}
-      <div>
-        <label className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-2 block">LLM</label>
-        <div className="rounded-lg border border-border/30 divide-y divide-border/20">
-          <SettingRow label="Generation" description="Provider for prose output" helpTopic="settings#providers">
-            <ProviderSelect
-              value={story.settings.providerId ?? null}
-              globalConfig={globalConfig ?? null}
-              onChange={(id) => updateMutation.mutate({ providerId: id, modelId: null })}
-              disabled={updateMutation.isPending}
-            />
-          </SettingRow>
-          <SettingRow label="Librarian" description="Provider for background analysis" helpTopic="librarian#overview">
-            <ProviderSelect
-              value={story.settings.librarianProviderId ?? null}
-              globalConfig={globalConfig ?? null}
-              onChange={(id) => updateMutation.mutate({ librarianProviderId: id, librarianModelId: null })}
-              disabled={updateMutation.isPending}
-            />
-          </SettingRow>
-          <button
-            type="button"
-            onClick={onManageProviders}
-            className="w-full flex items-center justify-between px-3 py-2 text-[11px] text-muted-foreground/40 hover:text-foreground/60 hover:bg-accent/20 transition-colors rounded-b-lg"
-            data-component-id="settings-manage-providers"
-          >
-            <span className="flex items-center gap-1.5">
-              <Settings2 className="size-3" />
-              Manage providers
-            </span>
-            <ChevronRight className="size-3" />
-          </button>
-        </div>
-      </div>
+      <LLMSection
+        story={story}
+        globalConfig={globalConfig ?? null}
+        updateMutation={updateMutation}
+        onManageProviders={onManageProviders}
+      />
 
       {/* Plugins */}
       <div>

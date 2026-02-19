@@ -250,6 +250,12 @@ async function seedStory(dataDir: string, options: HarnessOptions): Promise<{
       enableHierarchicalSummary: true,
       characterChatProviderId: null,
       characterChatModelId: null,
+      proseTransformProviderId: null,
+      proseTransformModelId: null,
+      librarianChatProviderId: null,
+      librarianChatModelId: null,
+      librarianRefineProviderId: null,
+      librarianRefineModelId: null,
     },
   })
 

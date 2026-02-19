@@ -53,6 +53,12 @@ function makeStory(id: string = TEST_STORY_ID): StoryMeta {
       enableHierarchicalSummary: false,
       characterChatProviderId: null,
       characterChatModelId: null,
+      proseTransformProviderId: null,
+      proseTransformModelId: null,
+      librarianChatProviderId: null,
+      librarianChatModelId: null,
+      librarianRefineProviderId: null,
+      librarianRefineModelId: null,
     },
   }
 }

@@ -27,7 +27,8 @@ const ChatInputSchema = z.object({
 const ProseTransformInputSchema = z.object({
   fragmentId: z.string(),
   selectedText: z.string().min(1),
-  operation: z.union([z.literal('rewrite'), z.literal('expand'), z.literal('compress')]),
+  operation: z.union([z.literal('rewrite'), z.literal('expand'), z.literal('compress'), z.literal('custom')]),
+  instruction: z.string().optional(),
   sourceContent: z.string().optional(),
   contextBefore: z.string().optional(),
   contextAfter: z.string().optional(),

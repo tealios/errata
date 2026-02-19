@@ -6,12 +6,13 @@ import { withBranch } from '../fragments/branches'
 
 const logger = createLogger('librarian-prose-transform')
 
-export type ProseTransformOperation = 'rewrite' | 'expand' | 'compress'
+export type ProseTransformOperation = 'rewrite' | 'expand' | 'compress' | 'custom'
 
 export interface ProseTransformOptions {
   fragmentId: string
   selectedText: string
   operation: ProseTransformOperation
+  instruction?: string
   sourceContent?: string
   contextBefore?: string
   contextAfter?: string
@@ -27,7 +28,7 @@ export interface ProseTransformResult {
   }>
 }
 
-const OPERATION_GUIDANCE: Record<ProseTransformOperation, string> = {
+const OPERATION_GUIDANCE: Record<Exclude<ProseTransformOperation, 'custom'>, string> = {
   rewrite: 'Rewrite the selected span for clarity and flow while preserving the original meaning and voice.',
   expand: 'Expand the selected span with more detail while preserving intent, continuity, and point of view.',
   compress: 'Compress the selected span to a tighter version while preserving essential meaning and continuity.',
@@ -68,9 +69,13 @@ async function transformProseSelectionInner(
   const selectedText = opts.selectedText.trim()
   if (!selectedText) throw new Error('Selected text is required')
 
+  const guidance = opts.operation === 'custom'
+    ? (opts.instruction || 'Improve the selected text.')
+    : OPERATION_GUIDANCE[opts.operation]
+
   const userPrompt = [
     `Operation: ${opts.operation}`,
-    OPERATION_GUIDANCE[opts.operation],
+    guidance,
     '',
     'Story summary:',
     story.summary || '(none)',
@@ -88,7 +93,7 @@ async function transformProseSelectionInner(
     opts.contextAfter?.trim() || '(none)',
   ].join('\n')
 
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'proseTransform' })
   requestLogger.info('Resolved model', { modelId })
 
   const agent = new ToolLoopAgent({

@@ -367,3 +367,61 @@ export function useCustomCss(): [string, boolean, (css: string) => void, (enable
 
   return [css, enabled, setCss, setEnabled]
 }
+
+// --- Writing transforms preference ---
+
+export interface WritingTransform {
+  id: string
+  label: string
+  instruction: string
+  enabled: boolean
+}
+
+const WRITING_TRANSFORMS_KEY = 'errata-writing-transforms'
+const WRITING_TRANSFORMS_EVENT = 'errata-writing-transforms-change'
+
+const DEFAULT_TRANSFORMS: WritingTransform[] = [
+  { id: 'inner-thoughts', label: 'Add inner thoughts', instruction: 'Add inner thoughts and internal monologue to the selected text, revealing what the character is thinking and feeling beneath the surface.', enabled: true },
+  { id: 'to-dialogue', label: 'Convert to dialogue', instruction: 'Convert the selected text into dialogue between characters, preserving the narrative information through spoken words and natural conversation.', enabled: true },
+  { id: 'active-voice', label: 'Passive to active voice', instruction: 'Convert passive voice constructions in the selected text to active voice for more direct, engaging prose.', enabled: true },
+  { id: 'different-words', label: 'Use different words', instruction: 'Rephrase the selected text using different vocabulary and sentence structures while preserving the exact same meaning and tone.', enabled: true },
+  { id: 'show-dont-tell', label: "Show, don't tell", instruction: "Rewrite the selected text to show through action, sensory detail, and dialogue rather than telling. Replace statements about emotions or states with concrete scenes that let the reader experience them.", enabled: true },
+  { id: 'more-emotion', label: 'Show more emotion', instruction: 'Enhance the emotional depth of the selected text by adding visceral reactions, body language, sensory details, and internal responses that convey feeling without stating it directly.', enabled: true },
+  { id: 'fix-transitions', label: 'Fix transitions', instruction: 'Improve the transitions in the selected text to create smoother flow between ideas, scenes, or paragraphs. Ensure continuity and natural pacing.', enabled: true },
+]
+
+function getInitialWritingTransforms(): WritingTransform[] {
+  if (typeof window === 'undefined') return DEFAULT_TRANSFORMS
+  try {
+    const stored = localStorage.getItem(WRITING_TRANSFORMS_KEY)
+    if (!stored) return DEFAULT_TRANSFORMS
+    const parsed = JSON.parse(stored)
+    return Array.isArray(parsed) ? parsed : DEFAULT_TRANSFORMS
+  } catch {
+    return DEFAULT_TRANSFORMS
+  }
+}
+
+export function useWritingTransforms(): [WritingTransform[], (transforms: WritingTransform[]) => void, () => void] {
+  const [transforms, setTransformsState] = useState<WritingTransform[]>(getInitialWritingTransforms)
+
+  useEffect(() => {
+    const handler = (e: Event) => setTransformsState((e as CustomEvent<WritingTransform[]>).detail)
+    window.addEventListener(WRITING_TRANSFORMS_EVENT, handler)
+    return () => window.removeEventListener(WRITING_TRANSFORMS_EVENT, handler)
+  }, [])
+
+  const setTransforms = useCallback((next: WritingTransform[]) => {
+    setTransformsState(next)
+    localStorage.setItem(WRITING_TRANSFORMS_KEY, JSON.stringify(next))
+    window.dispatchEvent(new CustomEvent(WRITING_TRANSFORMS_EVENT, { detail: next }))
+  }, [])
+
+  const resetToDefaults = useCallback(() => {
+    setTransformsState(DEFAULT_TRANSFORMS)
+    localStorage.setItem(WRITING_TRANSFORMS_KEY, JSON.stringify(DEFAULT_TRANSFORMS))
+    window.dispatchEvent(new CustomEvent(WRITING_TRANSFORMS_EVENT, { detail: DEFAULT_TRANSFORMS }))
+  }, [])
+
+  return [transforms, setTransforms, resetToDefaults]
+}

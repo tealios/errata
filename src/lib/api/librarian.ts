@@ -24,9 +24,9 @@ export const librarian = {
   transformProseSelection: (
     storyId: string,
     fragmentId: string,
-    operation: 'rewrite' | 'expand' | 'compress',
+    operation: 'rewrite' | 'expand' | 'compress' | 'custom',
     selectedText: string,
-    options?: { sourceContent?: string; contextBefore?: string; contextAfter?: string },
+    options?: { sourceContent?: string; contextBefore?: string; contextAfter?: string; instruction?: string },
   ) => fetchEventStream(`/stories/${storyId}/librarian/prose-transform`, {
     fragmentId,
     operation,
@@ -34,6 +34,7 @@ export const librarian = {
     sourceContent: options?.sourceContent,
     contextBefore: options?.contextBefore,
     contextAfter: options?.contextAfter,
+    instruction: options?.instruction,
   }),
   chat: (storyId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
     fetchEventStream(`/stories/${storyId}/librarian/chat`, { messages }),

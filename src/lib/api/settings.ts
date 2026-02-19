@@ -11,6 +11,14 @@ export const settings = {
     modelId?: string | null
     librarianProviderId?: string | null
     librarianModelId?: string | null
+    characterChatProviderId?: string | null
+    characterChatModelId?: string | null
+    proseTransformProviderId?: string | null
+    proseTransformModelId?: string | null
+    librarianChatProviderId?: string | null
+    librarianChatModelId?: string | null
+    librarianRefineProviderId?: string | null
+    librarianRefineModelId?: string | null
     autoApplyLibrarianSuggestions?: boolean
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]

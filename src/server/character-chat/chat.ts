@@ -174,7 +174,7 @@ async function characterChatInner(
   })
 
   // Resolve model
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'character-chat' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'characterChat' })
   requestLogger.info('Resolved model', { modelId })
 
   const chatAgent = createCharacterChatAgent({
