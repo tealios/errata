@@ -17,6 +17,7 @@ import {
   assembleMessages,
   createDefaultBlocks,
   compileBlocks,
+  addCacheBreakpoints,
   findBlock,
   replaceBlockContent,
   removeBlock,
@@ -24,6 +25,7 @@ import {
   insertBlockAfter,
   reorderBlock,
   type ContextBlock,
+  type ContextMessage,
 } from '@/server/llm/context-builder'
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
@@ -1063,6 +1065,105 @@ describe('context blocks', () => {
       const fromBlocks = compileBlocks(createDefaultBlocks(state))
 
       expect(fromBlocks).toEqual(fromAssemble)
+    })
+  })
+
+  describe('addCacheBreakpoints', () => {
+    it('adds cache control to system message', () => {
+      const messages: ContextMessage[] = [
+        { role: 'system', content: 'You are a writing assistant.' },
+      ]
+
+      const result = addCacheBreakpoints(messages)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].role).toBe('system')
+      expect(result[0].content).toBe('You are a writing assistant.')
+      expect(result[0].providerOptions).toEqual({
+        anthropic: { cacheControl: { type: 'ephemeral' } },
+      })
+    })
+
+    it('splits user message at author-input marker', () => {
+      const messages: ContextMessage[] = [
+        {
+          role: 'user',
+          content: '[@block=story-info]\n## Story: Test\n\n[@block=author-input]\nThe author wants the following to happen next: Continue',
+        },
+      ]
+
+      const result = addCacheBreakpoints(messages)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].role).toBe('user')
+      expect(Array.isArray(result[0].content)).toBe(true)
+
+      const parts = result[0].content as Array<{ type: string; text: string; providerOptions?: unknown }>
+      expect(parts).toHaveLength(2)
+
+      // Stable prefix has cache control
+      expect(parts[0].type).toBe('text')
+      expect(parts[0].text).toBe('[@block=story-info]\n## Story: Test')
+      expect(parts[0].providerOptions).toEqual({
+        anthropic: { cacheControl: { type: 'ephemeral' } },
+      })
+
+      // Volatile suffix has no cache control
+      expect(parts[1].type).toBe('text')
+      expect(parts[1].text).toContain('[@block=author-input]')
+      expect(parts[1].text).toContain('Continue')
+      expect(parts[1].providerOptions).toBeUndefined()
+    })
+
+    it('falls back to single string when author-input marker not found', () => {
+      const messages: ContextMessage[] = [
+        { role: 'user', content: 'Some content without marker' },
+      ]
+
+      const result = addCacheBreakpoints(messages)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].role).toBe('user')
+      expect(result[0].content).toBe('Some content without marker')
+    })
+
+    it('passes through assistant messages unchanged', () => {
+      const messages: ContextMessage[] = [
+        { role: 'assistant', content: 'Once upon a time...' },
+      ]
+
+      const result = addCacheBreakpoints(messages)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].role).toBe('assistant')
+      expect(result[0].content).toBe('Once upon a time...')
+    })
+
+    it('handles full system + user message pair', () => {
+      const messages: ContextMessage[] = [
+        { role: 'system', content: 'System instructions here.' },
+        {
+          role: 'user',
+          content: '[@block=story-info]\nStory info\n\n[@block=prose]\nSome prose\n\n[@block=author-input]\nThe author wants the following to happen next: Write more',
+        },
+      ]
+
+      const result = addCacheBreakpoints(messages)
+
+      expect(result).toHaveLength(2)
+
+      // System message has cache control
+      expect(result[0].providerOptions).toEqual({
+        anthropic: { cacheControl: { type: 'ephemeral' } },
+      })
+
+      // User message is split into parts
+      const parts = result[1].content as Array<{ type: string; text: string; providerOptions?: unknown }>
+      expect(parts).toHaveLength(2)
+      expect(parts[0].text).toContain('Story info')
+      expect(parts[0].text).toContain('Some prose')
+      expect(parts[0].text).not.toContain('Write more')
+      expect(parts[1].text).toContain('Write more')
     })
   })
 })

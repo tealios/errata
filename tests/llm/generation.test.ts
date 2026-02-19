@@ -66,6 +66,12 @@ function makeFragment(overrides: Partial<Fragment>): Fragment {
   }
 }
 
+/** Extract text from a message content that may be a string or an array of TextParts */
+function extractText(content: string | Array<{ type: string; text: string }>): string {
+  if (typeof content === 'string') return content
+  return content.map(p => p.text).join('')
+}
+
 function createMockStreamResult(text: string) {
   // Create a minimal mock that mimics the streamText result
   const encoder = new TextEncoder()
@@ -165,8 +171,9 @@ describe('generation endpoint', () => {
     const callArgs = mockAgentStream.mock.calls[0][0] as any
     expect(callArgs.messages).toBeDefined()
     const msg = callArgs.messages!.find((m: any) => m.role === 'user')
-    expect(msg!.content).toContain('Dark gothic style.')
-    expect(msg!.content).toContain('Continue the story')
+    const userText = extractText(msg!.content)
+    expect(userText).toContain('Dark gothic style.')
+    expect(userText).toContain('Continue the story')
   })
 
   it('POST /stories/:storyId/generate includes fragment tools', async () => {
@@ -371,8 +378,9 @@ describe('generation endpoint', () => {
     // Verify the prompt included existing content
     const callArgs = mockAgentStream.mock.calls[0][0] as any
     const userMsg = callArgs.messages!.find((m: any) => m.role === 'user')
-    expect(userMsg!.content).toContain('The hero walked slowly through the forest.')
-    expect(userMsg!.content).toContain('Make it more suspenseful')
+    const userText = extractText(userMsg!.content)
+    expect(userText).toContain('The hero walked slowly through the forest.')
+    expect(userText).toContain('Make it more suspenseful')
 
     // Verify a NEW fragment was created (not updated in-place)
     const originalFragment = await getFragment(dataDir, storyId, 'pr-refine')

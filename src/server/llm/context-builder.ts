@@ -4,6 +4,7 @@ import { createLogger } from '../logging'
 import { getActiveProseIds, findSectionIndex, getFullProseChain } from '../fragments/prose-chain'
 import { getAnalysis, getLatestAnalysisIdsByFragment } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
+import type { ModelMessage } from 'ai'
 
 export interface ContextBuildState {
   story: StoryMeta
@@ -553,7 +554,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'summary',
       role: 'user',
       content: `## Story Summary So Far\n${story.summary}`,
-      order: 200,
+      order: 400,
       source: 'builtin',
     })
   }
@@ -566,7 +567,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
         '## Chapter/Arc Summaries',
         ...chapterSummaries.map((c) => `[@chapter=${c.markerId}]\n### ${c.name}\n${c.summary}`),
       ].join('\n\n'),
-      order: 210,
+      order: 410,
       source: 'builtin',
     })
   }
@@ -588,7 +589,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'user-fragments',
       role: 'user',
       content: parts.join('\n').replace(/^\n+/, ''),
-      order: 300,
+      order: 200,
       source: 'builtin',
     })
   }
@@ -601,7 +602,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
         '## Available Guidelines use getFragment tool to retrieve full content',
         ...guidelineShortlist.map(g => `- ${g.id}: ${g.name} — ${g.description}`),
       ].join('\n'),
-      order: 400,
+      order: 300,
       source: 'builtin',
     })
   }
@@ -614,7 +615,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
         '## Available Knowledge use getFragment tool to retrieve full content',
         ...knowledgeShortlist.map(k => `- ${k.id}: ${k.name} — ${k.description}`),
       ].join('\n'),
-      order: 410,
+      order: 310,
       source: 'builtin',
     })
   }
@@ -627,7 +628,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
         '## Available Characters  use getFragment tool to retrieve full content',
         ...characterShortlist.map(c => `- ${c.id}: ${c.name} — ${c.description}`),
       ].join('\n'),
-      order: 420,
+      order: 320,
       source: 'builtin',
     })
   }
@@ -724,4 +725,61 @@ export async function buildContext(
 ): Promise<ContextMessage[]> {
   const state = await buildContextState(dataDir, storyId, authorInput, opts)
   return assembleMessages(state)
+}
+
+const ANTHROPIC_CACHE_CONTROL = { anthropic: { cacheControl: { type: 'ephemeral' } } }
+
+/**
+ * Converts flat ContextMessage[] into ModelMessage[] with cache breakpoint hints.
+ *
+ * - System message: adds providerOptions with Anthropic cache control so the
+ *   entire system prompt is treated as a cacheable prefix.
+ * - User message: splits at the [@block=author-input] marker into two TextParts.
+ *   The stable prefix (story info, fragments, shortlists, summary, prose) gets
+ *   cache control; the volatile suffix (author input) does not.
+ * - Other messages: passed through unchanged.
+ *
+ * This is backward-compatible — providers that don't support cache control
+ * simply ignore the providerOptions.
+ */
+export function addCacheBreakpoints(messages: ContextMessage[]): ModelMessage[] {
+  return messages.map((msg): ModelMessage => {
+    if (msg.role === 'system') {
+      return {
+        role: 'system',
+        content: msg.content,
+        providerOptions: ANTHROPIC_CACHE_CONTROL,
+      }
+    }
+
+    if (msg.role === 'user') {
+      const marker = '[@block=author-input]'
+      const splitIndex = msg.content.indexOf(marker)
+
+      if (splitIndex === -1) {
+        return { role: 'user', content: msg.content }
+      }
+
+      const stablePrefix = msg.content.slice(0, splitIndex).trimEnd()
+      const volatileSuffix = msg.content.slice(splitIndex)
+
+      return {
+        role: 'user',
+        content: [
+          {
+            type: 'text' as const,
+            text: stablePrefix,
+            providerOptions: ANTHROPIC_CACHE_CONTROL,
+          },
+          {
+            type: 'text' as const,
+            text: volatileSuffix,
+          },
+        ],
+      }
+    }
+
+    // Assistant or other roles: pass through
+    return { role: msg.role, content: msg.content } as ModelMessage
+  })
 }
