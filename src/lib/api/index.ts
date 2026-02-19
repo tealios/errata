@@ -15,6 +15,7 @@ export { settings } from './settings'
 export { blocks } from './blocks'
 export { branches } from './branches'
 export { chapters } from './chapters'
+export { characterChat } from './character-chat'
 
 // HTTP Client utilities (exported for advanced use cases)
 export { apiFetch, fetchStream, fetchEventStream } from './client'
@@ -31,6 +32,7 @@ import { settings } from './settings'
 import { blocks } from './blocks'
 import { branches } from './branches'
 import { chapters } from './chapters'
+import { characterChat } from './character-chat'
 
 export const api = {
   stories,
@@ -44,4 +46,5 @@ export const api = {
   blocks,
   branches,
   chapters,
+  characterChat,
 }

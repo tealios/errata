@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
@@ -21,6 +20,7 @@ interface ProseBlockProps {
   onSelect: () => void
   onDebugLog?: (logId: string) => void
   onBranchFrom?: (sectionIndex: number) => void
+  onEdit?: () => void
   onAskLibrarian?: (fragmentId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
@@ -37,6 +37,7 @@ export function ProseBlock({
   isLast,
   isFirst,
   onSelect,
+  onEdit,
   onDebugLog,
   onBranchFrom,
   onAskLibrarian,
@@ -49,8 +50,6 @@ export function ProseBlock({
   void isFirst
   void isLast
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState(false)
-  const [editContent, setEditContent] = useState(fragment.content)
   const [actionMode, setActionMode] = useState<'regenerate' | 'refine' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
   const [isStreamingAction, setIsStreamingAction] = useState(false)
@@ -102,19 +101,6 @@ export function ProseBlock({
     return () => document.removeEventListener('mousedown', handler)
   }, [showActions, actionMode, editingPrompt])
 
-  const updateMutation = useMutation({
-    mutationFn: (content: string) =>
-      api.fragments.update(storyId, fragment.id, {
-        name: fragment.name,
-        description: fragment.description,
-        content,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-      setEditing(false)
-    },
-  })
-
   const revertMutation = useMutation({
     mutationFn: () => api.fragments.revert(storyId, fragment.id),
     onSuccess: () => {
@@ -123,14 +109,6 @@ export function ProseBlock({
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     },
   })
-
-  const handleSave = () => {
-    if (editContent !== fragment.content) {
-      updateMutation.mutate(editContent)
-    } else {
-      setEditing(false)
-    }
-  }
 
   const switchMutation = useMutation({
     mutationFn: (fragmentId: string) =>
@@ -382,57 +360,6 @@ export function ProseBlock({
     if (!mentionsEnabled || !annotations || !onClickMention) return undefined
     return buildAnnotationHighlighter(annotations, onClickMention, mentionColors) ?? undefined
   }, [mentionsEnabled, annotations, onClickMention, mentionColors])
-
-  if (editing) {
-    return (
-      <div className="mb-6">
-        <div className="rounded-lg border border-primary/20 bg-card/30 p-5">
-          <Textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="min-h-[160px] resize-none prose-content border-0 p-0 focus-visible:ring-0 bg-transparent"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setEditContent(fragment.content)
-                setEditing(false)
-              }
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault()
-                handleSave()
-              }
-            }}
-          />
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
-            <span className="text-xs text-muted-foreground/60">
-              Esc to cancel · Ctrl+Enter to save
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-xs"
-                onClick={() => {
-                  setEditContent(fragment.content)
-                  setEditing(false)
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="text-xs"
-                onClick={handleSave}
-                disabled={updateMutation.isPending}
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div ref={blockRef} className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}>
@@ -693,7 +620,8 @@ export function ProseBlock({
               <div className="inline-flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto max-w-[calc(100vw-3rem)]">
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { setEditContent(fragment.content); setEditing(true); setShowActions(false) }}
+                  onClick={() => { if (onEdit) { onEdit(); setShowActions(false) } }}
+                  disabled={!onEdit}
                   data-component-id={`prose-${fragment.id}-edit`}
                 >
                   <PenLine className="size-3" />

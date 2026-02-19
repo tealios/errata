@@ -2,6 +2,8 @@
 
 An LLM assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
 
+Join the community on Discord: https://discord.gg/ywVFKvdH49
+
 ![Main editor view](docs/imgs/initial-view.png)
 
 ## Features

@@ -21,6 +21,20 @@ export const librarian = {
     apiFetch<LibrarianAcceptSuggestionResponse>(`/stories/${storyId}/librarian/analyses/${analysisId}/suggestions/${index}/accept`, { method: 'POST' }),
   refine: (storyId: string, fragmentId: string, instructions?: string) =>
     fetchStream(`/stories/${storyId}/librarian/refine`, { fragmentId, instructions }),
+  transformProseSelection: (
+    storyId: string,
+    fragmentId: string,
+    operation: 'rewrite' | 'expand' | 'compress',
+    selectedText: string,
+    options?: { sourceContent?: string; contextBefore?: string; contextAfter?: string },
+  ) => fetchEventStream(`/stories/${storyId}/librarian/prose-transform`, {
+    fragmentId,
+    operation,
+    selectedText,
+    sourceContent: options?.sourceContent,
+    contextBefore: options?.contextBefore,
+    contextAfter: options?.contextAfter,
+  }),
   chat: (storyId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
     fetchEventStream(`/stories/${storyId}/librarian/chat`, { messages }),
   getChatHistory: (storyId: string) =>

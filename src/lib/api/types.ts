@@ -16,6 +16,8 @@ export interface StoryMeta {
     modelId?: string | null
     librarianProviderId?: string | null
     librarianModelId?: string | null
+    characterChatProviderId?: string | null
+    characterChatModelId?: string | null
     autoApplyLibrarianSuggestions?: boolean
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]
@@ -296,3 +298,38 @@ export type ChatEvent =
   | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
   | { type: 'finish'; finishReason: string; stepCount: number }
+
+// Character Chat types
+export type PersonaMode =
+  | { type: 'character'; characterId: string }
+  | { type: 'stranger' }
+  | { type: 'custom'; prompt: string }
+
+export interface CharacterChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  reasoning?: string
+  createdAt: string
+}
+
+export interface CharacterChatConversation {
+  id: string
+  characterId: string
+  persona: PersonaMode
+  storyPointFragmentId: string | null
+  title: string
+  messages: CharacterChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CharacterChatConversationSummary {
+  id: string
+  characterId: string
+  persona: PersonaMode
+  storyPointFragmentId: string | null
+  title: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}

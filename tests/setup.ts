@@ -19,6 +19,8 @@ export function makeTestSettings(overrides?: Partial<StorySettings>): StorySetti
     modelId: null,
     librarianProviderId: null,
     librarianModelId: null,
+    characterChatProviderId: null,
+    characterChatModelId: null,
     autoApplyLibrarianSuggestions: false,
     contextOrderMode: 'simple',
     fragmentOrder: [],

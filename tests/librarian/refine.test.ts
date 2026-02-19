@@ -70,6 +70,29 @@ function createMockStreamResult(text: string) {
   }
 }
 
+function createMockEventStreamResult(events: Array<Record<string, unknown>>, text: string, reasoning = '') {
+  const eventStream = new ReadableStream<string>({
+    start(controller) {
+      for (const event of events) {
+        controller.enqueue(JSON.stringify(event) + '\n')
+      }
+      controller.close()
+    },
+  })
+
+  const completion = Promise.resolve({
+    text,
+    reasoning,
+    stepCount: 1,
+    finishReason: 'stop',
+  })
+
+  return {
+    eventStream,
+    completion,
+  }
+}
+
 describe('librarian refine endpoint', () => {
   let dataDir: string
   let cleanup: () => Promise<void>
@@ -262,5 +285,84 @@ describe('librarian refine endpoint', () => {
     expect(res.status).toBe(200)
     const responseText = await res.text()
     expect(responseText).toBe('Enhanced style guide')
+  })
+
+  it('streams transformed prose text for selection rewrite', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    const fragment = makeFragment({
+      id: 'pr-transform',
+      type: 'prose',
+      name: 'Scene',
+      content: 'The guard moved quickly down the hall.',
+      sticky: false,
+    })
+    await createFragment(dataDir, story.id, fragment)
+
+    const transformedText = 'The sentinel darted down the corridor.'
+    const reasoningText = 'I kept the same action and tone while tightening diction.'
+    const { eventStream, completion } = createMockEventStreamResult([
+      { type: 'reasoning', text: reasoningText },
+      { type: 'text', text: transformedText },
+      { type: 'finish', finishReason: 'stop', stepCount: 1 },
+    ], transformedText, reasoningText)
+    mockInvokeAgent.mockResolvedValue({
+      output: { eventStream, completion },
+      trace: [],
+    })
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stories/${story.id}/librarian/prose-transform`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fragmentId: fragment.id,
+          selectedText: 'The guard moved quickly down the hall.',
+          operation: 'rewrite',
+          sourceContent: fragment.content,
+          contextBefore: 'Before context',
+          contextAfter: 'After context',
+        }),
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    const responseText = await res.text()
+    expect(responseText).toContain('"type":"reasoning"')
+    expect(responseText).toContain('"type":"text"')
+    expect(responseText).toContain(transformedText)
+    expect(mockInvokeAgent).toHaveBeenCalled()
+    const callArgs = mockInvokeAgent.mock.calls[0][0]
+    expect(callArgs.agentName).toBe('librarian.prose-transform')
+    expect(callArgs.input.operation).toBe('rewrite')
+  })
+
+  it('rejects prose transform requests for non-prose fragments', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    const fragment = makeFragment({
+      id: 'ch-transform',
+      type: 'character',
+      name: 'Captain',
+      content: 'A stern commander.',
+    })
+    await createFragment(dataDir, story.id, fragment)
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stories/${story.id}/librarian/prose-transform`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fragmentId: fragment.id,
+          selectedText: 'A stern commander.',
+          operation: 'compress',
+        }),
+      }),
+    )
+
+    expect(res.status).toBe(422)
+    expect(mockInvokeAgent).not.toHaveBeenCalled()
   })
 })

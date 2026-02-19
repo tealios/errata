@@ -34,7 +34,7 @@ export interface ResolvedModel {
 }
 
 export interface GetModelOptions {
-  role?: 'generation' | 'librarian'
+  role?: 'generation' | 'librarian' | 'character-chat'
 }
 
 /**
@@ -53,6 +53,9 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
       if (role === 'librarian') {
         targetProviderId = story.settings.librarianProviderId ?? story.settings.providerId ?? null
         targetModelId = story.settings.librarianModelId ?? story.settings.modelId ?? null
+      } else if (role === 'character-chat') {
+        targetProviderId = story.settings.characterChatProviderId ?? story.settings.providerId ?? null
+        targetModelId = story.settings.characterChatModelId ?? story.settings.modelId ?? null
       } else {
         targetProviderId = story.settings.providerId ?? null
         targetModelId = story.settings.modelId ?? null
