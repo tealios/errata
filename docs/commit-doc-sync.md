@@ -1,0 +1,224 @@
+# Commit-Driven Documentation Sync
+
+Generated: 2026-02-19T20:33:25.420Z
+
+## Baseline
+
+- Baseline commit: `e83338cda2ae9a884c3b7d78c57dab41bb668057` (2026-02-18)
+- Baseline reason: this is the latest point where accumulated doc changes cover at least 50% of tracked docs.
+- Coverage at baseline: 54.2% (13/24 docs)
+
+## Sync Range
+
+- From (exclusive): `e83338cda2ae9a884c3b7d78c57dab41bb668057`
+- To (inclusive): `3720714834f7bb9e8bbeae111e33a66e74e07dca`
+- Commits inspected: 56
+
+## Commit Feed
+
+- 2026-02-20 `3720714` refactor(agents): introduce agent block system for centralized context assembly
+  - Docs: none
+  - Code: packages/errata-plugin-sdk/index.d.ts, src/components/agents/AgentContextPanel.tsx, src/components/blocks/BlockContentView.tsx, src/components/blocks/BlockEditorPanel.tsx, src/components/refinement/RefinementPanel.tsx
+- 2026-02-20 `232cc70` fix: auto-install deps in run scripts to prevent stale node_modules errors
+  - Docs: none
+  - Code: package.json
+- 2026-02-20 `7aca635` Merge remote-tracking branch 'origin/main'
+  - Docs: none
+  - Code: none
+- 2026-02-20 `2e5c6f1` feat: add generation, librarian, prose chain, and story routes
+  - Docs: none
+  - Code: src/server/api.ts, src/server/config/storage.ts, src/server/llm/context-builder.ts, src/server/routes/blocks.ts, src/server/routes/branches.ts
+- 2026-02-20 `5c37dfc` refactor: update text-muted-foreground styles for consistency across components
+  - Docs: none
+  - Code: plugins/color-picker/Panel.tsx, plugins/keybinds/Panel.tsx, src/components/ImportDialog.tsx, src/components/blocks/BlockContentView.tsx, src/components/blocks/BlockCreateDialog.tsx
+- 2026-02-20 `91b9809` Merge pull request #7 from tealios/main
+  - Docs: none
+  - Code: none
+- 2026-02-20 `026365b` merge: sync origin/master into local master
+  - Docs: none
+  - Code: none
+- 2026-02-19 `a014692` feat(llm): add per-role model selection with fallback chains and custom transforms
+  - Docs: none
+  - Code: scripts/backend-stress-harness.ts, src/components/settings/CustomTransformsPanel.tsx, src/components/settings/ModelSelect.tsx, src/components/sidebar/SettingsPanel.tsx, src/lib/api/librarian.ts
+- 2026-02-19 `29b787b` feat(editor): improve writing panel UX with context strips, search, and navigation
+  - Docs: none
+  - Code: src/components/prose/ProseWritingPanel.tsx
+- 2026-02-19 `de7c92c` merge: bring v3 into main
+  - Docs: none
+  - Code: none
+- 2026-02-19 `4e90660` docs(readme): add character chat and writing panel guides
+  - Docs: README.md, docs/README.md, docs/character-chat.md, docs/prose-writing-panel.md
+  - Code: none
+- 2026-02-19 `bf3a5e5` Merge pull request #6 from tealios/v3
+  - Docs: none
+  - Code: none
+- 2026-02-19 `92bc7a5` chore(release): 1.6.0
+  - Docs: none
+  - Code: package.json
+- 2026-02-19 `8c2851c` chore(release): 1.4.0
+  - Docs: none
+  - Code: package.json
+- 2026-02-19 `9ca25c2` feat(editor): add prose writing panel and client-safe plugin init
+  - Docs: README.md
+  - Code: package.json, src/components/fragments/FragmentExportPanel.tsx, src/components/prose/ProseBlock.tsx, src/components/prose/ProseChainView.tsx, src/components/prose/ProseWritingPanel.tsx
+- 2026-02-19 `5abde52` fix(character-chat): hide view toggle when in character chat mode
+  - Docs: none
+  - Code: src/routes/story.$storyId.tsx
+- 2026-02-19 `dcc319d` feat(character-chat): show character portraits when available
+  - Docs: none
+  - Code: src/components/character-chat/CharacterChatView.tsx, src/components/character-chat/ChatConfig.tsx, src/components/character-chat/ConversationList.tsx
+- 2026-02-19 `4336888` feat(character-chat): add view toggle in story route
+  - Docs: none
+  - Code: scripts/backend-stress-harness.ts, src/routes/story.$storyId.tsx, src/server/api.ts, tests/character-chat/chat.test.ts, tests/fragments/branches.test.ts
+- 2026-02-19 `88dda3b` feat(character-chat): add CharacterChatView UI components
+  - Docs: none
+  - Code: src/components/character-chat/CharacterChatView.tsx, src/components/character-chat/ChatConfig.tsx, src/components/character-chat/ConversationList.tsx
+- 2026-02-19 `6970f6e` refactor(chat): extract shared chat message components
+  - Docs: none
+  - Code: src/components/chat/ChatMessageParts.tsx, src/components/librarian/LibrarianChat.tsx
+- 2026-02-19 `fd2ceb2` feat(character-chat): add client API module
+  - Docs: none
+  - Code: src/lib/api/character-chat.ts, src/lib/api/index.ts
+- 2026-02-19 `844f52c` feat(character-chat): add REST API endpoints with streaming and tests
+  - Docs: none
+  - Code: src/server/api.ts, tests/character-chat/chat.test.ts
+- 2026-02-19 `41e7e08` feat(character-chat): add chat agent with context building and streaming
+  - Docs: none
+  - Code: src/server/agents/register-core.ts, src/server/character-chat/agents.ts, src/server/character-chat/chat.ts, src/server/character-chat/llm-agents.ts
+- 2026-02-19 `b908854` feat(character-chat): add provider config and schema support
+  - Docs: none
+  - Code: src/lib/api/types.ts, src/server/fragments/schema.ts, src/server/llm/client.ts, tests/setup.ts
+- 2026-02-19 `c47aec9` feat(character-chat): add conversation storage layer with CRUD and tests
+  - Docs: none
+  - Code: src/server/character-chat/storage.ts, tests/character-chat/storage.test.ts
+- 2026-02-19 `86bc29b` feat(prose): add librarian-powered selection transforms with reasoning
+  - Docs: none
+  - Code: src/components/prose/ProseBlock.tsx, src/lib/api/librarian.ts, src/server/api.ts, src/server/librarian/agents.ts, src/server/librarian/prose-transform.ts
+- 2026-02-19 `6a5af69` feat(librarian): add LLM summary compaction and stress harness docs
+  - Docs: BACKEND-STRESSTEST.md, FRONTEND-STRESSTEST.md, docs/README.md, docs/backend-stress-harness.md, docs/summarization-and-memory.md
+  - Code: package.json, scripts/backend-stress-harness.ts, src/server/librarian/agent.ts, tests/librarian/agent.test.ts
+- 2026-02-19 `c0853f1` Merge pull request #4 from tealios/v3
+  - Docs: none
+  - Code: none
+- 2026-02-19 `b3bacb2` fix(wizard): auto-select first model after fetching model list
+  - Docs: none
+  - Code: src/components/onboarding/OnboardingWizard.tsx, src/components/settings/ProviderManager.tsx
+- 2026-02-19 `37d07ac` Merge pull request #2 from tealios/v3
+  - Docs: none
+  - Code: none
+- 2026-02-19 `48adcea` feat(import): universal import dialog and zip drag-drop on homepage
+  - Docs: none
+  - Code: src/components/ImportDialog.tsx, src/routes/index.tsx
+- 2026-02-19 `25dfe44` feat(librarian): add analysis index for latest summary lookups
+  - Docs: none
+  - Code: src/server/librarian/agent.ts, src/server/librarian/storage.ts, src/server/llm/context-builder.ts, tests/librarian/storage.test.ts, tests/llm/context-builder.test.ts
+- 2026-02-19 `cc8c607` docs: update SillyTavern import documentation for JSON + lorebook support
+  - Docs: README.md, docs/README.md, docs/fragments-and-prose-chain.md
+  - Code: none
+- 2026-02-19 `a7d712c` feat(import): support JSON character cards and lorebook entries
+  - Docs: none
+  - Code: src/components/fragments/CharacterCardImportDialog.tsx, src/components/fragments/TavernCardImportDialog.tsx, src/lib/importers/tavern-card.ts, src/routes/index.tsx, src/routes/story.$storyId.tsx
+- 2026-02-19 `82df35e` feat(context): add hierarchical summaries and prose edit reanalysis
+  - Docs: none
+  - Code: src/components/help/help-content.tsx, src/components/sidebar/SettingsPanel.tsx, src/lib/api/settings.ts, src/lib/api/types.ts, src/server/api.ts
+- 2026-02-19 `3d66f5c` docs(librarian): document dedupe and structured summary memory flow
+  - Docs: PLAN.md, docs/README.md, docs/summarization-and-memory.md
+  - Code: none
+- 2026-02-19 `8a9af56` feat(librarian): dedupe analyses and expose structured summary updates
+  - Docs: none
+  - Code: src/components/sidebar/LibrarianPanel.tsx, src/lib/api/types.ts, src/server/librarian/agent.ts, src/server/librarian/analysis-tools.ts, src/server/librarian/storage.ts
+- 2026-02-19 `b2a2b39` feat(memory): add summary compaction controls and contiguous deferred updates
+  - Docs: docs/README.md, docs/summarization-and-memory.md
+  - Code: src/components/help/help-content.tsx, src/components/sidebar/SettingsPanel.tsx, src/lib/api/settings.ts, src/lib/api/types.ts, src/server/api.ts
+- 2026-02-19 `08e7bb6` feat(docs): add detailed documentation for fragments and prose chain
+  - Docs: docs/README.md, docs/fragments-and-prose-chain.md
+  - Code: none
+- 2026-02-19 `b13eecf` chore: bump version to 1.3.0
+  - Docs: none
+  - Code: package.json
+- 2026-02-19 `5906133` fix(settings): update label for custom CSS setting in SettingsPanel
+  - Docs: none
+  - Code: src/components/sidebar/SettingsPanel.tsx
+- 2026-02-19 `380192d` feat(import): TavernAI character card import with drag-and-drop
+  - Docs: none
+  - Code: src/components/fragments/FragmentList.tsx, src/components/fragments/TavernCardImportDialog.tsx, src/components/onboarding/OnboardingWizard.tsx, src/components/settings/CustomCssPanel.tsx, src/components/sidebar/DetailPanel.tsx
+- 2026-02-18 `ea3fbf3` fix: resolve all TypeScript errors across backend, tests, and frontend
+  - Docs: none
+  - Code: plugins/names/Panel.tsx, plugins/names/plugin.ts, src/components/fragments/FragmentExportPanel.tsx, src/components/fragments/FragmentList.tsx, src/components/onboarding/OnboardingWizard.tsx
+- 2026-02-18 `4d81fa5` feat(chapters): add chapter markers to prose chain with summarization
+  - Docs: none
+  - Code: src/components/fragments/FragmentList.tsx, src/components/prose/ChapterMarker.tsx, src/components/prose/ProseChainView.tsx, src/components/prose/ProseOutlinePanel.tsx, src/components/sidebar/LibrarianPanel.tsx
+- 2026-02-18 `c4e8fa2` feat(timelines): branch-aware storage, AsyncLocalStorage pinning, and prose prompt redesign
+  - Docs: none
+  - Code: src/components/librarian/LibrarianChat.tsx, src/components/prose/GenerationThoughts.tsx, src/components/prose/ProseBlock.tsx, src/components/prose/ProseChainView.tsx, src/components/prose/TimelineTabs.tsx
+- 2026-02-18 `ff6c4c0` docs(timelines): add technical docs and help article for the timeline system
+  - Docs: docs/timelines.md
+  - Code: src/components/help/help-content.tsx
+- 2026-02-18 `50073ee` feat(librarian): redirect contradiction fix to chat with fragment refs
+  - Docs: none
+  - Code: src/components/sidebar/LibrarianPanel.tsx
+- 2026-02-18 `ed21e79` feat(librarian): lean chat context and reanalyzeFragment tool
+  - Docs: none
+  - Code: src/server/librarian/chat.ts, tests/librarian/chat.test.ts
+- 2026-02-18 `71aca34` feat(librarian): embed analysis summary and ID in prose fragment meta
+  - Docs: none
+  - Code: src/server/librarian/agent.ts, tests/librarian/agent.test.ts
+- 2026-02-18 `0b57698` test(branches): add librarian data branching and isolation tests
+  - Docs: none
+  - Code: tests/fragments/branches.test.ts
+- 2026-02-18 `0fc4df7` feat: enhance fragment tagging and mention color handling
+  - Docs: none
+  - Code: src/components/fragments/FragmentEditor.tsx, src/components/prose/ProseBlock.tsx, src/components/prose/ProseChainView.tsx, src/lib/character-mentions.ts, src/server/api.ts
+- 2026-02-18 `8dfc5c9` feat: add version to binaries, CLI flag, and release artifacts
+  - Docs: none
+  - Code: .github/workflows/release-binary.yml, package.json, scripts/binary-entry.mjs, scripts/build-binary.mjs, scripts/package-binary.mjs
+- 2026-02-18 `29a8e87` ci(sdk): add repository field for npm provenance verification
+  - Docs: none
+  - Code: packages/errata-plugin-sdk/package.json
+- 2026-02-18 `39244af` ci(sdk): use Node.js 24 for npm trusted publishers OIDC support
+  - Docs: none
+  - Code: .github/workflows/publish-plugin-sdk.yml
+- 2026-02-18 `a448697` ci(sdk): switch to npm trusted publishers (OIDC provenance)
+  - Docs: none
+  - Code: .github/workflows/publish-plugin-sdk.yml
+- 2026-02-18 `6c00c77` chore(sdk): bump @tealios/errata-plugin-sdk to 0.2.0
+  - Docs: none
+  - Code: packages/errata-plugin-sdk/package.json
+
+## Suggested Doc Follow-ups
+
+- [ ] `docs/character-chat.md`
+  - Character chat API changed (2e5c6f1)
+  - Character chat API changed (3720714)
+  - Character chat UI changes (5c37dfc)
+  - Character chat UI changes (88dda3b)
+  - Character chat UI changes (dcc319d)
+- [ ] `docs/context-blocks.md`
+  - Context block APIs changed (2e5c6f1)
+  - Context block APIs changed (3720714)
+- [ ] `docs/fragments-and-prose-chain.md`
+  - Core generation/prose APIs changed (2e5c6f1)
+- [ ] `docs/prose-writing-panel.md`
+  - Prose writing UI changes (0fc4df7)
+  - Prose writing UI changes (29b787b)
+  - Prose writing UI changes (4d81fa5)
+  - Prose writing UI changes (5c37dfc)
+  - Prose writing UI changes (86bc29b)
+  - Prose writing UI changes (c4e8fa2)
+  - Prose writing UI changes (ea3fbf3)
+- [ ] `docs/summarization-and-memory.md`
+  - Librarian/memory pipeline changes (0fc4df7)
+  - Librarian/memory pipeline changes (25dfe44)
+  - Librarian/memory pipeline changes (3720714)
+  - Librarian/memory pipeline changes (71aca34)
+  - Librarian/memory pipeline changes (86bc29b)
+  - Librarian/memory pipeline changes (8a9af56)
+  - Librarian/memory pipeline changes (a014692)
+  - Librarian/memory pipeline changes (c4e8fa2)
+  - Librarian/memory pipeline changes (ea3fbf3)
+  - Librarian/memory pipeline changes (ed21e79)
+- [ ] `docs/third-party-plugins.md`
+  - Plugin behavior changed (5c37dfc)
+  - Plugin behavior changed (ea3fbf3)
+- [ ] `docs/timelines.md`
+  - Timeline APIs changed (2e5c6f1)

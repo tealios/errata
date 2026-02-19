@@ -12,6 +12,7 @@
     "package:binary": "bun scripts/package-binary.mjs",
     "release:binary": "bun run build:binary && bun run package:binary",
     "stress:backend": "bun install --frozen-lockfile && bun scripts/backend-stress-harness.ts",
+    "docs:sync": "bun scripts/sync-docs-from-commits.ts",
     "preview": "bun install --frozen-lockfile && vite preview",
     "test": "bun install --frozen-lockfile && vitest run --config vitest.config.ts",
     "test:watch": "bun install --frozen-lockfile && vitest --config vitest.config.ts"

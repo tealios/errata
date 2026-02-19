@@ -20,6 +20,10 @@
   - Frontend `data-component-id` contract for extensibility and automation.
 - `docs/publishing-plugin-sdk.md`
   - How to publish `@tealios/errata-plugin-sdk` manually and via GitHub Actions.
+- `docs/commit-doc-sync.md`
+  - Auto-generated commit-driven documentation sync report with baseline detection and follow-up suggestions.
+- `docs/documentation-sync-skill.md`
+  - Implementation notes and usage for the commit-driven documentation sync skill.
 
 Related:
 
@@ -31,3 +35,8 @@ Related:
   - Full architecture reference: schemas, project structure, API routes, data model, generation pipeline.
 - `CLAUDE.md`
   - Development guide for Claude Code: commands, conventions, efficiency tips.
+
+Automation:
+
+- `bun run docs:sync`
+  - Rebuilds `docs/commit-doc-sync.md` from git history and stores state in `.agent/docs-sync-state.json`.
