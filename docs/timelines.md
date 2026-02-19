@@ -157,7 +157,7 @@ A sidebar panel with a full list of timelines, showing parentage info ("from Mai
 
 | File | Purpose |
 |---|---|
-| `src/server/fragments/branches.ts` | Core branching logic: migration, CRUD, content root resolution |
+| `src/server/fragments/branches.ts` | Core branching logic: migration, CRUD, content root resolution. Uses `withBranch()` for branch-aware storage in agent and generation code. |
 | `src/server/fragments/schema.ts` | `BranchMetaSchema`, `BranchesIndexSchema` |
 | `src/lib/api/branches.ts` | Frontend API client |
 | `src/lib/api/types.ts` | `BranchMeta`, `BranchesIndex` TypeScript types |

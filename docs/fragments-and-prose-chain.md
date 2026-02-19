@@ -740,4 +740,5 @@ async function importChat(storyName: string, messages: Array<{ role: string; con
 | `src/lib/importers/tavern-card.ts` | TavernAI / SillyTavern character card parser (PNG + JSON, lorebook) |
 | `src/components/fragments/CharacterCardImportDialog.tsx` | Import dialog for character cards with lorebook entries |
 | `src/components/fragments/TavernCardImportDialog.tsx` | Simple PNG character card import dialog (no lorebook) |
-| `src/server/api.ts` | All HTTP API endpoints |
+| `src/server/api.ts` | API app composition (mounts all route modules) |
+| `src/server/routes/` | Individual route modules (fragments, prose-chain, generation, librarian, etc.) |

@@ -111,11 +111,22 @@ Character chat resolves models with role `character-chat` (`src/server/llm/clien
 
 The Character Chat view is mounted from the story route, and the view toggle is hidden while the user is inside chat mode.
 
+## Context Assembly
+
+Character chat uses the **agent block system** for context assembly. Instead of hardcoded system prompts and manual context string building, the character chat agent registers block definitions in `src/server/character-chat/blocks.ts`. At runtime, `compileAgentContext()` assembles the system and user messages from those blocks, applying any per-story agent block config overrides.
+
+The agent is created via the shared `createToolAgent()` wrapper, and the response stream is built by `createEventStream()` — both from `src/server/agents/`.
+
+Character portraits are shown in the chat UI when the character fragment has an image reference in its `refs` array.
+
 ## Related Files
 
 - `src/server/character-chat/chat.ts`
-- `src/server/character-chat/llm-agents.ts`
+- `src/server/character-chat/blocks.ts` — agent block definitions (system prompt, context layout)
 - `src/server/character-chat/storage.ts`
 - `src/server/character-chat/agents.ts`
+- `src/server/agents/create-agent.ts` — shared `createToolAgent` wrapper
+- `src/server/agents/create-event-stream.ts` — shared NDJSON stream builder
+- `src/server/agents/compile-agent-context.ts` — block-based context compiler
 - `tests/character-chat/chat.test.ts`
 - `tests/character-chat/storage.test.ts`

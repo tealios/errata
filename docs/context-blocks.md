@@ -23,6 +23,7 @@ buildContextState() → beforeContext hooks → createDefaultBlocks() → applyB
 ```ts
 interface ContextBlock {
   id: string                    // 'instructions', 'tools', 'prose', etc.
+  name?: string                 // optional human-readable name (used in block markers)
   role: 'system' | 'user'      // which LLM message this block belongs to
   content: string               // text content (no [@block] marker — added by compileBlocks)
   order: number                 // sort key within role group
@@ -32,7 +33,12 @@ interface ContextBlock {
 
 ## Source Markers
 
-`compileBlocks()` automatically prepends a `[@block=id]` marker to each block's content during compilation. Block content itself should **not** include the marker. Blocks are separated by blank lines in the compiled output:
+`compileBlocks()` automatically prepends a `[@block=...]` marker to each block's content during compilation. Block content itself should **not** include the marker. Blocks are separated by blank lines in the compiled output.
+
+Two marker formats are used:
+
+- `[@block=id]` — for blocks where `name` is absent or matches `id` (most builtin blocks)
+- `[@block=slug src=id]` — for named blocks where `name` differs from `id`; `slug` is a lowercased, dash-separated version of the name
 
 ```
 [@block=instructions]
@@ -42,9 +48,8 @@ You are a creative writing assistant...
 ## Available Tools
 ...
 
-[@block=story-info]
-## Story: My Story
-...
+[@block=my-style-guide src=cb-a1b2c3]
+Write in present tense, third person limited.
 ```
 
 Other marker types used within block content:
@@ -158,7 +163,7 @@ When multiple plugins define `beforeBlocks`, they run in sequence (order determi
 
 1. Separates blocks into `system` and `user` groups by `role`.
 2. Sorts each group by `order` (stable sort).
-3. Prepends `[@block=id]\n` to each block's content.
+3. Prepends `[@block=...]` marker to each block's content (see [Source Markers](#source-markers)).
 4. Joins rendered blocks with `\n\n` (blank line separator) within each group.
 5. Returns one message per non-empty role group.
 
@@ -498,7 +503,7 @@ return ''
 |---|---|
 | `src/server/blocks/schema.ts` | Zod schemas for `BlockOverride`, `CustomBlockDefinition`, `BlockConfig` |
 | `src/server/blocks/storage.ts` | File-based CRUD for block config |
-| `src/server/blocks/apply.ts` | `applyBlockConfig()` — evaluates custom blocks, applies overrides/ordering/disabling |
+| `src/server/blocks/apply.ts` | `applyBlockConfig()` — evaluates custom blocks, applies overrides/ordering/disabling. Script blocks receive a generic context object (not tied to `ContextBuildState`). |
 | `src/server/api.ts` | API routes under `/stories/:storyId/blocks/*` and pipeline integration |
 | `src/lib/api/blocks.ts` | Frontend API client |
 | `src/lib/api/types.ts` | TypeScript types (`BlockConfig`, `CustomBlockDefinition`, `BlockOverride`, etc.) |
@@ -508,3 +513,127 @@ return ''
 | `tests/blocks/storage.test.ts` | Storage CRUD tests |
 | `tests/blocks/apply.test.ts` | Config application logic tests |
 | `tests/api/blocks-routes.test.ts` | API endpoint tests |
+
+---
+
+# Agent Block System
+
+The **agent block system** extends the same block-based context approach to non-generation agents (librarian, character chat). Each agent registers block definitions that describe how to assemble its system prompt and user context from story data. Users can customize agent prompts through the same override mechanism used for generation blocks.
+
+## How It Works
+
+Agent blocks follow the same lifecycle as generation blocks, but for agent invocations:
+
+```
+AgentBlockContext → createDefaultBlocks() → applyBlockConfig() → compileBlocks() → agent.stream()
+```
+
+1. The calling agent builds an `AgentBlockContext` with relevant story data.
+2. `compileAgentContext()` looks up the agent's registered block definitions, creates default blocks, applies per-story config overrides, and compiles into messages.
+3. The compiled system/user messages and filtered tools are passed to `createToolAgent()`.
+
+## AgentBlockContext
+
+A superset context object that agents populate with the fields they need:
+
+```ts
+interface AgentBlockContext {
+  story: StoryMeta
+  proseFragments: Fragment[]
+  stickyGuidelines: Fragment[]
+  stickyKnowledge: Fragment[]
+  stickyCharacters: Fragment[]
+  guidelineShortlist: Fragment[]
+  knowledgeShortlist: Fragment[]
+  characterShortlist: Fragment[]
+  systemPromptFragments: Fragment[]
+  // Agent-specific fields (used by block builders that need them):
+  allCharacters?: Fragment[]
+  allKnowledge?: Fragment[]
+  newProse?: { id: string; content: string }
+  character?: Fragment
+  personaDescription?: string
+  targetFragment?: Fragment
+  instructions?: string
+  operation?: string
+  guidance?: string
+  selectedText?: string
+  sourceContent?: string
+  contextBefore?: string
+  contextAfter?: string
+  pluginToolDescriptions?: Array<{ name: string; description: string }>
+}
+```
+
+## AgentBlockDefinition
+
+Registered via `agentBlockRegistry.register()`:
+
+```ts
+interface AgentBlockDefinition {
+  agentName: string
+  displayName: string
+  description: string
+  createDefaultBlocks: (ctx: AgentBlockContext) => ContextBlock[]
+  availableTools: string[]
+  buildPreviewContext?: (dataDir: string, storyId: string) => Promise<AgentBlockContext>
+}
+```
+
+## Registered Agents
+
+| Agent Name | Display Name | Description |
+|---|---|---|
+| `librarian.analyze` | Librarian Analyze | Analyzes prose fragments for continuity signals |
+| `librarian.chat` | Librarian Chat | Conversational assistant with write-enabled tools |
+| `librarian.refine` | Librarian Refine | Refines non-prose fragments using story context |
+| `librarian.prose-transform` | Prose Transform | Transforms selected prose spans |
+| `character-chat.chat` | Character Chat | In-character conversation |
+
+## Storage
+
+Agent block configs are stored at:
+
+```
+data/stories/<storyId>/agent-blocks/<agentName>.json
+```
+
+Each config file follows the same `BlockConfig` schema (custom blocks, overrides, block order) plus an additional `disabledTools` array for filtering which tools the agent can use.
+
+## API Endpoints
+
+All endpoints are under `/api/stories/:storyId/agent-blocks`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/agent-blocks` | List all registered agents with their block definitions |
+| `GET` | `/agent-blocks/:agentName` | Get agent block config, builtin blocks, and available tools |
+| `GET` | `/agent-blocks/:agentName/preview` | Compile and preview the agent's full context |
+| `PATCH` | `/agent-blocks/:agentName/config` | Update agent block config (overrides, blockOrder, disabledTools) |
+| `POST` | `/agent-blocks/:agentName/custom` | Create a custom block for an agent |
+| `PUT` | `/agent-blocks/:agentName/custom/:blockId` | Update a custom block |
+| `DELETE` | `/agent-blocks/:agentName/custom/:blockId` | Delete a custom block |
+
+## UI
+
+The **Agent Context** panel is accessible from the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It allows browsing registered agents, viewing their compiled context, and customizing block overrides.
+
+## File Reference
+
+| File | Purpose |
+|---|---|
+| `src/server/agents/agent-block-context.ts` | `AgentBlockContext` type definition |
+| `src/server/agents/agent-block-registry.ts` | Agent block definition registry |
+| `src/server/agents/agent-block-storage.ts` | Per-agent block config storage |
+| `src/server/agents/compile-agent-context.ts` | `compileAgentContext()` — assembles messages from blocks |
+| `src/server/agents/create-agent.ts` | `createToolAgent()` — shared `ToolLoopAgent` wrapper |
+| `src/server/agents/create-event-stream.ts` | `createEventStream()` — shared NDJSON stream builder |
+| `src/server/agents/stream-types.ts` | `AgentStreamEvent`, `AgentStreamResult`, `ChatResult` types |
+| `src/server/librarian/blocks.ts` | Block definitions for all librarian agents |
+| `src/server/character-chat/blocks.ts` | Block definitions for character chat |
+| `src/server/routes/agent-blocks.ts` | API routes |
+| `src/lib/api/agent-blocks.ts` | Frontend API client |
+| `src/components/agents/AgentContextPanel.tsx` | UI panel |
+| `tests/agents/agent-block-storage.test.ts` | Storage tests |
+| `tests/agents/agent-blocks.test.ts` | Block registration tests |
+| `tests/agents/compile-agent-context.test.ts` | Context compilation tests |

@@ -13,9 +13,10 @@ The pipeline is:
 3. Deferred summary application appends eligible `summaryUpdate` entries into `story.summary`.
 4. Summary compaction runs when needed to keep `story.summary` bounded.
 
-Key implementation file:
+Key implementation files:
 
-- `src/server/librarian/agent.ts`
+- `src/server/librarian/agent.ts` — analysis runner and deferred summary application
+- `src/server/librarian/blocks.ts` — agent block definitions for librarian analyze context
 
 ## Data Model
 
@@ -166,6 +167,16 @@ Related context tests:
   - increase `maxCharacters` for richer memory at higher token cost
   - lower `targetCharacters` for more aggressive compaction
 - If summaries stall, check for gap logs from deferred application.
+
+## Agent Block System Integration
+
+The librarian analyze agent uses the **agent block system** for context assembly. The system prompt and user context (summary, characters, knowledge, new prose) are defined as blocks in `src/server/librarian/blocks.ts` and compiled via `compileAgentContext()`. This means:
+
+- The librarian's system prompt can be customized per-story through agent block overrides (Settings > Agent Context).
+- Fragments tagged `pass-to-librarian-system-prompt` are loaded into the block context and appended to the system message.
+- Custom blocks can be added to inject additional instructions or context.
+
+The same block system is used by `librarian.chat`, `librarian.refine`, and `librarian.prose-transform` agents.
 
 ## Known Limitations
 
