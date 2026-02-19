@@ -301,6 +301,50 @@ describe('librarian agent', () => {
     expect(story!.summary).toContain('Latest event must remain visible.')
   })
 
+  it('uses LLM summary compaction when summary exceeds max budget', async () => {
+    await createStory(dataDir, makeStory({
+      summary: 'Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context.',
+      settings: {
+        summarizationThreshold: 0,
+        summaryCompact: {
+          maxCharacters: 120,
+          targetCharacters: 80,
+        },
+      },
+    }))
+
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'Newest prose' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    mockAgentStream
+      .mockImplementationOnce(async (_args: unknown, tools: Record<string, { execute: (args: unknown) => Promise<unknown> }>) => {
+        return {
+          fullStream: (async function* () {
+            yield { type: 'tool-call' as const, toolCallId: 'call-0', toolName: 'updateSummary', input: { summary: 'Latest event should be compacted by LLM.' } }
+            const output = await tools.updateSummary.execute({ summary: 'Latest event should be compacted by LLM.' })
+            yield { type: 'tool-result' as const, toolCallId: 'call-0', toolName: 'updateSummary', output }
+            yield { type: 'finish' as const, finishReason: 'stop' }
+          })(),
+        }
+      })
+      .mockImplementationOnce(async () => {
+        return {
+          fullStream: (async function* () {
+            yield { type: 'text-delta' as const, text: 'Compressed continuity summary.' }
+            yield { type: 'finish' as const, finishReason: 'stop' }
+          })(),
+        }
+      })
+
+    await runLibrarian(dataDir, storyId, 'pr-0001')
+
+    const story = await getStory(dataDir, storyId)
+    expect(story).toBeTruthy()
+    expect(story!.summary).toBe('Compressed continuity summary.')
+    expect(story!.summary.length).toBeLessThanOrEqual(80)
+    expect(mockAgentStream).toHaveBeenCalledTimes(2)
+  })
+
   it('uses latest analysis per fragment in deferred summary application', async () => {
     await createStory(dataDir, makeStory({
       settings: {

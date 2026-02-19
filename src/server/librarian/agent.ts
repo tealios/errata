@@ -1,4 +1,5 @@
 import { getModel } from '../llm/client'
+import { ToolLoopAgent, stepCountIs } from 'ai'
 import { getStory, updateStory, listFragments, getFragment, updateFragment } from '../fragments/storage'
 import { getActiveProseIds } from '../fragments/prose-chain'
 import { withBranch } from '../fragments/branches'
@@ -88,6 +89,80 @@ function compactSummaryByCharacters(summary: string, maxCharacters: number, targ
   const tail = normalized.slice(-bodyLimit).trimStart()
   const compacted = `${prefix}${tail}`
   return compacted.length <= target ? compacted : compacted.slice(-target)
+}
+
+const SUMMARY_COMPACTION_PROMPT = `You compress long rolling story summaries.
+Keep key continuity facts, active constraints, unresolved threads, and recent causal chain.
+Do not add new facts.
+Return only compressed summary text.`
+
+async function compactSummary(
+  dataDir: string,
+  storyId: string,
+  summary: string,
+  maxCharacters: number,
+  targetCharacters: number,
+  requestLogger: ReturnType<typeof logger.child>,
+): Promise<string> {
+  const normalized = summary.trim()
+  if (normalized.length <= maxCharacters) return normalized
+
+  const target = Math.min(Math.max(100, targetCharacters), maxCharacters)
+  if (normalized.length <= target) return normalized
+
+  try {
+    const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
+    const agent = new ToolLoopAgent({
+      model,
+      instructions: SUMMARY_COMPACTION_PROMPT,
+      tools: {},
+      toolChoice: 'none' as const,
+      stopWhen: stepCountIs(1),
+    })
+
+    let compacted = ''
+    const result = await agent.stream({
+      prompt: `Compress this story summary to at most ${target} characters while preserving continuity-critical facts.\n\n${normalized}`,
+    })
+
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        const p = part as Record<string, unknown>
+        compacted += String(p.text ?? '')
+      }
+    }
+
+    const compactedText = compacted.trim()
+    if (compactedText.length > 0) {
+      if (compactedText.length <= target) {
+        requestLogger.info('Summary compacted via LLM', {
+          modelId,
+          beforeLength: normalized.length,
+          afterLength: compactedText.length,
+          targetCharacters: target,
+        })
+        return compactedText
+      }
+
+      const bounded = compactedText.slice(0, target).trimEnd()
+      requestLogger.warn('Summary compaction exceeded target; hard-capping output', {
+        modelId,
+        beforeLength: normalized.length,
+        generatedLength: compactedText.length,
+        afterLength: bounded.length,
+        targetCharacters: target,
+      })
+      return bounded
+    }
+
+    requestLogger.warn('Summary compaction returned empty output; falling back to truncation')
+  } catch (error) {
+    requestLogger.warn('Summary compaction failed; falling back to truncation', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  return compactSummaryByCharacters(normalized, maxCharacters, target)
 }
 
 function buildUserPrompt(
@@ -506,13 +581,18 @@ async function applyDeferredSummaries(
   const separator = currentStory.summary ? ' ' : ''
   const summaryCompact = resolveSummaryCompact(currentStory)
   const combinedSummary = currentStory.summary + separator + summaryParts.join(' ')
+  const compactedSummary = await compactSummary(
+    dataDir,
+    storyId,
+    combinedSummary,
+    summaryCompact.maxCharacters,
+    summaryCompact.targetCharacters,
+    requestLogger,
+  )
+
   const updatedStory = {
     ...currentStory,
-    summary: compactSummaryByCharacters(
-      combinedSummary,
-      summaryCompact.maxCharacters,
-      summaryCompact.targetCharacters,
-    ),
+    summary: compactedSummary,
     updatedAt: new Date().toISOString(),
   }
   await updateStory(dataDir, updatedStory)

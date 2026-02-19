@@ -4,6 +4,7 @@ import type { AgentDefinition } from '../agents/types'
 import { runLibrarian } from './agent'
 import { librarianChat } from './chat'
 import { refineFragment } from './refine'
+import { transformProseSelection } from './prose-transform'
 
 const AnalyzeInputSchema = z.object({
   fragmentId: z.string(),
@@ -21,6 +22,15 @@ const ChatInputSchema = z.object({
     content: z.string(),
   })),
   maxSteps: z.number().int().positive().optional(),
+})
+
+const ProseTransformInputSchema = z.object({
+  fragmentId: z.string(),
+  selectedText: z.string().min(1),
+  operation: z.union([z.literal('rewrite'), z.literal('expand'), z.literal('compress')]),
+  sourceContent: z.string().optional(),
+  contextBefore: z.string().optional(),
+  contextAfter: z.string().optional(),
 })
 
 const analyzeDefinition: AgentDefinition<typeof AnalyzeInputSchema> = {
@@ -52,6 +62,15 @@ const chatDefinition: AgentDefinition<typeof ChatInputSchema> = {
   },
 }
 
+const proseTransformDefinition: AgentDefinition<typeof ProseTransformInputSchema> = {
+  name: 'librarian.prose-transform',
+  description: 'Transform a selected prose span using librarian model guidance.',
+  inputSchema: ProseTransformInputSchema,
+  run: async (ctx, input) => {
+    return transformProseSelection(ctx.dataDir, ctx.storyId, input)
+  },
+}
+
 let registered = false
 
 export function registerLibrarianAgents(): void {
@@ -59,5 +78,6 @@ export function registerLibrarianAgents(): void {
   agentRegistry.register(analyzeDefinition)
   agentRegistry.register(refineDefinition)
   agentRegistry.register(chatDefinition)
+  agentRegistry.register(proseTransformDefinition)
   registered = true
 }

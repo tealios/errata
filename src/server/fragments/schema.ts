@@ -79,6 +79,8 @@ export const StoryMetaSchema = z.object({
       modelId: z.string().nullable().default(null),
       librarianProviderId: z.string().nullable().default(null),
       librarianModelId: z.string().nullable().default(null),
+      characterChatProviderId: z.string().nullable().default(null),
+      characterChatModelId: z.string().nullable().default(null),
       autoApplyLibrarianSuggestions: z.boolean().default(false),
       contextOrderMode: z.enum(['simple', 'advanced']).default('simple'),
       fragmentOrder: z.array(z.string()).default([]),
@@ -93,7 +95,7 @@ export const StoryMetaSchema = z.object({
       }).default({ maxCharacters: 12000, targetCharacters: 9000 }),
       enableHierarchicalSummary: z.boolean().default(false),
     })
-    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
+    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, providerId: null, modelId: null, librarianProviderId: null, librarianModelId: null, characterChatProviderId: null, characterChatModelId: null, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
 })
 
 export type StoryMeta = z.infer<typeof StoryMetaSchema>

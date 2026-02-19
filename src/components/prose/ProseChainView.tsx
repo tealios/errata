@@ -14,6 +14,7 @@ import { ProseOutlinePanel } from './ProseOutlinePanel'
 interface ProseChainViewProps {
   storyId: string
   onSelectFragment: (fragment: Fragment) => void
+  onEditProse?: (fragmentId: string) => void
   onDebugLog?: (logId: string) => void
   onLaunchWizard?: () => void
   onAskLibrarian?: (fragmentId: string) => void
@@ -57,6 +58,7 @@ function InsertChapterDivider({
 export function ProseChainView({
   storyId,
   onSelectFragment,
+  onEditProse,
   onDebugLog,
   onLaunchWizard,
   onAskLibrarian,
@@ -353,6 +355,7 @@ export function ProseChainView({
                     isLast={idx === orderedItems.length - 1 && !isGenerating}
                     isFirst={idx === 0}
                     onSelect={() => onSelectFragment(fragment)}
+                    onEdit={onEditProse ? () => onEditProse(fragment.id) : undefined}
                     onDebugLog={onDebugLog}
                     onBranchFrom={handleBranchFrom}
                     onAskLibrarian={onAskLibrarian}

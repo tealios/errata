@@ -136,7 +136,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
     } else {
       const json = serializeBundle(selectedFragments, mediaById, storyName)
       const safeName = (storyName ?? 'export').replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 40)
-      downloadExportFile(json, `errata-${safeName}-${selectedFragments.length}fragments.json`)
+      downloadExportFile(json, `errata-${safeName}-${selectedFragments.length}.fragment-pack.json`)
     }
   }, [selectedFragments, mediaById, storyName])
 

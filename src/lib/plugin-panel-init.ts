@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { createClientOnlyFn } from '@tanstack/react-start'
 import {
   registerClientPlugin,
   type PluginPanelProps,
@@ -15,26 +16,36 @@ interface ClientPluginEntryModule {
   onPanelClose?: (event: PanelEvent, context: PluginRuntimeContext) => void
 }
 
-const clientPluginEntries = import.meta.glob<ClientPluginEntryModule>(
-  '../../plugins/*/entry.client.ts',
-  { eager: true },
-)
+const registerPluginEntriesClientOnly = createClientOnlyFn(() => {
+  const clientPluginEntries = import.meta.glob<ClientPluginEntryModule>(
+    '../../plugins/*/entry.client.ts',
+    { eager: true },
+  )
 
-for (const [path, mod] of Object.entries(clientPluginEntries)) {
-  if (!mod.pluginName) {
-    console.warn(`[plugins] Skipping ${path}: entry.client.ts must export pluginName`)
-    continue
-  }
-  if (!mod.panel && !mod.activate && !mod.deactivate) {
-    console.warn(`[plugins] Skipping ${path}: entry.client.ts must export panel or runtime hooks`) 
-    continue
-  }
+  for (const [path, mod] of Object.entries(clientPluginEntries)) {
+    if (!mod.pluginName) {
+      console.warn(`[plugins] Skipping ${path}: entry.client.ts must export pluginName`)
+      continue
+    }
+    if (!mod.panel && !mod.activate && !mod.deactivate) {
+      console.warn(`[plugins] Skipping ${path}: entry.client.ts must export panel or runtime hooks`)
+      continue
+    }
 
-  registerClientPlugin(mod.pluginName, {
-    panel: mod.panel,
-    activate: mod.activate,
-    deactivate: mod.deactivate,
-    onPanelOpen: mod.onPanelOpen,
-    onPanelClose: mod.onPanelClose,
-  })
+    registerClientPlugin(mod.pluginName, {
+      panel: mod.panel,
+      activate: mod.activate,
+      deactivate: mod.deactivate,
+      onPanelOpen: mod.onPanelOpen,
+      onPanelClose: mod.onPanelClose,
+    })
+  }
+})
+
+let pluginPanelsInitialized = false
+
+export function initClientPluginPanels() {
+  if (pluginPanelsInitialized) return
+  pluginPanelsInitialized = true
+  registerPluginEntriesClientOnly()
 }

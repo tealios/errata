@@ -2,16 +2,18 @@
 
 An LLM assisted writing app built around a fragment system. Prose, characters, guidelines, and knowledge are composable fragments that assemble into structured LLM context for story generation.
 
+Join the community on Discord: https://discord.gg/ywVFKvdH49
+
 ![Main editor view](docs/imgs/initial-view.png)
 
 ## Features
 
 - **Fragment system** — everything is a fragment with tags, refs, sticky/system placement, and version history
-- **Prose chain** with variations (regenerate, refine, switch, remove)
+- **Prose chain + writing panel** — branchable prose with regenerate/refine/switch/remove and a dedicated long-form editor view
+- **Character Chat mode** — story-scoped chat with streaming responses, provider/model selection, and character portraits
 - **Block-based context** — visual editor for reordering, overriding, and extending LLM prompt structure
-- **Multi-provider LLM** — DeepSeek, OpenAI, Anthropic, OpenRouter, or any OpenAI-compatible API
-- **Librarian agent** — background continuity management (rolling summary, contradictions, timeline, knowledge suggestions, interactive chat)
-- **SillyTavern import** — drag-and-drop character card PNGs or JSON files (V2/V3), including lorebook/world book entries
+- **Librarian memory tools** — rolling continuity, hierarchical summaries, contradiction tracking, and summary compaction controls
+- **Universal import/export** — drag-and-drop JSON, bundle ZIPs, and SillyTavern/Tavern cards (PNG/JSON with lorebook support)
 - **Plugin system** — bundled + external runtime plugins with iframe UI panels
 - **No database** — filesystem storage, compiles to a single binary
 
@@ -33,10 +35,14 @@ Inspect the full LLM prompt, tool calls, and token usage for any generation.
 
 ![Debug panel](docs/imgs/debug-window.png)
 
+### Character Chat
+
+Switch from prose view to Character Chat to run in-world conversations with your configured providers and saved chat history.
+
 ## Quick Start
 
 ```bash
-git clone https://github.com/nokusukun/errata.git
+git clone https://github.com/tealios/errata.git
 cd errata
 bun install
 bun run dev
@@ -60,7 +66,7 @@ irm https://raw.githubusercontent.com/tealios/errata/master/scripts/setup.ps1 | 
 
 ## Download
 
-Pre-built binaries are available on the [Releases](https://github.com/nokusukun/errata/releases) page for Windows, Linux, and macOS. Extract the zip and run — no runtime dependencies required.
+Pre-built binaries are available on the [Releases](https://github.com/tealios/errata/releases) page for Windows, Linux, and macOS. Extract the zip and run — no runtime dependencies required.
 
 ```bash
 # Windows
@@ -129,6 +135,8 @@ Plugins can register fragment types, LLM tools, API routes, and pipeline hooks. 
 
 - [Architecture & data model](PLAN.md)
 - [Context block system](docs/context-blocks.md)
+- [Character Chat](docs/character-chat.md)
+- [Prose Writing Panel](docs/prose-writing-panel.md)
 - [Component ID contract](docs/component-ids.md)
 - [Publishing the plugin SDK](docs/publishing-plugin-sdk.md)
 - [Full docs index](docs/README.md)

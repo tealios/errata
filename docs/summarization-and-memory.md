@@ -111,18 +111,18 @@ If none are applicable:
 
 Compaction function:
 
-- `compactSummaryByCharacters(summary, maxCharacters, targetCharacters)`
+- `compactSummary(...)` (LLM compaction with truncation fallback)
 
 Strategy:
 
 - If `summary.length <= maxCharacters`, keep as-is.
-- Otherwise compact toward `targetCharacters`.
-- Current implementation preserves the newest tail of summary text (prefixed with `... `), prioritizing recent continuity.
+- If `summary.length > maxCharacters`, trigger a one-shot librarian-model compression pass targeting `targetCharacters`.
+- If model compaction fails or returns empty output, fallback preserves the newest tail of summary text (prefixed with `... `).
 
 Behavioral implications:
 
 - Memory stays bounded for very long stories.
-- Older summary detail is discarded first.
+- Compaction prefers semantic retention of continuity-critical facts, with deterministic fallback behavior.
 
 ### Guardrails
 
@@ -151,6 +151,7 @@ Important coverage:
 
 - contiguous application does not skip gaps
 - compaction enforces bounded summary length
+- compaction uses LLM compression when over budget
 - deferred apply uses latest analysis per fragment
 - librarian can derive `summaryUpdate` from structured signals when summary text is empty
 
@@ -168,6 +169,6 @@ Related context tests:
 
 ## Known Limitations
 
-- Compaction is character-based, not semantic; it can drop useful older context.
+- LLM compaction quality depends on the configured librarian model and prompt adherence.
 - Structured summary signals are optional and quality depends on model/tool-call discipline.
 - Hierarchical summaries (micro/meso/macro) are not yet implemented.

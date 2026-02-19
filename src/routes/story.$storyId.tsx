@@ -10,6 +10,7 @@ import { FragmentExportPanel } from '@/components/fragments/FragmentExportPanel'
 import { DebugPanel } from '@/components/generation/DebugPanel'
 import { ProviderPanel } from '@/components/settings/ProviderManager'
 import { ProseChainView } from '@/components/prose/ProseChainView'
+import { ProseWritingPanel } from '@/components/prose/ProseWritingPanel'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
@@ -35,11 +36,12 @@ import {
   parseCardJson,
   type ParsedCharacterCard,
 } from '@/lib/importers/tavern-card'
-import { Upload } from 'lucide-react'
+import { Upload, BookOpen, MessageSquare } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { TimelineTabs } from '@/components/prose/TimelineTabs'
+import { CharacterChatView } from '@/components/character-chat/CharacterChatView'
 import { useTimelineBar } from '@/lib/theme'
-import '@/lib/plugin-panel-init'
+import { initClientPluginPanels } from '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -50,6 +52,7 @@ function StoryEditorPage() {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const pluginSidebarPrefsKey = `errata:plugin-sidebar:${storyId}`
+  const [mainView, setMainView] = useState<'prose' | 'character-chat'>('prose')
   const [activeSection, setActiveSection] = useState<SidebarSection>(null)
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null)
   const [editorMode, setEditorMode] = useState<'view' | 'edit' | 'create'>('view')
@@ -68,6 +71,7 @@ function StoryEditorPage() {
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
+  const [editingProseId, setEditingProseId] = useState<string | null>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
   const dragCounter = useRef(0)
@@ -91,6 +95,10 @@ function StoryEditorPage() {
     queryKey: ['branches', storyId],
     queryFn: () => api.branches.list(storyId),
   })
+
+  useEffect(() => {
+    initClientPluginPanels()
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -515,20 +523,52 @@ function StoryEditorPage() {
           />
         )}
 
-        {/* Prose view — always mounted to preserve scroll position */}
-        <ProseChainView
-          storyId={storyId}
-          onSelectFragment={handleSelectFragment}
-          onDebugLog={handleDebugLog}
-          onLaunchWizard={() => {
-            setShowWizard(true)
-            notifyPluginPanelOpen({ panel: 'wizard' }, { storyId })
-          }}
-          onAskLibrarian={(fragmentId) => {
-            setActiveSection('agent-activity')
-            window.dispatchEvent(new CustomEvent('errata:librarian:ask', { detail: { fragmentId } }))
-          }}
-        />
+        {/* View toggle — hidden in character chat since ChatConfig has its own close button */}
+        {mainView === 'prose' && (
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm border border-border/40 rounded-lg p-0.5 shadow-sm">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="size-7"
+              onClick={() => setMainView('prose')}
+              title="Prose view"
+            >
+              <BookOpen className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setMainView('character-chat')}
+              title="Character chat"
+            >
+              <MessageSquare className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {/* Main view */}
+        {mainView === 'prose' ? (
+          <ProseChainView
+            storyId={storyId}
+            onSelectFragment={handleSelectFragment}
+            onEditProse={(fragmentId) => setEditingProseId(fragmentId)}
+            onDebugLog={handleDebugLog}
+            onLaunchWizard={() => {
+              setShowWizard(true)
+              notifyPluginPanelOpen({ panel: 'wizard' }, { storyId })
+            }}
+            onAskLibrarian={(fragmentId) => {
+              setActiveSection('agent-activity')
+              window.dispatchEvent(new CustomEvent('errata:librarian:ask', { detail: { fragmentId } }))
+            }}
+          />
+        ) : (
+          <CharacterChatView
+            storyId={storyId}
+            onClose={() => setMainView('prose')}
+          />
+        )}
 
         {/* Overlay panels render on top */}
         {showWizard && (
@@ -568,6 +608,16 @@ function StoryEditorPage() {
                 setShowExportPanel(false)
                 notifyPluginPanelClose({ panel: 'export' }, { storyId })
               }}
+            />
+          </div>
+        )}
+        {editingProseId && (
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-prose-writing-panel">
+            <ProseWritingPanel
+              storyId={storyId}
+              fragmentId={editingProseId}
+              onClose={() => setEditingProseId(null)}
+              onFragmentChange={setEditingProseId}
             />
           </div>
         )}
