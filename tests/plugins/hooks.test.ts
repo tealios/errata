@@ -17,6 +17,7 @@ function makeState(overrides: Partial<ContextBuildState> = {}): ContextBuildStat
       id: 'story-1',
       name: 'Test',
       description: 'Test story',
+    coverImage: null,
       summary: '',
       createdAt: now,
       updatedAt: now,

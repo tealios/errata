@@ -66,6 +66,7 @@ export const StoryMetaSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
+  coverImage: z.string().nullable().default(null),
   summary: z.string().default(''),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

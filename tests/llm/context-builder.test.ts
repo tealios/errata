@@ -34,6 +34,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
     id: 'story-test',
     name: 'Test Story',
     description: 'A test story',
+    coverImage: null,
     summary: 'The hero embarked on a journey.',
     createdAt: now,
     updatedAt: now,

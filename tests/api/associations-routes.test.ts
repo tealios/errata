@@ -10,6 +10,7 @@ function makeStory(): StoryMeta {
     id: 'story-test',
     name: 'Test Story',
     description: 'Test',
+    coverImage: null,
     summary: '',
     createdAt: now,
     updatedAt: now,

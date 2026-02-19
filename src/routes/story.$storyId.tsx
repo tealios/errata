@@ -551,6 +551,7 @@ function StoryEditorPage() {
         {mainView === 'prose' ? (
           <ProseChainView
             storyId={storyId}
+            coverImage={story.coverImage}
             onSelectFragment={handleSelectFragment}
             onEditProse={(fragmentId) => setEditingProseId(fragmentId)}
             onDebugLog={handleDebugLog}

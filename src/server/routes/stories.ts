@@ -24,6 +24,7 @@ export function storyRoutes(dataDir: string) {
         id,
         name: body.name,
         description: body.description,
+        coverImage: body.coverImage ?? null,
         summary: '',
         createdAt: now,
         updatedAt: now,
@@ -59,6 +60,7 @@ export function storyRoutes(dataDir: string) {
       body: t.Object({
         name: t.String(),
         description: t.String(),
+        coverImage: t.Optional(t.Union([t.String(), t.Null()])),
       }),
     })
 
@@ -86,6 +88,7 @@ export function storyRoutes(dataDir: string) {
         name: body.name,
         description: body.description,
         ...(body.summary !== undefined ? { summary: body.summary } : {}),
+        ...(body.coverImage !== undefined ? { coverImage: body.coverImage } : {}),
         updatedAt: new Date().toISOString(),
       }
       await updateStory(dataDir, updated)
@@ -95,6 +98,7 @@ export function storyRoutes(dataDir: string) {
         name: t.String(),
         description: t.String(),
         summary: t.Optional(t.String()),
+        coverImage: t.Optional(t.Union([t.String(), t.Null()])),
       }),
     })
 

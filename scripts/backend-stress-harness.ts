@@ -229,6 +229,7 @@ async function seedStory(dataDir: string, options: HarnessOptions): Promise<{
     id: storyId,
     name: 'Stress Story',
     description: 'Synthetic story for backend stress harness',
+    coverImage: null,
     summary: '',
     createdAt: now,
     updatedAt: now,

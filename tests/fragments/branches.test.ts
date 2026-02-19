@@ -32,6 +32,7 @@ function makeStory(id: string = TEST_STORY_ID): StoryMeta {
     id,
     name: 'Test Story',
     description: 'A test story',
+    coverImage: null,
     summary: '',
     createdAt: now,
     updatedAt: now,

@@ -4,6 +4,7 @@ export interface StoryMeta {
   id: string
   name: string
   description: string
+  coverImage: string | null
   summary: string
   createdAt: string
   updatedAt: string

@@ -21,6 +21,7 @@ const makeStory = (): StoryMeta => ({
   id: storyId,
   name: 'Test Story',
   description: 'A test',
+    coverImage: null,
   summary: '',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',

@@ -1,10 +1,10 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Pencil, Download, Package, Wand2, FileText } from 'lucide-react'
+import { Pencil, Download, Package, Wand2, FileText, ImagePlus, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface StoryInfoPanelProps {
@@ -51,6 +51,8 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
   const [name, setName] = useState(story.name)
   const [description, setDescription] = useState(story.description)
   const [summary, setSummary] = useState(story.summary ?? '')
+  const [coverImage, setCoverImage] = useState<string | null>(story.coverImage ?? null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
 
   // Data queries for stats
   const allFragmentsQuery = useQuery({
@@ -108,29 +110,84 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
   }, [allFragmentsQuery.data, proseChainQuery.data, genLogsQuery.data])
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name: string; description: string; summary?: string }) =>
+    mutationFn: (data: { name: string; description: string; summary?: string; coverImage?: string | null }) =>
       api.stories.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['stories'] })
       setEditing(false)
     },
   })
 
   const handleSave = () => {
-    updateMutation.mutate({ name: name.trim(), description: description.trim(), summary: summary.trim() })
+    updateMutation.mutate({ name: name.trim(), description: description.trim(), summary: summary.trim(), coverImage })
   }
 
   const handleCancel = () => {
     setName(story.name)
     setDescription(story.description)
     setSummary(story.summary ?? '')
+    setCoverImage(story.coverImage ?? null)
     setEditing(false)
   }
+
+  const handleCoverFileSelect = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => setCoverImage(reader.result as string)
+    reader.readAsDataURL(file)
+  }, [])
 
   // --- Edit mode ---
   if (editing) {
     return (
       <div className="p-4 space-y-3" data-component-id="story-info-edit">
+        {/* Cover Image */}
+        <div>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Cover Image</label>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleCoverFileSelect(file)
+              e.target.value = ''
+            }}
+          />
+          {coverImage ? (
+            <div className="relative group/cover rounded-lg overflow-hidden" style={{ aspectRatio: '3/4', maxWidth: 160 }}>
+              <img src={coverImage} alt="Cover" className="w-full h-full object-cover" />
+              <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover/cover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  className="size-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  title="Change cover"
+                >
+                  <ImagePlus className="size-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCoverImage(null)}
+                  className="size-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  title="Remove cover"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => coverInputRef.current?.click()}
+              className="flex items-center gap-2 rounded-lg border border-dashed border-border/60 hover:border-border transition-colors px-3 py-2.5 w-full text-left"
+            >
+              <ImagePlus className="size-4 text-muted-foreground/50 shrink-0" />
+              <span className="text-xs text-muted-foreground">Add cover image</span>
+            </button>
+          )}
+        </div>
         <div>
           <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Name</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-transparent" data-component-id="story-info-name" />
@@ -169,6 +226,19 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
   // --- Display mode ---
   return (
     <div className="flex flex-col" data-component-id="story-info-root">
+      {/* Cover image */}
+      {story.coverImage && (
+        <div className="relative">
+          <img
+            src={story.coverImage}
+            alt=""
+            className="w-full object-cover"
+            style={{ aspectRatio: '3/2', maxHeight: 200 }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+        </div>
+      )}
+
       {/* Title block */}
       <div className="px-5 pt-5 pb-4">
         <h2 className="text-xl font-display leading-tight tracking-tight">{story.name}</h2>

@@ -96,6 +96,7 @@ describe('generation-logs API routes', () => {
       id: storyId,
       name: 'Log Test Story',
       description: 'For testing logs',
+    coverImage: null,
       summary: '',
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',

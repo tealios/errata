@@ -19,6 +19,7 @@ function makeStory(): StoryMeta {
     id: STORY_ID,
     name: 'Test Story',
     description: 'A test story',
+    coverImage: null,
     summary: 'The hero began the journey.',
     createdAt: now,
     updatedAt: now,

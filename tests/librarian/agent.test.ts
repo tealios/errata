@@ -47,6 +47,7 @@ function makeStory(
     id: 'story-test',
     name: 'Test Story',
     description: 'A test story',
+    coverImage: null,
     summary: '',
     createdAt: now,
     updatedAt: now,

@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard } from 'lucide-react'
+import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard, Camera, X, ImagePlus } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { ErrataLogo } from '@/components/ErrataLogo'
 import { ImportDialog } from '@/components/ImportDialog'
@@ -32,6 +32,7 @@ import {
   extractParsedCard,
   parseCardJson,
 } from '@/lib/importers/tavern-card'
+import { gradientForId } from '@/lib/fragment-visuals'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -41,6 +42,7 @@ function StoryListPage() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [coverImage, setCoverImage] = useState<string | null>(null)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [fileDragOver, setFileDragOver] = useState(false)
   const dragCounter = useRef(0)
@@ -150,9 +152,18 @@ function StoryListPage() {
     })
   }, [])
 
+  const handleCoverImageSelect = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCoverImage(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }, [])
+
   const resetDialog = () => {
     setName('')
     setDescription('')
+    setCoverImage(null)
     setShowOptions(false)
     setAutoApplyLibrarian(false)
     setParsed(null)
@@ -164,7 +175,7 @@ function StoryListPage() {
   const createMutation = useMutation({
     mutationFn: async ({ name, description }: { name: string; description: string }) => {
       // 1. Create the story
-      const newStory = await api.stories.create({ name, description })
+      const newStory = await api.stories.create({ name, description, coverImage })
 
       // 2. Update settings if auto-apply is toggled
       if (autoApplyLibrarian) {
@@ -375,7 +386,7 @@ function StoryListPage() {
     <div className="min-h-screen bg-background" data-component-id="stories-page">
       {/* Header */}
       <header className="border-b border-border/50" data-component-id="stories-header">
-        <div className="max-w-4xl mx-auto flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6">
           <div>
             <h1><ErrataLogo variant="full" size={28} /></h1>
           </div>
@@ -430,6 +441,38 @@ function StoryListPage() {
                     className="resize-none min-h-[80px]"
                     required
                   />
+                </div>
+
+                {/* Cover Image Upload */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Cover Image</label>
+                  {coverImage ? (
+                    <div className="relative group/cover rounded-lg overflow-hidden" style={{ aspectRatio: '3/4', maxWidth: 180 }}>
+                      <img src={coverImage} alt="Cover preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCoverImage(null)}
+                        className="absolute top-1.5 right-1.5 size-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover/cover:opacity-100 transition-opacity hover:bg-black/80"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 hover:border-border cursor-pointer transition-colors py-6 px-4">
+                      <ImagePlus className="size-5 text-muted-foreground/60" />
+                      <span className="text-xs text-muted-foreground">Click to upload a cover image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleCoverImageSelect(file)
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 {/* Collapsible Options */}
@@ -564,7 +607,7 @@ function StoryListPage() {
       </header>
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
         {isLoading && (
           <p className="text-muted-foreground text-sm">Loading stories...</p>
         )}
@@ -584,7 +627,11 @@ function StoryListPage() {
           </div>
         )}
 
-        <div className="space-y-2" data-component-id="story-list">
+        <div
+          className="grid gap-4 sm:gap-5"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}
+          data-component-id="story-list"
+        >
           {sortedStories.map((story) => (
             <StoryCard
               key={story.id}
@@ -628,6 +675,9 @@ function StoryListPage() {
 // ── Story Card ──────────────────────────────────────────
 
 function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void }) {
+  const queryClient = useQueryClient()
+  const coverInputRef = useRef<HTMLInputElement>(null)
+
   const { data: fragments } = useQuery({
     queryKey: ['fragments', story.id],
     queryFn: () => api.fragments.list(story.id),
@@ -640,6 +690,29 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
     staleTime: 30_000,
   })
 
+  const updateCoverMutation = useMutation({
+    mutationFn: (coverImage: string | null) =>
+      api.stories.update(story.id, {
+        name: story.name,
+        description: story.description,
+        coverImage,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] })
+    },
+  })
+
+  const handleCoverFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      updateCoverMutation.mutate(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }, [updateCoverMutation])
+
   // Compute stats from fragments
   const stats = fragments ? {
     prose: proseChain?.entries.length ?? 0,
@@ -649,84 +722,135 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
   } : null
 
   const hasStats = stats && (stats.prose + stats.characters + stats.knowledge + stats.guidelines) > 0
+  const hasCover = !!story.coverImage
 
   return (
-    <Link
-      to="/story/$storyId"
-      params={{ storyId: story.id }}
-      className="group block"
-      onClick={() => {
-        localStorage.setItem(`errata:last-accessed:${story.id}`, new Date().toISOString())
-      }}
-    >
-      <div
-        className="flex items-start justify-between rounded-lg border border-transparent hover:border-border/50 hover:bg-card/50 px-5 py-4 transition-all duration-150"
-        data-component-id={`story-${story.id}-card`}
+    <div className="relative group">
+      {/* Hidden file input — outside the Link to avoid navigation conflicts */}
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverFileChange}
+      />
+
+      <Link
+        to="/story/$storyId"
+        params={{ storyId: story.id }}
+        className="block"
+        onClick={() => {
+          localStorage.setItem(`errata:last-accessed:${story.id}`, new Date().toISOString())
+        }}
       >
-        <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg leading-tight group-hover:text-primary transition-colors">
-            {story.name}
-          </h2>
-          {story.description && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2 font-prose">
-              {story.description}
-            </p>
+        <div
+          className="relative rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:scale-[1.02] ring-1 ring-white/[0.06] hover:ring-white/[0.12]"
+          style={{ aspectRatio: '3 / 4' }}
+          data-component-id={`story-${story.id}-card`}
+        >
+          {/* Background layer */}
+          {hasCover ? (
+            <img
+              src={story.coverImage!}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div
+              className="absolute inset-0"
+              style={{ background: gradientForId(story.id) }}
+            />
           )}
 
-          {/* Stats row */}
-          <div className="flex items-center gap-4 mt-2.5">
-            {hasStats ? (
-              <>
-                {stats.prose > 0 && (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
-                    <BookOpen className="size-3" />
-                    {stats.prose}
-                  </span>
-                )}
-                {stats.characters > 0 && (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
-                    <Users className="size-3" />
-                    {stats.characters}
-                  </span>
-                )}
-                {stats.knowledge > 0 && (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={`${stats.knowledge} knowledge`}>
-                    <Globe className="size-3" />
-                    {stats.knowledge}
-                  </span>
-                )}
-                {stats.guidelines > 0 && (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
-                    <Scroll className="size-3" />
-                    {stats.guidelines}
-                  </span>
-                )}
-                <span className="text-muted-foreground">·</span>
-              </>
-            ) : null}
-            <span className="text-[11px] text-muted-foreground">
-              {new Date(story.updatedAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </span>
+          {/* Gradient overlay — always present for text legibility */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: hasCover
+                ? 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)'
+                : 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 50%, transparent 100%)',
+            }}
+          />
+
+          {/* Text content — pinned to bottom */}
+          <div className="absolute inset-x-0 bottom-0 p-4 flex flex-col justify-end">
+            <h2 className="font-display text-base leading-snug text-white drop-shadow-sm line-clamp-2 group-hover:text-primary transition-colors">
+              {story.name}
+            </h2>
+            {story.description && (
+              <p className="text-[13px] leading-relaxed text-white/70 mt-1 line-clamp-2">
+                {story.description}
+              </p>
+            )}
+
+            {/* Stats row */}
+            <div className="flex items-center gap-3 mt-2.5 flex-wrap">
+              {hasStats ? (
+                <>
+                  {stats.prose > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
+                      <BookOpen className="size-3" />
+                      {stats.prose}
+                    </span>
+                  )}
+                  {stats.characters > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
+                      <Users className="size-3" />
+                      {stats.characters}
+                    </span>
+                  )}
+                  {stats.knowledge > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.knowledge} knowledge`}>
+                      <Globe className="size-3" />
+                      {stats.knowledge}
+                    </span>
+                  )}
+                  {stats.guidelines > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
+                      <Scroll className="size-3" />
+                      {stats.guidelines}
+                    </span>
+                  )}
+                </>
+              ) : null}
+              <span className="text-[11px] text-white/40 ml-auto">
+                {new Date(story.updatedAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
           </div>
         </div>
-        <Button
+      </Link>
+
+      {/* Hover action buttons — outside Link to prevent navigation */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <button
+          className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-black/70 hover:text-white transition-colors"
+          title="Set cover image"
+          onClick={() => coverInputRef.current?.click()}
+        >
+          <Camera className="size-3.5" />
+        </button>
+        {hasCover && (
+          <button
+            className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-black/70 hover:text-white transition-colors"
+            title="Remove cover"
+            onClick={() => updateCoverMutation.mutate(null)}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+        <button
+          className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-red-600/80 hover:text-white transition-colors"
+          title={`Delete "${story.name}"`}
           data-component-id={`story-${story.id}-delete-button`}
-          variant="ghost"
-          size="icon"
-          className="size-8 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 ml-4"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onDelete()
-          }}
+          onClick={onDelete}
         >
           <Trash2 className="size-3.5" />
-        </Button>
+        </button>
       </div>
-    </Link>
+    </div>
   )
 }

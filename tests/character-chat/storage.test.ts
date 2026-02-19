@@ -38,6 +38,7 @@ describe('character-chat storage', () => {
       id: storyId,
       name: 'Test Story',
       description: 'For character chat tests',
+    coverImage: null,
       summary: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

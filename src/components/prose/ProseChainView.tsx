@@ -13,6 +13,7 @@ import { ProseOutlinePanel } from './ProseOutlinePanel'
 
 interface ProseChainViewProps {
   storyId: string
+  coverImage?: string | null
   onSelectFragment: (fragment: Fragment) => void
   onEditProse?: (fragmentId: string) => void
   onDebugLog?: (logId: string) => void
@@ -57,6 +58,7 @@ function InsertChapterDivider({
 
 export function ProseChainView({
   storyId,
+  coverImage,
   onSelectFragment,
   onEditProse,
   onDebugLog,
@@ -331,6 +333,18 @@ export function ProseChainView({
   return (
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
+        {/* Cover image banner */}
+        {coverImage && (
+          <div className="relative w-full overflow-hidden" style={{ maxHeight: 280 }}>
+            <img
+              src={coverImage}
+              alt=""
+              className="w-full h-full object-cover"
+              style={{ maxHeight: 280 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          </div>
+        )}
         <div className="mx-auto py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
           {orderedItems.length > 0 ? (
             orderedItems.map((fragment, idx) => (

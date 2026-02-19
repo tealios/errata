@@ -22,6 +22,7 @@ describe('generation-logs storage', () => {
       id: storyId,
       name: 'Test Story',
       description: 'A test',
+    coverImage: null,
       summary: '',
       createdAt: '2025-01-01T00:00:00.000Z',
       updatedAt: '2025-01-01T00:00:00.000Z',
