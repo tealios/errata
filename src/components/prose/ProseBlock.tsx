@@ -2,15 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, type Annotation } from '@/lib/character-mentions'
-import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, Loader2 } from 'lucide-react'
-
-type SelectionTransformMode = 'rewrite' | 'expand' | 'compress'
+import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare } from 'lucide-react'
 
 interface ProseBlockProps {
   storyId: string
@@ -23,6 +20,7 @@ interface ProseBlockProps {
   onSelect: () => void
   onDebugLog?: (logId: string) => void
   onBranchFrom?: (sectionIndex: number) => void
+  onEdit?: () => void
   onAskLibrarian?: (fragmentId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
@@ -39,6 +37,7 @@ export function ProseBlock({
   isLast,
   isFirst,
   onSelect,
+  onEdit,
   onDebugLog,
   onBranchFrom,
   onAskLibrarian,
@@ -51,8 +50,6 @@ export function ProseBlock({
   void isFirst
   void isLast
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState(false)
-  const [editContent, setEditContent] = useState(fragment.content)
   const [actionMode, setActionMode] = useState<'regenerate' | 'refine' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
   const [isStreamingAction, setIsStreamingAction] = useState(false)
@@ -65,19 +62,6 @@ export function ProseBlock({
   const blockRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
   const promptInputRef = useRef<HTMLInputElement>(null)
-  const editContainerRef = useRef<HTMLDivElement>(null)
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const [selectionTransform, setSelectionTransform] = useState<{
-    start: number
-    end: number
-    text: string
-    left: number
-    anchorTop: number
-    placement: 'above' | 'below'
-  } | null>(null)
-  const [isTransformingSelection, setIsTransformingSelection] = useState(false)
-  const [selectionTransformMode, setSelectionTransformMode] = useState<SelectionTransformMode | null>(null)
-  const [selectionTransformReasoning, setSelectionTransformReasoning] = useState('')
 
   // Provider quick-switch (fetched lazily, only rendered when editing prompt)
   const { data: story } = useQuery({
@@ -117,20 +101,6 @@ export function ProseBlock({
     return () => document.removeEventListener('mousedown', handler)
   }, [showActions, actionMode, editingPrompt])
 
-  const updateMutation = useMutation({
-    mutationFn: (content: string) =>
-      api.fragments.update(storyId, fragment.id, {
-        name: fragment.name,
-        description: fragment.description,
-        content,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-      hideSelectionTransform()
-      setEditing(false)
-    },
-  })
-
   const revertMutation = useMutation({
     mutationFn: () => api.fragments.revert(storyId, fragment.id),
     onSuccess: () => {
@@ -139,120 +109,6 @@ export function ProseBlock({
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     },
   })
-
-  const handleSave = () => {
-    if (editContent !== fragment.content) {
-      updateMutation.mutate(editContent)
-    } else {
-      setEditing(false)
-    }
-  }
-
-  const hideSelectionTransform = () => {
-    setSelectionTransform(null)
-    setSelectionTransformMode(null)
-    setSelectionTransformReasoning('')
-    setIsTransformingSelection(false)
-  }
-
-  const refreshSelectionTransformAnchor = (clientX?: number, clientY?: number) => {
-    const textarea = editTextareaRef.current
-    const container = editContainerRef.current
-    if (!textarea || !container) return
-
-    const start = textarea.selectionStart ?? 0
-    const end = textarea.selectionEnd ?? 0
-    if (end <= start) {
-      setSelectionTransform(null)
-      return
-    }
-
-    const selectedText = editContent.slice(start, end)
-    if (!selectedText.trim()) {
-      setSelectionTransform(null)
-      return
-    }
-
-    const containerRect = container.getBoundingClientRect()
-    const textareaRect = textarea.getBoundingClientRect()
-    const x = clientX ?? (textareaRect.left + textareaRect.width / 2)
-    const y = clientY ?? (textareaRect.top + 8)
-    const yInContainer = y - containerRect.top
-    const spaceAbove = yInContainer
-    const spaceBelow = containerRect.height - yInContainer
-    const placement: 'above' | 'below' = spaceAbove >= 180 || spaceAbove >= spaceBelow ? 'above' : 'below'
-
-    setSelectionTransform({
-      start,
-      end,
-      text: selectedText,
-      left: Math.max(8, Math.min(containerRect.width - 8, x - containerRect.left)),
-      anchorTop: Math.max(8, Math.min(containerRect.height - 8, yInContainer)),
-      placement,
-    })
-  }
-
-  const applySelectionTransform = async (mode: SelectionTransformMode) => {
-    if (!selectionTransform || isTransformingSelection) return
-
-    const selected = selectionTransform
-    setIsTransformingSelection(true)
-    setSelectionTransformMode(mode)
-    setSelectionTransformReasoning('')
-
-    try {
-      const contextBefore = editContent.slice(Math.max(0, selected.start - 240), selected.start)
-      const contextAfter = editContent.slice(selected.end, Math.min(editContent.length, selected.end + 240))
-      const stream = await api.librarian.transformProseSelection(
-        storyId,
-        fragment.id,
-        mode,
-        selected.text,
-        {
-          sourceContent: editContent,
-          contextBefore,
-          contextAfter,
-        },
-      )
-      const reader = stream.getReader()
-      let transformed = ''
-      let reasoning = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value.type === 'text') {
-          transformed += value.text
-        } else if (value.type === 'reasoning') {
-          reasoning += value.text
-          setSelectionTransformReasoning(reasoning)
-        }
-      }
-
-      const compact = transformed.trim()
-      if (!compact) {
-        hideSelectionTransform()
-        return
-      }
-
-      const leadingWhitespace = selected.text.match(/^\s*/)?.[0] ?? ''
-      const trailingWhitespace = selected.text.match(/\s*$/)?.[0] ?? ''
-      const replacement = `${leadingWhitespace}${compact}${trailingWhitespace}`
-      const nextContent = editContent.slice(0, selected.start) + replacement + editContent.slice(selected.end)
-      const nextSelectionEnd = selected.start + replacement.length
-
-      setEditContent(nextContent)
-      hideSelectionTransform()
-      requestAnimationFrame(() => {
-        const textarea = editTextareaRef.current
-        if (!textarea) return
-        textarea.focus()
-        textarea.setSelectionRange(selected.start, nextSelectionEnd)
-      })
-    } catch {
-      setIsTransformingSelection(false)
-      setSelectionTransformMode(null)
-    }
-  }
 
   const switchMutation = useMutation({
     mutationFn: (fragmentId: string) =>
@@ -504,115 +360,6 @@ export function ProseBlock({
     if (!mentionsEnabled || !annotations || !onClickMention) return undefined
     return buildAnnotationHighlighter(annotations, onClickMention, mentionColors) ?? undefined
   }, [mentionsEnabled, annotations, onClickMention, mentionColors])
-
-  if (editing) {
-    return (
-      <div className="mb-6">
-        <div ref={editContainerRef} className="relative rounded-lg border border-primary/20 bg-card/30 p-5">
-          {selectionTransform && (
-            <div
-              className={`absolute z-20 -translate-x-1/2 rounded-xl border border-border/60 bg-popover/95 backdrop-blur-sm px-2 py-1.5 shadow-xl w-[min(32rem,calc(100%-1rem))] ${selectionTransform.placement === 'above' ? '-translate-y-full -mt-2' : 'mt-2'}`}
-              style={{ left: selectionTransform.left, top: selectionTransform.anchorTop }}
-            >
-              <div className="flex items-center gap-1">
-                <button
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/70 transition-colors disabled:opacity-50"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => applySelectionTransform('rewrite')}
-                  disabled={isTransformingSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'rewrite' ? <Loader2 className="size-3 animate-spin" /> : null}
-                  Rewrite
-                </button>
-                <button
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/70 transition-colors disabled:opacity-50"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => applySelectionTransform('expand')}
-                  disabled={isTransformingSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'expand' ? <Loader2 className="size-3 animate-spin" /> : null}
-                  Expand
-                </button>
-                <button
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/70 transition-colors disabled:opacity-50"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => applySelectionTransform('compress')}
-                  disabled={isTransformingSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'compress' ? <Loader2 className="size-3 animate-spin" /> : null}
-                  Compress
-                </button>
-              </div>
-              {(isTransformingSelection || selectionTransformReasoning.trim()) && (
-                <div className="mt-2 rounded-lg border border-border/50 bg-background/50 px-2 py-1.5">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 mb-1">Reasoning</p>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                    {selectionTransformReasoning.trim() || 'Thinking...'}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <Textarea
-            ref={editTextareaRef}
-            value={editContent}
-            onChange={(e) => {
-              setEditContent(e.target.value)
-              if (!isTransformingSelection) setSelectionTransform(null)
-            }}
-            className="min-h-[160px] resize-none prose-content border-0 p-0 focus-visible:ring-0 bg-transparent"
-            autoFocus
-            readOnly={isTransformingSelection}
-            onMouseUp={(e) => {
-              if (!isTransformingSelection) refreshSelectionTransformAnchor(e.clientX, e.clientY)
-            }}
-            onKeyUp={() => {
-              if (!isTransformingSelection) refreshSelectionTransformAnchor()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setEditContent(fragment.content)
-                hideSelectionTransform()
-                setEditing(false)
-              }
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault()
-                handleSave()
-              }
-            }}
-          />
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
-            <span className="text-xs text-muted-foreground/60">
-              Select text to rewrite, expand, or compress · Esc to cancel · Ctrl+Enter to save
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-xs"
-                onClick={() => {
-                  setEditContent(fragment.content)
-                  hideSelectionTransform()
-                  setEditing(false)
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="text-xs"
-                onClick={handleSave}
-                disabled={updateMutation.isPending || isTransformingSelection}
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div ref={blockRef} className="group relative mb-6" data-prose-index={displayIndex} data-component-id={`prose-${fragment.id}-block`}>
@@ -873,7 +620,8 @@ export function ProseBlock({
               <div className="inline-flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto max-w-[calc(100vw-3rem)]">
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { setEditContent(fragment.content); hideSelectionTransform(); setEditing(true); setShowActions(false) }}
+                  onClick={() => { if (onEdit) { onEdit(); setShowActions(false) } }}
+                  disabled={!onEdit}
                   data-component-id={`prose-${fragment.id}-edit`}
                 >
                   <PenLine className="size-3" />

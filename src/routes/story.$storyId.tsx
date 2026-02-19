@@ -10,6 +10,7 @@ import { FragmentExportPanel } from '@/components/fragments/FragmentExportPanel'
 import { DebugPanel } from '@/components/generation/DebugPanel'
 import { ProviderPanel } from '@/components/settings/ProviderManager'
 import { ProseChainView } from '@/components/prose/ProseChainView'
+import { ProseWritingPanel } from '@/components/prose/ProseWritingPanel'
 import { StoryWizard } from '@/components/wizard/StoryWizard'
 import { StorySidebar, type SidebarSection } from '@/components/sidebar/StorySidebar'
 import { DetailPanel } from '@/components/sidebar/DetailPanel'
@@ -40,7 +41,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { TimelineTabs } from '@/components/prose/TimelineTabs'
 import { CharacterChatView } from '@/components/character-chat/CharacterChatView'
 import { useTimelineBar } from '@/lib/theme'
-import '@/lib/plugin-panel-init'
+import { initClientPluginPanels } from '@/lib/plugin-panel-init'
 
 export const Route = createFileRoute('/story/$storyId')({
   component: StoryEditorPage,
@@ -70,6 +71,7 @@ function StoryEditorPage() {
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
+  const [editingProseId, setEditingProseId] = useState<string | null>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
   const dragCounter = useRef(0)
@@ -93,6 +95,10 @@ function StoryEditorPage() {
     queryKey: ['branches', storyId],
     queryFn: () => api.branches.list(storyId),
   })
+
+  useEffect(() => {
+    initClientPluginPanels()
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -546,6 +552,7 @@ function StoryEditorPage() {
           <ProseChainView
             storyId={storyId}
             onSelectFragment={handleSelectFragment}
+            onEditProse={(fragmentId) => setEditingProseId(fragmentId)}
             onDebugLog={handleDebugLog}
             onLaunchWizard={() => {
               setShowWizard(true)
@@ -601,6 +608,16 @@ function StoryEditorPage() {
                 setShowExportPanel(false)
                 notifyPluginPanelClose({ panel: 'export' }, { storyId })
               }}
+            />
+          </div>
+        )}
+        {editingProseId && (
+          <div className="absolute inset-0 z-30 bg-background" data-component-id="overlay-prose-writing-panel">
+            <ProseWritingPanel
+              storyId={storyId}
+              fragmentId={editingProseId}
+              onClose={() => setEditingProseId(null)}
+              onFragmentChange={setEditingProseId}
             />
           </div>
         )}
