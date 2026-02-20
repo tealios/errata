@@ -85,6 +85,10 @@ The status bar shows real-time statistics for the current passage:
 - Paragraph count
 - Estimated reading time
 
+## Cover Image Banner
+
+When a story has a cover image set, `ProseChainView` renders a banner at the top of the scroll area above the prose chain. The banner displays the cover image with a gradient overlay fading into the background. The cover image is passed to the component via the `coverImage` prop from the story route.
+
 ## Data Flow
 
 1. User opens the writing panel for a prose fragment.
