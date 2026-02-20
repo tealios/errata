@@ -47,28 +47,18 @@ async function findSuggestionFragment(
     if (existing) return existing
   }
 
-  const sourceFragmentId = resolveSourceFragmentId(analysis, suggestion)
+  // Match by name against ALL fragments of the same type (not just librarian-created ones)
   const candidates = await listFragments(dataDir, storyId)
   const normalizedTargetName = normalizeName(suggestion.name)
 
   const matching = candidates.filter((fragment) => {
     if (fragment.type !== suggestion.type) return false
     if (normalizeName(fragment.name) !== normalizedTargetName) return false
-    if (fragment.meta?.source !== 'librarian-suggestion') return false
     return true
   })
 
   if (matching.length === 0) return null
-  if (!sourceFragmentId) return matching[0] ?? null
-
-  const sourceMatched = matching.find((fragment) => {
-    const fragmentSource = typeof fragment.meta?.sourceFragmentId === 'string'
-      ? fragment.meta.sourceFragmentId
-      : null
-    return fragmentSource === sourceFragmentId || fragment.refs.includes(sourceFragmentId)
-  })
-
-  return sourceMatched ?? matching[0] ?? null
+  return matching[0] ?? null
 }
 
 export async function applyKnowledgeSuggestion(args: {

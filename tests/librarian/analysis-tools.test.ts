@@ -19,7 +19,7 @@ describe('analysis-tools', () => {
   })
 
   describe('createAnalysisTools', () => {
-    it('returns all five tools', () => {
+    it('returns all six tools', () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
       expect(Object.keys(tools)).toEqual([
@@ -28,6 +28,7 @@ describe('analysis-tools', () => {
         'reportContradictions',
         'suggestKnowledge',
         'reportTimeline',
+        'suggestDirections',
       ])
     })
 
@@ -74,7 +75,7 @@ describe('analysis-tools', () => {
       ).rejects.toThrow()
     })
 
-    it('reportMentions accumulates mentions', async () => {
+    it('reportMentions accumulates mentions and deduplicates by characterId', async () => {
       const collector = createEmptyCollector()
       const tools = createAnalysisTools(collector)
       await tools.reportMentions.execute!({
@@ -85,9 +86,17 @@ describe('analysis-tools', () => {
       }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.mentions).toHaveLength(2)
 
+      // Second call with duplicate ch-001 — should be ignored
       await tools.reportMentions.execute!({
         mentions: [{ characterId: 'ch-001', text: 'Detective' }],
       }, { toolCallId: 'b', messages: [], abortSignal: undefined as unknown as AbortSignal })
+      expect(collector.mentions).toHaveLength(2)
+      expect(collector.mentions[0].text).toBe('Alice') // keeps first mention text
+
+      // New character is still added
+      await tools.reportMentions.execute!({
+        mentions: [{ characterId: 'ch-003', text: 'Carol' }],
+      }, { toolCallId: 'c', messages: [], abortSignal: undefined as unknown as AbortSignal })
       expect(collector.mentions).toHaveLength(3)
     })
 
@@ -147,6 +156,21 @@ describe('analysis-tools', () => {
       expect(collector.timelineEvents).toHaveLength(2)
       expect(collector.timelineEvents[0].position).toBe('during')
       expect(collector.timelineEvents[1].position).toBe('before')
+    })
+
+    it('suggestDirections records directions', async () => {
+      const collector = createEmptyCollector()
+      const tools = createAnalysisTools(collector)
+      await tools.suggestDirections.execute!({
+        directions: [
+          { title: 'Into the forest', description: 'The hero enters the dark forest.', instruction: 'Write a scene where the hero enters the dark forest.' },
+          { title: 'A stranger arrives', description: 'A mysterious stranger appears.', instruction: 'Introduce a mysterious stranger who approaches the hero.' },
+          { title: 'Inner reflection', description: 'The hero reflects on past choices.', instruction: 'Write an introspective passage about the hero reflecting on their past.' },
+        ],
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+      expect(collector.directions).toHaveLength(3)
+      expect(collector.directions[0].title).toBe('Into the forest')
+      expect(collector.directions[2].instruction).toContain('introspective')
     })
   })
 })

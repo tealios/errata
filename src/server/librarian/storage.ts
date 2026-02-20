@@ -36,6 +36,11 @@ export interface LibrarianAnalysis {
     event: string
     position: 'before' | 'during' | 'after'
   }>
+  directions?: Array<{
+    title: string
+    description: string
+    instruction: string
+  }>
   trace?: Array<{
     type: string
     [key: string]: unknown
@@ -73,6 +78,7 @@ export interface LibrarianAnalysisSummary {
   suggestionCount: number
   pendingSuggestionCount: number
   timelineEventCount: number
+  directionsCount: number
   hasTrace?: boolean
 }
 
@@ -266,6 +272,7 @@ export async function listAnalyses(
       suggestionCount: analysis.knowledgeSuggestions.length,
       pendingSuggestionCount: analysis.knowledgeSuggestions.filter((s) => !s.accepted).length,
       timelineEventCount: analysis.timelineEvents.length,
+      directionsCount: analysis.directions?.length ?? 0,
       hasTrace: !!analysis.trace?.length,
     })
   }

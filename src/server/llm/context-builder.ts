@@ -600,7 +600,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-guidelines',
       role: 'user',
       content: [
-        '## Available Guidelines use getFragment tool to retrieve full content',
+        '## Available Guidelines use getFragment(gl-xxxxxx) tool to retrieve full content',
         ...guidelineShortlist.map(g => `- ${g.id}: ${g.name} — ${g.description}`),
       ].join('\n'),
       order: 300,
@@ -613,7 +613,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-knowledge',
       role: 'user',
       content: [
-        '## Available Knowledge use getFragment tool to retrieve full content',
+        '## Available Knowledge use getFragment(kn-xxxxxx) tool to retrieve full content',
         ...knowledgeShortlist.map(k => `- ${k.id}: ${k.name} — ${k.description}`),
       ].join('\n'),
       order: 310,
@@ -626,7 +626,7 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       id: 'shortlist-characters',
       role: 'user',
       content: [
-        '## Available Characters  use getFragment tool to retrieve full content',
+        '## Available Characters  use getFragment(ch-xxxxxx) tool to retrieve full content',
         ...characterShortlist.map(c => `- ${c.id}: ${c.name} — ${c.description}`),
       ].join('\n'),
       order: 320,

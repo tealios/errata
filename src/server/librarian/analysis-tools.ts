@@ -20,6 +20,7 @@ export interface AnalysisCollector {
     content: string
   }>
   timelineEvents: Array<{ event: string; position: 'before' | 'during' | 'after' }>
+  directions: Array<{ title: string; description: string; instruction: string }>
 }
 
 export function createEmptyCollector(): AnalysisCollector {
@@ -34,6 +35,7 @@ export function createEmptyCollector(): AnalysisCollector {
     contradictions: [],
     knowledgeSuggestions: [],
     timelineEvents: [],
+    directions: [],
   }
 }
 
@@ -118,7 +120,7 @@ export function createAnalysisTools(collector: AnalysisCollector) {
     }),
 
     reportMentions: tool({
-      description: 'Report character mentions found in the new prose. Call once with all mentions.',
+      description: 'Report character mentions found in the new prose. Call once with all mentions. Each character should appear only once — use the primary name.',
       inputSchema: z.object({
         mentions: z.array(z.object({
           characterId: z.string().describe('The character fragment ID (e.g. ch-abc)'),
@@ -126,7 +128,13 @@ export function createAnalysisTools(collector: AnalysisCollector) {
         })),
       }),
       execute: async ({ mentions }) => {
-        collector.mentions.push(...mentions)
+        // Deduplicate by characterId — keep the first mention text for each
+        const seen = new Set(collector.mentions.map(m => m.characterId))
+        for (const m of mentions) {
+          if (seen.has(m.characterId)) continue
+          seen.add(m.characterId)
+          collector.mentions.push(m)
+        }
         return { ok: true }
       },
     }),
@@ -146,7 +154,7 @@ export function createAnalysisTools(collector: AnalysisCollector) {
     }),
 
     suggestKnowledge: tool({
-      description: 'Suggest creating or updating character/knowledge fragments based on new information in the prose.',
+      description: 'Suggest creating or updating character/knowledge fragments based on new information in the prose. Each character or knowledge entry should appear only once.',
       inputSchema: z.object({
         suggestions: z.array(z.object({
           type: z.union([z.literal('character'), z.literal('knowledge')]).describe('"character" for characters, "knowledge" for world-building, locations, items, facts'),
@@ -157,7 +165,16 @@ export function createAnalysisTools(collector: AnalysisCollector) {
         })),
       }),
       execute: async ({ suggestions }) => {
-        collector.knowledgeSuggestions.push(...suggestions)
+        // Deduplicate by type+name (case-insensitive), keeping the last (most complete) entry
+        const seen = new Set(
+          collector.knowledgeSuggestions.map(s => `${s.type}:${s.name.trim().toLowerCase()}`),
+        )
+        for (const s of suggestions) {
+          const key = `${s.type}:${s.name.trim().toLowerCase()}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          collector.knowledgeSuggestions.push(s)
+        }
         return { ok: true }
       },
     }),
@@ -172,6 +189,21 @@ export function createAnalysisTools(collector: AnalysisCollector) {
       }),
       execute: async ({ events }) => {
         collector.timelineEvents.push(...events)
+        return { ok: true }
+      },
+    }),
+
+    suggestDirections: tool({
+      description: 'Suggest 3-5 possible directions the story could go next.',
+      inputSchema: z.object({
+        directions: z.array(z.object({
+          title: z.string().describe('Short title for the direction (3-6 words)'),
+          description: z.string().describe('One sentence describing what would happen'),
+          instruction: z.string().describe('Instruction for the writer agent to follow this direction'),
+        })).min(3).max(5),
+      }),
+      execute: async ({ directions }) => {
+        collector.directions = directions
         return { ok: true }
       },
     }),

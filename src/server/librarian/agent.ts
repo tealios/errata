@@ -351,6 +351,7 @@ async function runLibrarianInner(
       ...suggestion,
       sourceFragmentId: fragmentId,
     })),
+    directions: collector.directions,
     trace: buffer.events as LibrarianAnalysis['trace'],
   }
 
