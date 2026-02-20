@@ -3,7 +3,6 @@ import {
   getStory,
   createFragment,
   getFragment,
-  updateFragment,
 } from '../fragments/storage'
 import {
   addProseSection,
@@ -32,13 +31,44 @@ import {
 } from '../plugins/hooks'
 import { collectPluginToolsWithOrigin } from '../plugins/tools'
 import { triggerLibrarian } from '../librarian/scheduler'
+import { getAgentBlockConfig } from '../agents/agent-block-storage'
+import { invokeAgent } from '../agents/runner'
 import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
+import type { SuggestDirectionsResult } from '../directions/suggest'
 
 export function generationRoutes(dataDir: string) {
   const logger = createLogger('api:generation', { dataDir })
 
   return new Elysia()
+    .post('/stories/:storyId/suggest-directions', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId })
+      requestLogger.info('Suggest directions request')
+
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      try {
+        const { output } = await invokeAgent<SuggestDirectionsResult>({
+          dataDir,
+          storyId: params.storyId,
+          agentName: 'directions.suggest',
+          input: { count: body.count },
+        })
+        return { suggestions: output.suggestions }
+      } catch (err) {
+        requestLogger.error('Suggest directions failed', { error: err instanceof Error ? err.message : String(err) })
+        set.status = 502
+        return { error: err instanceof Error ? err.message : 'Failed to generate suggestions' }
+      }
+    }, {
+      body: t.Object({
+        count: t.Optional(t.Number()),
+      }),
+    })
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
       const requestLogger = logger.child({ storyId: params.storyId })
       requestLogger.info('Generation request started', { mode: body.mode ?? 'generate', saveResult: body.saveResult ?? false })
@@ -119,16 +149,16 @@ export function generationRoutes(dataDir: string) {
       ctxState = await runBeforeContext(enabledPlugins, ctxState)
       requestLogger.info('BeforeContext hooks completed')
 
-      // Merge fragment tools + plugin tools
+      // Merge fragment tools + plugin tools, then filter by agent block config
       const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
-      const enabledBuiltinTools = story.settings.enabledBuiltinTools
-      const filteredFragmentTools = enabledBuiltinTools === undefined
-        ? fragmentTools
-        : Object.fromEntries(
-            Object.entries(fragmentTools).filter(([toolName]) => enabledBuiltinTools.includes(toolName)),
-          )
       const { tools: pluginTools, origins: pluginToolOrigins } = collectPluginToolsWithOrigin(enabledPlugins, dataDir, params.storyId)
-      const tools = { ...filteredFragmentTools, ...pluginTools }
+      const allTools = { ...fragmentTools, ...pluginTools }
+      const agentConfig = await getAgentBlockConfig(dataDir, params.storyId, 'generation')
+      const disabledTools = new Set(agentConfig.disabledTools ?? [])
+      const tools: Record<string, (typeof allTools)[string]> = {}
+      for (const [name, t] of Object.entries(allTools)) {
+        if (!disabledTools.has(name)) tools[name] = t
+      }
       requestLogger.info('Tools prepared', { toolCount: Object.keys(tools).length })
 
       // Extract plugin tool descriptions for context (fragment tools are listed from registry)

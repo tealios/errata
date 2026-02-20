@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
 import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
-import { Settings2, ChevronRight, ChevronDown, ExternalLink, Eye, EyeOff, Puzzle, Wrench, RotateCcw, CircleHelp, Code, Wand2 } from 'lucide-react'
+import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, CircleHelp, Code, Wand2, Compass, ArrowLeft } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
 import { CustomTransformsPanel } from '@/components/settings/CustomTransformsPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
-import { MODEL_ROLES, roleSettingsKeys } from '@/lib/model-roles'
+import type { ModelRoleInfo } from '@/lib/api/types'
 
 interface SettingsPanelProps {
   storyId: string
@@ -18,15 +18,6 @@ interface SettingsPanelProps {
   pluginSidebarVisibility?: Record<string, boolean>
 }
 
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function pluralize(name: string): string {
-  const massNouns = ['prose', 'knowledge']
-  return massNouns.includes(name.toLowerCase()) ? name : `${name}s`
-}
 
 function ToggleSwitch({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label?: string }) {
   return (
@@ -188,16 +179,14 @@ function ProviderSelect({ value, globalConfig, onChange, disabled, inheritLabel 
 /** Resolve the effective providerId for a role by walking the fallback chain */
 function resolveProvider(
   roleKey: string,
+  role: ModelRoleInfo,
   settings: StoryMeta['settings'],
   globalConfig: GlobalConfigSafe | null,
 ): string | null {
-  const roleConfig = MODEL_ROLES.find(r => r.key === roleKey)
-  if (!roleConfig) return null
-  const chain = [roleKey, ...roleConfig.fallback]
-  const s = settings as Record<string, unknown>
+  const overrides = settings.modelOverrides ?? {}
+  const chain = [roleKey, ...role.fallback]
   for (const r of chain) {
-    const keys = roleSettingsKeys(r)
-    const pid = s[keys.providerId] as string | null | undefined
+    const pid = overrides[r]?.providerId
     if (pid) return pid
   }
   return globalConfig?.defaultProviderId ?? null
@@ -205,21 +194,19 @@ function resolveProvider(
 
 /** Get the inherit label for a role's provider dropdown (e.g. "Inherit (Librarian)") */
 function getInheritLabel(
-  roleKey: string,
+  role: ModelRoleInfo,
+  roles: ModelRoleInfo[],
   settings: StoryMeta['settings'],
   globalConfig: GlobalConfigSafe | null,
 ): string {
-  const roleConfig = MODEL_ROLES.find(r => r.key === roleKey)
-  if (!roleConfig) return 'Inherit'
+  const overrides = settings.modelOverrides ?? {}
 
   // Walk fallback chain to find which parent has a provider set
-  for (const parentKey of roleConfig.fallback) {
-    const s = settings as Record<string, unknown>
-    const keys = roleSettingsKeys(parentKey)
-    const pid = s[keys.providerId] as string | null | undefined
+  for (const parentKey of role.fallback) {
+    const pid = overrides[parentKey]?.providerId
     if (pid) {
       const provider = globalConfig?.providers.find(p => p.id === pid)
-      const parentRole = MODEL_ROLES.find(r => r.key === parentKey)
+      const parentRole = roles.find(r => r.key === parentKey)
       return `Inherit${parentRole ? ` \u00b7 ${parentRole.label}` : ''}${provider ? ` (${provider.name})` : ''}`
     }
   }
@@ -239,7 +226,14 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
 }) {
   const { openHelp } = useHelp()
   const settings = story.settings
-  const s = settings as Record<string, unknown>
+  const overrides = settings.modelOverrides ?? {}
+
+  const { data: modelRoles } = useQuery({
+    queryKey: ['model-roles'],
+    queryFn: () => api.agentBlocks.listModelRoles(),
+  })
+
+  const roles = modelRoles ?? []
 
   return (
     <div>
@@ -255,11 +249,10 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
         </button>
       </div>
       <div className="rounded-lg border border-border/30 divide-y divide-border/20">
-        {MODEL_ROLES.map((role) => {
-          const keys = roleSettingsKeys(role.key)
-          const directProviderId = (s[keys.providerId] as string | null | undefined) ?? null
-          const directModelId = (s[keys.modelId] as string | null | undefined) ?? null
-          const effectiveProviderId = resolveProvider(role.key, settings, globalConfig)
+        {roles.map((role) => {
+          const directProviderId = overrides[role.key]?.providerId ?? null
+          const directModelId = overrides[role.key]?.modelId ?? null
+          const effectiveProviderId = resolveProvider(role.key, role, settings, globalConfig)
           const isGeneration = role.key === 'generation'
 
           return (
@@ -276,11 +269,12 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     value={directProviderId}
                     globalConfig={globalConfig}
                     onChange={(id) => {
-                      const update: Record<string, unknown> = { [keys.providerId]: id, [keys.modelId]: null }
-                      updateMutation.mutate(update as Parameters<typeof api.settings.update>[1])
+                      updateMutation.mutate({
+                        modelOverrides: { ...overrides, [role.key]: { providerId: id, modelId: null } },
+                      })
                     }}
                     disabled={updateMutation.isPending}
-                    inheritLabel={isGeneration ? undefined : getInheritLabel(role.key, settings, globalConfig)}
+                    inheritLabel={isGeneration ? undefined : getInheritLabel(role, roles, settings, globalConfig)}
                   />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -288,8 +282,9 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     providerId={effectiveProviderId}
                     value={directModelId}
                     onChange={(mid) => {
-                      const update: Record<string, unknown> = { [keys.modelId]: mid }
-                      updateMutation.mutate(update as Parameters<typeof api.settings.update>[1])
+                      updateMutation.mutate({
+                        modelOverrides: { ...overrides, [role.key]: { ...overrides[role.key], modelId: mid } },
+                      })
                     }}
                     disabled={updateMutation.isPending}
                     defaultLabel={isGeneration ? 'Default' : 'Inherit'}
@@ -316,6 +311,92 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
   )
 }
 
+const DEFAULT_CONTINUE = 'Continue the story naturally. Write the next scene, advancing the plot and developing characters.'
+const DEFAULT_SCENE_SETTING = "Continue the story without advancing the plot. Focus on atmosphere, internal thoughts, sensory details, or character moments. Don't introduce new events or move the story forward."
+const DEFAULT_SUGGEST = `Based on everything in the story so far, suggest exactly {{count}} possible directions the story could go next. Return ONLY a JSON array with no other text. Each element must have:
+- "title": a short evocative title (3-6 words)
+- "description": 1-2 sentences describing this direction
+- "instruction": a detailed writing prompt (2-3 sentences) that could be given to a writer to produce this continuation
+
+Consider a mix of: advancing the main plot, exploring character relationships, introducing tension or conflict, quiet character moments, and unexpected developments. Make each suggestion meaningfully different from the others.
+
+Respond with ONLY the JSON array, no markdown fences or other text.`
+
+function GuidedPromptsPanel({ story, onClose, onUpdate, isPending }: {
+  story: StoryMeta
+  onClose: () => void
+  onUpdate: (data: { guidedContinuePrompt?: string; guidedSceneSettingPrompt?: string; guidedSuggestPrompt?: string }) => void
+  isPending: boolean
+}) {
+  const [continuePrompt, setContinuePrompt] = useState(story.settings.guidedContinuePrompt ?? '')
+  const [sceneSettingPrompt, setSceneSettingPrompt] = useState(story.settings.guidedSceneSettingPrompt ?? '')
+  const [suggestPrompt, setSuggestPrompt] = useState(story.settings.guidedSuggestPrompt ?? '')
+
+  const save = (field: string, value: string) => {
+    onUpdate({ [field]: value || undefined })
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="size-4" />
+        </button>
+        <div>
+          <h3 className="text-sm font-medium">Guided mode prompts</h3>
+          <p className="text-[10px] text-muted-foreground">Customize the prompts used in guided writing mode</p>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" style={{ scrollbarWidth: 'thin' }}>
+        <div>
+          <label className="text-[11px] font-medium text-foreground/80 mb-1 block">Continue prompt</label>
+          <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug">Used when clicking the "Continue" button</p>
+          <textarea
+            value={continuePrompt}
+            onChange={(e) => setContinuePrompt(e.target.value)}
+            onBlur={() => save('guidedContinuePrompt', continuePrompt)}
+            placeholder={DEFAULT_CONTINUE}
+            rows={3}
+            disabled={isPending}
+            className="w-full text-[12px] bg-muted/30 border border-border/30 rounded-md px-2.5 py-2 resize-none outline-none focus:border-primary/30 transition-colors placeholder:text-muted-foreground/50 disabled:opacity-40"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-foreground/80 mb-1 block">Scene-setting prompt</label>
+          <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug">Used when clicking the "Scene-setting" button</p>
+          <textarea
+            value={sceneSettingPrompt}
+            onChange={(e) => setSceneSettingPrompt(e.target.value)}
+            onBlur={() => save('guidedSceneSettingPrompt', sceneSettingPrompt)}
+            placeholder={DEFAULT_SCENE_SETTING}
+            rows={3}
+            disabled={isPending}
+            className="w-full text-[12px] bg-muted/30 border border-border/30 rounded-md px-2.5 py-2 resize-none outline-none focus:border-primary/30 transition-colors placeholder:text-muted-foreground/50 disabled:opacity-40"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-foreground/80 mb-1 block">Suggest directions prompt</label>
+          <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug">
+            Prompt for generating direction suggestions. Use <code className="text-[10px] bg-muted/50 px-1 rounded">{'{{count}}'}</code> for the number of suggestions.
+          </p>
+          <textarea
+            value={suggestPrompt}
+            onChange={(e) => setSuggestPrompt(e.target.value)}
+            onBlur={() => save('guidedSuggestPrompt', suggestPrompt)}
+            placeholder={DEFAULT_SUGGEST}
+            rows={6}
+            disabled={isPending}
+            className="w-full text-[12px] bg-muted/30 border border-border/30 rounded-md px-2.5 py-2 resize-none outline-none focus:border-primary/30 transition-colors placeholder:text-muted-foreground/50 disabled:opacity-40"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground italic">
+          Leave empty to use the default prompt. Changes are saved when you leave each field.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPanel({
   storyId,
   story,
@@ -336,11 +417,6 @@ export function SettingsPanel({
     queryFn: () => api.config.getProviders(),
   })
 
-  const { data: fragmentTypes } = useQuery({
-    queryKey: ['fragment-types', storyId],
-    queryFn: () => api.fragments.types(storyId),
-  })
-
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof api.settings.update>[1]) =>
       api.settings.update(storyId, data),
@@ -357,9 +433,9 @@ export function SettingsPanel({
     updateMutation.mutate({ enabledPlugins: next })
   }
 
-  const [toolsOpen, setToolsOpen] = useState(false)
   const [customCssPanelOpen, setCustomCssPanelOpen] = useState(false)
   const [transformsPanelOpen, setTransformsPanelOpen] = useState(false)
+  const [guidedPromptsPanelOpen, setGuidedPromptsPanelOpen] = useState(false)
   const [writingTransforms] = useWritingTransforms()
   const enabledTransformCount = writingTransforms.filter(t => t.enabled).length
   const { openHelp } = useHelp()
@@ -372,34 +448,6 @@ export function SettingsPanel({
   const [fontPrefs, setFont, resetFonts] = useFontPreferences()
   const hasCustomFonts = Object.keys(fontPrefs).length > 0
   const [, customCssEnabled, , setCustomCssEnabled] = useCustomCss()
-  const enabledBuiltinTools = story.settings.enabledBuiltinTools ?? []
-  const builtinToolOptions = [
-    { name: 'getFragment', description: 'Get full content for any fragment by ID.' },
-    { name: 'listFragments', description: 'List fragments with id, type, name, description.' },
-    { name: 'searchFragments', description: 'Search text across fragments.' },
-    { name: 'listFragmentTypes', description: 'List all available fragment types.' },
-    ...((fragmentTypes ?? []).map((type) => {
-      const singular = capitalize(type.type)
-      const plural = capitalize(pluralize(type.type))
-      return [
-        {
-          name: `get${singular}`,
-          description: `Get the full content of a ${type.type} fragment.`,
-        },
-        {
-          name: `list${plural}`,
-          description: `List all ${type.type} fragments.`,
-        },
-      ]
-    }).flat()),
-  ]
-
-  const toggleBuiltinTool = (toolName: string) => {
-    const next = enabledBuiltinTools.includes(toolName)
-      ? enabledBuiltinTools.filter((name) => name !== toolName)
-      : [...enabledBuiltinTools, toolName]
-    updateMutation.mutate({ enabledBuiltinTools: next })
-  }
 
   const summaryCompact = story.settings.summaryCompact ?? { maxCharacters: 12000, targetCharacters: 9000 }
 
@@ -409,6 +457,17 @@ export function SettingsPanel({
 
   if (transformsPanelOpen) {
     return <CustomTransformsPanel onClose={() => setTransformsPanelOpen(false)} />
+  }
+
+  if (guidedPromptsPanelOpen) {
+    return (
+      <GuidedPromptsPanel
+        story={story}
+        onClose={() => setGuidedPromptsPanelOpen(false)}
+        onUpdate={(data) => updateMutation.mutate(data)}
+        isPending={updateMutation.isPending}
+      />
+    )
   }
 
   return (
@@ -534,7 +593,7 @@ export function SettingsPanel({
           <button
             type="button"
             onClick={() => setTransformsPanelOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors rounded-lg"
+            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
@@ -543,6 +602,22 @@ export function SettingsPanel({
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
                 {enabledTransformCount} custom transform{enabledTransformCount !== 1 ? 's' : ''} active
+              </p>
+            </div>
+            <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setGuidedPromptsPanelOpen(true)}
+            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <Compass className="size-3 text-muted-foreground" />
+                <p className="text-[12px] font-medium text-foreground/80">Guided mode prompts</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                {story.settings.guidedContinuePrompt || story.settings.guidedSceneSettingPrompt || story.settings.guidedSuggestPrompt ? 'Custom prompts configured' : 'Using default prompts'}
               </p>
             </div>
             <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
@@ -708,79 +783,6 @@ export function SettingsPanel({
             />
           </SettingRow>
         </div>
-      </div>
-
-      {/* Built-in Tools — collapsible sub-panel */}
-      <div>
-          <button
-            type="button"
-            onClick={() => setToolsOpen(!toolsOpen)}
-            className="w-full flex items-center justify-between gap-2 rounded-lg border border-border/30 px-3 py-2.5 hover:bg-accent/20 transition-colors"
-            data-component-id="settings-tools-toggle"
-          >
-          <div className="flex items-center gap-2 min-w-0">
-            <Wrench className="size-3.5 text-muted-foreground shrink-0" />
-            <div className="text-left min-w-0">
-              <p className="text-[12px] font-medium text-foreground/80">Built-in tools</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {enabledBuiltinTools.length} of {builtinToolOptions.length} enabled
-              </p>
-            </div>
-          </div>
-          <ChevronDown className={`size-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${toolsOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {toolsOpen && (
-          <div className="mt-2 rounded-lg border border-border/30 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="px-4 py-2.5 bg-muted/30 border-b border-border/20 space-y-1.5">
-              <p className="text-[10.5px] text-muted-foreground leading-snug">
-                Tools let the model look up fragment details during generation. It can search, list, and read your characters, guidelines, and knowledge before writing.
-                These are disabled by default — sticky fragments are already included in full, and non-sticky ones appear as shortlists the model can reference. Enable tools when you want the model to dynamically search or retrieve fragments on its own.
-              </p>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); openHelp('generation#built-in-tools') }}
-                className="flex items-center gap-1 text-[10px] text-primary/60 hover:text-primary/90 transition-colors"
-              >
-                <CircleHelp className="size-2.5" />
-                Learn more about tools
-              </button>
-            </div>
-            <div className="flex items-center justify-between px-4 py-1.5 border-b border-border/20">
-              <p className="text-[10px] text-muted-foreground">Available during generation</p>
-              <button
-                type="button"
-                className="text-[10px] text-muted-foreground hover:text-foreground/60 transition-colors"
-                onClick={() => updateMutation.mutate({ enabledBuiltinTools: [] })}
-                disabled={updateMutation.isPending || enabledBuiltinTools.length === 0}
-                data-component-id="settings-tools-disable-all"
-              >
-                Disable all
-              </button>
-            </div>
-            <div className="divide-y divide-border/20">
-              {builtinToolOptions.map((tool) => {
-                const enabled = enabledBuiltinTools.includes(tool.name)
-                return (
-                  <div key={tool.name} className="flex items-start justify-between gap-3 px-4 py-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-mono text-foreground/70 truncate">{tool.name}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{tool.description}</p>
-                    </div>
-                    <div className="shrink-0 mt-0.5">
-                      <ToggleSwitch
-                        on={enabled}
-                        onToggle={() => toggleBuiltinTool(tool.name)}
-                        disabled={updateMutation.isPending}
-                        label={`Toggle ${tool.name}`}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* LLM */}

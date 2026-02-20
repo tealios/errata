@@ -7,25 +7,19 @@ export const settings = {
     outputFormat?: 'plaintext' | 'markdown'
     summarizationThreshold?: number
     maxSteps?: number
+    modelOverrides?: Record<string, { providerId?: string | null; modelId?: string | null }>
+    // Legacy fields (backward compat)
     providerId?: string | null
     modelId?: string | null
-    librarianProviderId?: string | null
-    librarianModelId?: string | null
-    characterChatProviderId?: string | null
-    characterChatModelId?: string | null
-    proseTransformProviderId?: string | null
-    proseTransformModelId?: string | null
-    librarianChatProviderId?: string | null
-    librarianChatModelId?: string | null
-    librarianRefineProviderId?: string | null
-    librarianRefineModelId?: string | null
     autoApplyLibrarianSuggestions?: boolean
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]
-    enabledBuiltinTools?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
     summaryCompact?: { maxCharacters: number; targetCharacters: number }
     enableHierarchicalSummary?: boolean
+    guidedContinuePrompt?: string
+    guidedSceneSettingPrompt?: string
+    guidedSuggestPrompt?: string
   }) =>
     apiFetch<StoryMeta>(`/stories/${storyId}/settings`, {
       method: 'PATCH',

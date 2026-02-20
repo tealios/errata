@@ -5,8 +5,8 @@ import {
   createFragment,
   getFragment,
   listFragments,
-  updateStory,
 } from '@/server/fragments/storage'
+import { saveAgentBlockConfig } from '@/server/agents/agent-block-storage'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
 const { mockAgentCtor, mockAgentStream } = vi.hoisted(() => ({
@@ -200,11 +200,7 @@ describe('generation endpoint', () => {
     expect(callArgs.tools).toHaveProperty('listFragmentTypes')
   })
 
-  it('POST /stories/:storyId/generate disables built-in tools when setting is empty', async () => {
-    const story = makeStory()
-    story.settings.enabledBuiltinTools = []
-    await updateStory(dataDir, story)
-
+  it('POST /stories/:storyId/generate includes all tools by default (no disabledTools)', async () => {
     mockAgentStream.mockResolvedValue(
       createMockStreamResult('Generated text.') as any,
     )
@@ -221,13 +217,19 @@ describe('generation endpoint', () => {
     expect(res.status).toBe(200)
 
     const callArgs = mockAgentCtor.mock.calls[0][0] as any
-    expect(Object.keys(callArgs.tools ?? {})).toEqual([])
+    expect(callArgs.tools).toHaveProperty('listFragmentTypes')
+    expect(callArgs.tools).toHaveProperty('getFragment')
+    expect(callArgs.tools).toHaveProperty('listFragments')
+    expect(callArgs.tools).toHaveProperty('searchFragments')
   })
 
-  it('POST /stories/:storyId/generate enables only selected built-in tools', async () => {
-    const story = makeStory()
-    story.settings.enabledBuiltinTools = ['listFragmentTypes']
-    await updateStory(dataDir, story)
+  it('POST /stories/:storyId/generate excludes tools listed in disabledTools', async () => {
+    await saveAgentBlockConfig(dataDir, storyId, 'generation', {
+      customBlocks: [],
+      overrides: {},
+      blockOrder: [],
+      disabledTools: ['listFragments', 'getFragment', 'searchFragments'],
+    })
 
     mockAgentStream.mockResolvedValue(
       createMockStreamResult('Generated text.') as any,
@@ -248,6 +250,7 @@ describe('generation endpoint', () => {
     expect(callArgs.tools).toHaveProperty('listFragmentTypes')
     expect(callArgs.tools).not.toHaveProperty('listFragments')
     expect(callArgs.tools).not.toHaveProperty('getFragment')
+    expect(callArgs.tools).not.toHaveProperty('searchFragments')
   })
 
   it('POST /stories/:storyId/generate saves result when saveResult=true', async () => {

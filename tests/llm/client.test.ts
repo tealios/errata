@@ -15,7 +15,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: makeTestSettings({ librarianProviderId: null, librarianModelId: null, enabledBuiltinTools: [] }),
+    settings: makeTestSettings({ librarianProviderId: null, librarianModelId: null }),
   }
 }
 

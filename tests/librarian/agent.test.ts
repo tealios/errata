@@ -40,7 +40,6 @@ function makeStory(
   const now = new Date().toISOString()
   const defaultSettings: StoryMeta['settings'] = makeTestSettings({
     summarizationThreshold: 0,
-    enabledBuiltinTools: [],
   })
 
   const baseStory: StoryMeta = {
