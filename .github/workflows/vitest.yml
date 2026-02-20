@@ -25,7 +25,7 @@ jobs:
 
       - name: Run tests
         id: vitest
-        run: bun run test -- --reporter=verbose --reporter=junitxml --outputFile=junit.xml --reporter=github-actions
+        run: bun run test -- --reporter=verbose --reporter=junit --outputFile=junit.xml --reporter=github-actions
 
       # Artifacts to be consumed by the Test Results workflow (vitest-results.yml)
 
