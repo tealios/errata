@@ -12,12 +12,8 @@ export const stories = {
     apiFetch<StoryMeta>(`/stories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) =>
     apiFetch<{ ok: boolean }>(`/stories/${id}`, { method: 'DELETE' }),
-  exportAsZip: async (storyId: string, options?: { includeLogs?: boolean; includeLibrarian?: boolean }) => {
-    const params = new URLSearchParams()
-    if (options?.includeLogs) params.set('includeLogs', 'true')
-    if (options?.includeLibrarian) params.set('includeLibrarian', 'true')
-    const qs = params.toString()
-    const res = await fetch(`${API_BASE}/stories/${storyId}/export${qs ? `?${qs}` : ''}`)
+  exportAsZip: async (storyId: string) => {
+    const res = await fetch(`${API_BASE}/stories/${storyId}/export`)
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }))
       throw new Error(err.error ?? `Export failed: ${res.status}`)

@@ -96,14 +96,9 @@ export function storyRoutes(dataDir: string) {
     })
 
     // --- Story Export/Import ---
-    .get('/stories/:storyId/export', async ({ params, query, set }) => {
+    .get('/stories/:storyId/export', async ({ params, set }) => {
       try {
-        const includeLogs = (query as Record<string, string>).includeLogs === 'true'
-        const includeLibrarian = (query as Record<string, string>).includeLibrarian === 'true'
-        const { buffer, filename } = await exportStoryAsZip(dataDir, params.storyId, {
-          includeLogs,
-          includeLibrarian,
-        })
+        const { buffer, filename } = await exportStoryAsZip(dataDir, params.storyId)
         return new Response(buffer.buffer as ArrayBuffer, {
           headers: {
             'Content-Type': 'application/zip',
