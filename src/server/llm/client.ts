@@ -1,8 +1,20 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { getGlobalConfig } from '../config/storage'
 import { getStory } from '../fragments/storage'
-import { MODEL_ROLES, roleSettingsKeys } from '@/lib/model-roles'
+import { modelRoleRegistry } from '../agents/model-role-registry'
+import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import type { LanguageModel } from 'ai'
+
+// Legacy field name mapping for backward compat with old story JSON files
+const LEGACY_FIELD_MAP: Record<string, { providerId: string; modelId: string }> = {
+  generation: { providerId: 'providerId', modelId: 'modelId' },
+  librarian: { providerId: 'librarianProviderId', modelId: 'librarianModelId' },
+  characterChat: { providerId: 'characterChatProviderId', modelId: 'characterChatModelId' },
+  proseTransform: { providerId: 'proseTransformProviderId', modelId: 'proseTransformModelId' },
+  librarianChat: { providerId: 'librarianChatProviderId', modelId: 'librarianChatModelId' },
+  librarianRefine: { providerId: 'librarianRefineProviderId', modelId: 'librarianRefineModelId' },
+  directions: { providerId: 'directionsProviderId', modelId: 'directionsModelId' },
+}
 
 // Provider cache: keyed by `id:baseURL:apiKey`
 const providerCache = new Map<string, ReturnType<typeof createOpenAICompatible>>()
@@ -40,12 +52,13 @@ export interface GetModelOptions {
 
 /**
  * Resolve the model to use for a given story.
- * Walks the role's fallback chain defined in MODEL_ROLES, then falls back to global default.
+ * Checks modelOverrides map first, then legacy fields, walking the role's fallback chain.
  */
 export async function getModel(dataDir: string, storyId?: string, opts: GetModelOptions = {}): Promise<ResolvedModel> {
+  ensureCoreAgentsRegistered()
+
   const role = opts.role ?? 'generation'
-  const roleConfig = MODEL_ROLES.find(r => r.key === role) ?? MODEL_ROLES[0]
-  const chain = [role, ...roleConfig.fallback]
+  const chain = modelRoleRegistry.getFallbackChain(role)
 
   // 1. Try to resolve from story settings by walking the fallback chain
   let targetProviderId: string | null = null
@@ -54,14 +67,26 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
   if (storyId) {
     const story = await getStory(dataDir, storyId)
     if (story?.settings) {
+      const overrides = story.settings.modelOverrides ?? {}
       const settings = story.settings as Record<string, unknown>
+
       for (const r of chain) {
-        const keys = roleSettingsKeys(r)
-        const pid = settings[keys.providerId] as string | null | undefined
-        if (pid) {
-          targetProviderId = pid
-          targetModelId = (settings[keys.modelId] as string | null | undefined) ?? null
+        // Check modelOverrides map first
+        const override = overrides[r]
+        if (override?.providerId) {
+          targetProviderId = override.providerId
+          targetModelId = override.modelId ?? null
           break
+        }
+        // Fall back to legacy fields
+        const legacy = LEGACY_FIELD_MAP[r]
+        if (legacy) {
+          const pid = settings[legacy.providerId] as string | null | undefined
+          if (pid) {
+            targetProviderId = pid
+            targetModelId = (settings[legacy.modelId] as string | null | undefined) ?? null
+            break
+          }
         }
       }
     }

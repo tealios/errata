@@ -83,6 +83,7 @@ export interface LibrarianAnalysisSummary {
   suggestionCount: number
   pendingSuggestionCount: number
   timelineEventCount: number
+  directionsCount: number
   hasTrace?: boolean
 }
 
@@ -117,6 +118,7 @@ export interface LibrarianAnalysis {
     event: string
     position: 'before' | 'during' | 'after'
   }>
+  directions?: SuggestionDirection[]
   trace?: Array<{
     type: string
     [key: string]: unknown

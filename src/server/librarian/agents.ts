@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { agentRegistry } from '../agents/registry'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
+import { modelRoleRegistry } from '../agents/model-role-registry'
 import type { AgentDefinition } from '../agents/types'
 import { runLibrarian } from './agent'
 import { librarianChat } from './chat'
@@ -94,13 +95,19 @@ export function registerLibrarianAgents(): void {
   agentRegistry.register(chatDefinition)
   agentRegistry.register(proseTransformDefinition)
 
+  // Model roles
+  modelRoleRegistry.register({ key: 'librarian', label: 'Librarian', description: 'Background analysis and summaries', fallback: ['generation'] })
+  modelRoleRegistry.register({ key: 'proseTransform', label: 'Prose Transform', description: 'Rewrite, expand, compress selected text', fallback: ['librarian', 'generation'] })
+  modelRoleRegistry.register({ key: 'librarianChat', label: 'Librarian Chat', description: 'Interactive librarian conversation', fallback: ['librarian', 'generation'] })
+  modelRoleRegistry.register({ key: 'librarianRefine', label: 'Librarian Refine', description: 'Fragment refinement', fallback: ['librarian', 'generation'] })
+
   // Block definitions
   agentBlockRegistry.register({
     agentName: 'librarian.analyze',
     displayName: 'Librarian Analyze',
     description: 'Analyzes prose fragments for continuity signals and summary updates.',
     createDefaultBlocks: createLibrarianAnalyzeBlocks,
-    availableTools: ['updateSummary', 'reportMentions', 'reportContradictions', 'suggestKnowledge', 'reportTimeline'],
+    availableTools: ['updateSummary', 'reportMentions', 'reportContradictions', 'suggestKnowledge', 'reportTimeline', 'suggestDirections'],
     buildPreviewContext: buildAnalyzePreviewContext,
   })
 
@@ -141,3 +148,6 @@ export function registerLibrarianAgents(): void {
 
   registered = true
 }
+
+/** Auto-discovery entry point */
+export const register = registerLibrarianAgents

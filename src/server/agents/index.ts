@@ -6,6 +6,7 @@ export { createEventStream } from './create-event-stream'
 export { createToolAgent } from './create-agent'
 export { agentBlockRegistry } from './agent-block-registry'
 export { compileAgentContext } from './compile-agent-context'
+export { registerActiveAgent, unregisterActiveAgent, listActiveAgents } from './active-registry'
 export type {
   AgentDefinition,
   AgentCallOptions,

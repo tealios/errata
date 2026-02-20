@@ -305,8 +305,12 @@ function ConceptStep({
     queryFn: () => api.stories.get(storyId),
   })
   const providerMutation = useMutation({
-    mutationFn: (data: { providerId?: string | null; modelId?: string | null }) =>
-      api.settings.update(storyId, data),
+    mutationFn: (data: { providerId: string | null; modelId: string | null }) => {
+      const overrides = story?.settings.modelOverrides ?? {}
+      return api.settings.update(storyId, {
+        modelOverrides: { ...overrides, generation: { providerId: data.providerId, modelId: data.modelId } },
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
     },
@@ -362,7 +366,7 @@ function ConceptStep({
             <div className="flex items-center gap-2 p-2.5 rounded-xl border border-border/40 bg-card/30">
               <Bot className="size-4 text-muted-foreground shrink-0" />
               <select
-                value={story?.settings.providerId ?? ''}
+                value={story?.settings.modelOverrides?.generation?.providerId ?? ''}
                 onChange={e => {
                   const providerId = e.target.value || null
                   providerMutation.mutate({ providerId, modelId: null })

@@ -26,3 +26,6 @@ export function registerChapterAgents(): void {
   agentRegistry.register(summarizeDefinition)
   registered = true
 }
+
+/** Auto-discovery entry point */
+export const register = registerChapterAgents

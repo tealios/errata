@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { agentRegistry } from '../agents/registry'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
+import { modelRoleRegistry } from '../agents/model-role-registry'
 import type { AgentDefinition } from '../agents/types'
 import { characterChat } from './chat'
 import { createCharacterChatBlocks, buildCharacterChatPreviewContext } from './blocks'
@@ -40,6 +41,9 @@ export function registerCharacterChatAgents(): void {
   // Agent definition
   agentRegistry.register(chatDefinition)
 
+  // Model role
+  modelRoleRegistry.register({ key: 'characterChat', label: 'Character Chat', description: 'In-character conversations', fallback: ['generation'] })
+
   // Block definition
   agentBlockRegistry.register({
     agentName: 'character-chat.chat',
@@ -54,3 +58,6 @@ export function registerCharacterChatAgents(): void {
 
   registered = true
 }
+
+/** Auto-discovery entry point */
+export const register = registerCharacterChatAgents

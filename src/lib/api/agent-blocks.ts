@@ -6,11 +6,15 @@ import type {
   BlockPreviewResponse,
   CustomBlockDefinition,
   BlockOverride,
+  ModelRoleInfo,
 } from './types'
 
 export const agentBlocks = {
   list: () =>
     apiFetch<AgentBlockInfo[]>('/agent-blocks'),
+
+  listModelRoles: () =>
+    apiFetch<ModelRoleInfo[]>('/model-roles'),
 
   get: (storyId: string, agentName: string) =>
     apiFetch<AgentBlocksResponse>(`/stories/${storyId}/agent-blocks/${agentName}`),

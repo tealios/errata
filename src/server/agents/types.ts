@@ -52,4 +52,5 @@ export interface AgentRunResult<TOutput = unknown> {
   runId: string
   output: TOutput
   trace: AgentTraceEntry[]
+  activityId: string
 }
