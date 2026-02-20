@@ -1076,6 +1076,61 @@ return ''`}</div>
     ],
   },
   {
+    id: 'stories',
+    title: 'Stories',
+    description: 'Managing your stories, cover images, and the story gallery.',
+    subsections: [
+      {
+        id: 'cover-images',
+        title: 'Cover images',
+        content: (
+          <>
+            <P>
+              Each story can have a <strong className="text-foreground/75">cover image</strong> that
+              appears on the story card in the gallery and as a banner at the top of the prose view.
+            </P>
+            <P>
+              You can set a cover image in three places:
+            </P>
+            <div className="rounded-md border border-border/25 bg-accent/10 px-3 py-2.5 mb-2.5 space-y-0.5">
+              {[
+                'Create dialog — upload an image when creating a new story.',
+                'Story list — hover over a card and click the camera icon.',
+                'Info panel — switch to edit mode and use the Cover Image field.',
+              ].map((item, i) => (
+                <p key={item} className="text-[11.5px] text-foreground/55 leading-snug">
+                  <span className="text-muted-foreground mr-1.5">{i + 1}.</span>{item}
+                </p>
+              ))}
+            </div>
+            <Tip>
+              Cover images are stored as data URLs, so they're self-contained in your story data.
+              Use reasonably sized images to keep story files manageable.
+            </Tip>
+          </>
+        ),
+      },
+      {
+        id: 'gallery',
+        title: 'Story gallery',
+        content: (
+          <>
+            <P>
+              The home page displays your stories as a responsive grid of portrait cards.
+              Stories with cover images show the image as a background; stories without one get a
+              generated gradient based on their ID.
+            </P>
+            <P>
+              Each card shows the story name, description, fragment counts (prose, characters,
+              knowledge, guidelines), and last-updated date. Hover to reveal a camera icon for
+              quickly setting a cover, or the delete button to remove the story.
+            </P>
+          </>
+        ),
+      },
+    ],
+  },
+  {
     id: 'settings',
     title: 'Settings',
     description: 'Configuring providers, plugins, appearance, and generation behavior.',
