@@ -1,0 +1,46 @@
+name: Vitest
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        id: vitest
+        run: bun run test -- --reporter=verbose --reporter=junitxml --outputFile=junit.xml --reporter=github-actions
+
+      # Artifacts to be consumed by the Test Results workflow (vitest-results.yml)
+
+      - name: Upload test artifacts
+        if: (!cancelled())
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results
+          path: |
+            junit.xml
+          retention-days: 30
+
+      - name: Upload Event File
+        if: (!cancelled())
+        uses: actions/upload-artifact@v4
+        with:
+          name: Event File
+          path: ${{ github.event_path }}
