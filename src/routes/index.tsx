@@ -32,7 +32,7 @@ import {
   extractParsedCard,
   parseCardJson,
 } from '@/lib/importers/tavern-card'
-import { gradientForId } from '@/lib/fragment-visuals'
+import { GuillochePattern } from '@/components/GuillochePattern'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -756,10 +756,7 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <div
-              className="absolute inset-0"
-              style={{ background: gradientForId(story.id) }}
-            />
+            <GuillochePattern id={story.id} className="absolute inset-0" />
           )}
 
           {/* Gradient overlay — always present for text legibility */}
