@@ -90,8 +90,18 @@ export function FragmentEditor({
   // Sync local state from the source fragment (prop or live query data).
   // Uses liveFragment so that external updates (e.g. refinement agent) are reflected.
   // Skips sync when the user has unsaved edits to prevent overwriting their work.
+  // Also resets dirty tracking when the fragment ID changes, so switching fragments
+  // always syncs fresh data (avoids race with a separate reset effect).
   const sourceFragment = liveFragment ?? fragmentProp
+  const prevFragmentIdRef = useRef(fragmentProp?.id)
   useEffect(() => {
+    // Reset dirty tracking when switching to a different fragment
+    if (fragmentProp?.id !== prevFragmentIdRef.current) {
+      prevFragmentIdRef.current = fragmentProp?.id
+      userEditedRef.current = false
+      setSaveStatus('idle')
+    }
+
     if (sourceFragment) {
       if (!userEditedRef.current) {
         setName(sourceFragment.name)
@@ -105,13 +115,7 @@ export function FragmentEditor({
       setContent(prefill?.content ?? '')
       setType(createType ?? 'prose')
     }
-  }, [sourceFragment, createType, prefill])
-
-  // Reset dirty tracking when switching to a different fragment
-  useEffect(() => {
-    userEditedRef.current = false
-    setSaveStatus('idle')
-  }, [fragmentProp?.id])
+  }, [sourceFragment, createType, prefill, fragmentProp?.id])
 
   const invalidate = async () => {
     await Promise.all([
@@ -519,12 +523,12 @@ export function FragmentEditor({
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">
-              Description <span className="normal-case tracking-normal text-muted-foreground">(max 50 chars)</span>
+              Description <span className="normal-case tracking-normal text-muted-foreground">(max 250 chars)</span>
             </label>
             <Input
               value={description}
               onChange={(e) => { userEditedRef.current = true; setDescription(e.target.value) }}
-              maxLength={50}
+              maxLength={250}
               disabled={!isEditing}
               className="bg-transparent"
               required

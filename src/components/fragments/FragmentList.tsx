@@ -262,7 +262,7 @@ export function FragmentList({
         </p>
       </div>
 
-      <ScrollArea className="flex-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-scroll')}>
+      <ScrollArea className="flex-1 min-h-0" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-scroll')}>
         <div className="p-2 space-y-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-items')}>
           {filtered.length === 0 && (
             <p className="text-xs text-muted-foreground py-8 text-center italic">
