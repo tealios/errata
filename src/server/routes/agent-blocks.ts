@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { getStory, getFragment } from '../fragments/storage'
+import { getStory, getFragment, listFragments } from '../fragments/storage'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
@@ -94,6 +94,7 @@ export function agentBlockRoutes(dataDir: string) {
       blocks = await applyBlockConfig(blocks, config, {
         ...previewCtx,
         getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
+        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
       })
       const messages = compileBlocks(blocks)
       const blocksMeta = blocks

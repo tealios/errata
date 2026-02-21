@@ -4,7 +4,7 @@ import { compileBlocks } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
 import { agentBlockRegistry } from './agent-block-registry'
 import { getAgentBlockConfig } from './agent-block-storage'
-import { getFragment } from '../fragments/storage'
+import { getFragment, listFragments } from '../fragments/storage'
 import type { AgentBlockContext } from './agent-block-context'
 
 export interface CompiledAgentContext {
@@ -31,6 +31,7 @@ export async function compileAgentContext(
   const scriptContext = {
     ...blockContext,
     getFragment: (id: string) => getFragment(dataDir, storyId, id),
+    getFragments: (type?: string) => listFragments(dataDir, storyId, type),
   }
   blocks = await applyBlockConfig(blocks, config, scriptContext)
 

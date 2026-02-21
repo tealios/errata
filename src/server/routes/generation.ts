@@ -3,6 +3,7 @@ import {
   getStory,
   createFragment,
   getFragment,
+  listFragments,
 } from '../fragments/storage'
 import {
   addProseSection,
@@ -174,6 +175,7 @@ export function generationRoutes(dataDir: string) {
       blocks = await applyBlockConfig(blocks, blockConfig, {
         ...ctxState,
         getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
+        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
       })
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
       let messages = compileBlocks(blocks)

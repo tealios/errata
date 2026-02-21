@@ -215,4 +215,22 @@ describe('Block API routes', () => {
     })
     expect(res.status).toBe(404)
   })
+
+  it('POST /blocks/eval-script supports ctx.getFragments()', async () => {
+    const storyId = await createStory()
+    // Create a fragment so getFragments returns something
+    await apiJson(`/stories/${storyId}/fragments`, {
+      type: 'guideline',
+      name: 'Test Guideline',
+      description: 'A test',
+      content: 'Be creative',
+    })
+    const res = await apiJson(`/stories/${storyId}/blocks/eval-script`, {
+      content: 'const frags = await ctx.getFragments("guideline"); return frags.map(f => f.name).join(", ")',
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.result).toBe('Test Guideline')
+    expect(data.error).toBeNull()
+  })
 })

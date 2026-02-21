@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia'
-import { getStory, getFragment } from '../fragments/storage'
+import { getStory, getFragment, listFragments } from '../fragments/storage'
 import { buildContextState, createDefaultBlocks, compileBlocks } from '../llm/context-builder'
 import { getBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
@@ -40,6 +40,7 @@ export function blockRoutes(dataDir: string) {
       blocks = await applyBlockConfig(blocks, blockConfig, {
         ...ctxState,
         getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
+        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
       })
       const messages = compileBlocks(blocks)
       const blocksMeta = blocks
@@ -105,6 +106,7 @@ export function blockRoutes(dataDir: string) {
       const scriptContext = {
         ...ctxState,
         getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
+        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
       }
       const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
       try {
