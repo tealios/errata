@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { BlockConfig, BlocksResponse, BlockPreviewResponse, CustomBlockDefinition, BlockOverride } from './types'
+import type { BlockConfig, BlocksResponse, BlockPreviewResponse, CustomBlockDefinition, BlockOverride, ExportedConfigs, ImportConfigsPayload } from './types'
 
 export const blocks = {
   get: (storyId: string) =>
@@ -36,4 +36,13 @@ export const blocks = {
       `/stories/${storyId}/blocks/eval-script`,
       { method: 'POST', body: JSON.stringify({ content }) },
     ),
+
+  exportConfigs: (storyId: string) =>
+    apiFetch<ExportedConfigs>(`/stories/${storyId}/export-configs`),
+
+  importConfigs: (storyId: string, data: ImportConfigsPayload) =>
+    apiFetch<{ ok: boolean }>(`/stories/${storyId}/import-configs`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }

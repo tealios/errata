@@ -261,6 +261,9 @@ The `ctx` object contains:
 | `ctx.characterShortlist` | `Fragment[]` | Non-pinned characters (shown as shortlist) |
 | `ctx.authorInput` | `string` | The author's current input/direction |
 | `ctx.getFragment(id)` | `async (id: string) => Fragment \| null` | Fetch any fragment by ID (async — use `await`) |
+| `ctx.getFragments(type?)` | `async (type?: string) => Fragment[]` | List fragments, optionally filtered by type (async — use `await`) |
+| `ctx.getFragmentByTag(tag)` | `async (tag: string) => Fragment \| null` | Fetch the first fragment with a matching tag (async — use `await`) |
+| `ctx.getFragmentsByTag(tag)` | `async (tag: string) => Fragment[]` | Fetch all fragments with a matching tag (async — use `await`) |
 
 **Return value:** The function must return a `string`. Scripts can be `async` — the runner `await`s the result. If it returns a non-string, an empty string, or a whitespace-only string, the block is silently omitted from context. If the script throws an error, the block is included with a `[Script error in custom block "name"]` placeholder so the user can see something went wrong.
 

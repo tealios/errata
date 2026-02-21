@@ -1,4 +1,4 @@
-import { api, type Fragment } from '@/lib/api'
+import { api, type Fragment, type BlockConfig, type AgentBlockConfig } from '@/lib/api'
 import { parseVisualRefs, type BoundaryBox } from '@/lib/fragment-visuals'
 
 export interface ClipboardAttachment {
@@ -10,12 +10,17 @@ export interface ClipboardAttachment {
 }
 
 export interface FragmentExportEntry {
+  id?: string
   type: string
   name: string
   description: string
   content: string
   tags: string[]
   sticky: boolean
+  refs?: string[]
+  placement?: 'system' | 'user'
+  order?: number
+  meta?: Record<string, unknown>
   attachments?: ClipboardAttachment[]
 }
 
@@ -25,12 +30,17 @@ export interface FragmentClipboardData {
   source: string
   exportedAt: string
   fragment: {
+    id?: string
     type: string
     name: string
     description: string
     content: string
     tags: string[]
     sticky: boolean
+    refs?: string[]
+    placement?: 'system' | 'user'
+    order?: number
+    meta?: Record<string, unknown>
   }
   attachments?: ClipboardAttachment[]
 }
@@ -42,6 +52,8 @@ export interface FragmentBundleData {
   exportedAt: string
   storyName?: string
   fragments: FragmentExportEntry[]
+  blockConfig?: BlockConfig
+  agentBlockConfigs?: Record<string, AgentBlockConfig>
 }
 
 export type ErrataExportData = FragmentClipboardData | FragmentBundleData
@@ -93,32 +105,48 @@ export function serializeFragment(
     source: getSourceId(),
     exportedAt: new Date().toISOString(),
     fragment: {
+      id: fragment.id,
       type: fragment.type,
       name: fragment.name,
       description: fragment.description,
       content: fragment.content,
       tags: fragment.tags,
       sticky: fragment.sticky,
+      ...(fragment.refs.length > 0 ? { refs: fragment.refs } : {}),
+      ...(fragment.placement !== 'system' ? { placement: fragment.placement } : {}),
+      ...(fragment.order !== 0 ? { order: fragment.order } : {}),
+      ...(Object.keys(fragment.meta).length > 0 ? { meta: fragment.meta } : {}),
     },
     ...(attachments.length > 0 ? { attachments } : {}),
   }
   return JSON.stringify(data, null, 2)
 }
 
+export interface BundleConfigsOption {
+  blockConfig?: BlockConfig
+  agentBlockConfigs?: Record<string, AgentBlockConfig>
+}
+
 export function serializeBundle(
   fragments: Fragment[],
   mediaById?: Map<string, Fragment>,
   storyName?: string,
+  configs?: BundleConfigsOption,
 ): string {
   const entries: FragmentExportEntry[] = fragments.map((fragment) => {
     const attachments = collectAttachments(fragment, mediaById)
     return {
+      id: fragment.id,
       type: fragment.type,
       name: fragment.name,
       description: fragment.description,
       content: fragment.content,
       tags: fragment.tags,
       sticky: fragment.sticky,
+      ...(fragment.refs.length > 0 ? { refs: fragment.refs } : {}),
+      ...(fragment.placement !== 'system' ? { placement: fragment.placement } : {}),
+      ...(fragment.order !== 0 ? { order: fragment.order } : {}),
+      ...(Object.keys(fragment.meta).length > 0 ? { meta: fragment.meta } : {}),
       ...(attachments.length > 0 ? { attachments } : {}),
     }
   })
@@ -130,8 +158,27 @@ export function serializeBundle(
     exportedAt: new Date().toISOString(),
     ...(storyName ? { storyName } : {}),
     fragments: entries,
+    ...(configs?.blockConfig && !isBlockConfigEmpty(configs.blockConfig) ? { blockConfig: configs.blockConfig } : {}),
+    ...(configs?.agentBlockConfigs && Object.keys(configs.agentBlockConfigs).length > 0 ? { agentBlockConfigs: configs.agentBlockConfigs } : {}),
   }
   return JSON.stringify(data, null, 2)
+}
+
+export function isBlockConfigEmpty(config: BlockConfig): boolean {
+  return (
+    config.customBlocks.length === 0 &&
+    Object.keys(config.overrides).length === 0 &&
+    config.blockOrder.length === 0
+  )
+}
+
+export function isAgentBlockConfigEmpty(config: AgentBlockConfig): boolean {
+  return (
+    config.customBlocks.length === 0 &&
+    Object.keys(config.overrides).length === 0 &&
+    config.blockOrder.length === 0 &&
+    config.disabledTools.length === 0
+  )
 }
 
 export function parseFragmentClipboard(text: string): FragmentClipboardData | null {
@@ -224,21 +271,35 @@ export async function importFragmentEntry(storyId: string, entry: FragmentExport
     }
   }
 
-  // 2. Create the main fragment
+  // 2. Create the main fragment with tags and meta
+  const createMeta = {
+    ...(entry.meta ?? {}),
+    ...(visualRefs.length > 0 ? { visualRefs } : {}),
+  }
   const created = await api.fragments.create(storyId, {
     type: entry.type,
     name: entry.name,
     description: entry.description || '',
     content: entry.content,
+    ...(entry.id ? { id: entry.id } : {}),
+    ...(entry.tags && entry.tags.length > 0 ? { tags: entry.tags } : {}),
+    ...(Object.keys(createMeta).length > 0 ? { meta: createMeta } : {}),
   })
 
-  // 3. If there are visual refs, update the fragment's meta
-  if (visualRefs.length > 0) {
+  // 3. Apply additional properties that require update
+  const needsUpdate =
+    entry.sticky ||
+    (entry.placement && entry.placement !== 'system') ||
+    (entry.order !== undefined && entry.order !== 0)
+
+  if (needsUpdate) {
     await api.fragments.update(storyId, created.id, {
       name: created.name,
       description: created.description,
       content: created.content,
-      meta: { visualRefs },
+      ...(entry.sticky ? { sticky: true } : {}),
+      ...(entry.placement ? { placement: entry.placement } : {}),
+      ...(entry.order !== undefined ? { order: entry.order } : {}),
     })
   }
 

@@ -1,9 +1,10 @@
 import { ToolLoopAgent, stepCountIs } from 'ai'
 import { getModel } from '../llm/client'
-import { getStory, getFragment, listFragments } from '../fragments/storage'
+import { getStory } from '../fragments/storage'
 import { buildContextState, createDefaultBlocks, compileBlocks } from '../llm/context-builder'
 import { getBlockConfig } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
+import { createScriptHelpers } from '../blocks/script-context'
 import { createLogger } from '../logging'
 
 const logger = createLogger('directions-suggest')
@@ -52,8 +53,7 @@ export async function suggestDirections(
   const blockConfig = await getBlockConfig(dataDir, storyId)
   blocks = await applyBlockConfig(blocks, blockConfig, {
     ...ctxState,
-    getFragment: (id: string) => getFragment(dataDir, storyId, id),
-    getFragments: (type?: string) => listFragments(dataDir, storyId, type),
+    ...createScriptHelpers(dataDir, storyId),
   })
   const messages = compileBlocks(blocks)
 

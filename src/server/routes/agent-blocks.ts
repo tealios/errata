@@ -1,11 +1,12 @@
 import { Elysia } from 'elysia'
-import { getStory, getFragment, listFragments } from '../fragments/storage'
+import { getStory } from '../fragments/storage'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import { listActiveAgents } from '../agents/active-registry'
 import { compileBlocks } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
+import { createScriptHelpers } from '../blocks/script-context'
 import { CustomBlockDefinitionSchema } from '../blocks/schema'
 import type { BlockOverride } from '../blocks/schema'
 import {
@@ -93,8 +94,7 @@ export function agentBlockRoutes(dataDir: string) {
       const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
       blocks = await applyBlockConfig(blocks, config, {
         ...previewCtx,
-        getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
-        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
+        ...createScriptHelpers(dataDir, params.storyId),
       })
       const messages = compileBlocks(blocks)
       const blocksMeta = blocks

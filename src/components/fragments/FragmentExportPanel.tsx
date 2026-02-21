@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type Fragment } from '@/lib/api'
+import { api, type Fragment, type ExportedConfigs } from '@/lib/api'
 import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, type Bubble } from '@/lib/fragment-visuals'
 import { serializeFragment, serializeBundle, downloadExportFile } from '@/lib/fragment-clipboard'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   Users,
   Database,
   Package,
+  Settings2,
 } from 'lucide-react'
 
 interface FragmentExportPanelProps {
@@ -51,11 +52,28 @@ function BubbleSvgShape({ b }: { b: Bubble; i: number }) {
 export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExportPanelProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
+  const [includeConfigs, setIncludeConfigs] = useState(false)
 
   const { data: allFragments } = useQuery({
     queryKey: ['fragments', storyId],
     queryFn: () => api.fragments.list(storyId),
   })
+
+  const { data: exportedConfigs } = useQuery({
+    queryKey: ['blocks', storyId, 'export-configs'],
+    queryFn: () => api.blocks.exportConfigs(storyId),
+    enabled: includeConfigs,
+  })
+
+  const configSummary = useMemo(() => {
+    if (!exportedConfigs) return null
+    const customBlockCount = exportedConfigs.blockConfig?.customBlocks.length ?? 0
+    const overrideCount = Object.keys(exportedConfigs.blockConfig?.overrides ?? {}).length
+    const agentCount = Object.keys(exportedConfigs.agentBlockConfigs ?? {}).length
+    const hasBlockConfig = customBlockCount > 0 || overrideCount > 0
+    if (!hasBlockConfig && agentCount === 0) return null
+    return { customBlockCount, overrideCount, agentCount, hasBlockConfig }
+  }, [exportedConfigs])
 
   const { data: imageFragments } = useQuery({
     queryKey: ['fragments', storyId, 'image'],
@@ -126,34 +144,45 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
     return allExportable.filter((f) => selected.has(f.id))
   }, [allExportable, selected])
 
+  const bundleConfigs = useMemo(() => {
+    if (!includeConfigs || !exportedConfigs) return undefined
+    const hasBlock = !!exportedConfigs.blockConfig
+    const hasAgent = !!exportedConfigs.agentBlockConfigs && Object.keys(exportedConfigs.agentBlockConfigs).length > 0
+    if (!hasBlock && !hasAgent) return undefined
+    return {
+      blockConfig: exportedConfigs.blockConfig,
+      agentBlockConfigs: exportedConfigs.agentBlockConfigs,
+    }
+  }, [includeConfigs, exportedConfigs])
+
   const handleDownload = useCallback(() => {
     if (selectedFragments.length === 0) return
 
-    if (selectedFragments.length === 1) {
+    if (selectedFragments.length === 1 && !bundleConfigs) {
       const json = serializeFragment(selectedFragments[0], mediaById)
       const safeName = selectedFragments[0].name.replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 40)
       downloadExportFile(json, `errata-${safeName}.json`)
     } else {
-      const json = serializeBundle(selectedFragments, mediaById, storyName)
+      const json = serializeBundle(selectedFragments, mediaById, storyName, bundleConfigs)
       const safeName = (storyName ?? 'export').replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 40)
       downloadExportFile(json, `errata-${safeName}-${selectedFragments.length}.fragment-pack.json`)
     }
-  }, [selectedFragments, mediaById, storyName])
+  }, [selectedFragments, mediaById, storyName, bundleConfigs])
 
   const handleCopyClipboard = useCallback(async () => {
     if (selectedFragments.length === 0) return
 
     let json: string
-    if (selectedFragments.length === 1) {
+    if (selectedFragments.length === 1 && !bundleConfigs) {
       json = serializeFragment(selectedFragments[0], mediaById)
     } else {
-      json = serializeBundle(selectedFragments, mediaById, storyName)
+      json = serializeBundle(selectedFragments, mediaById, storyName, bundleConfigs)
     }
 
     await navigator.clipboard.writeText(json)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [selectedFragments, mediaById, storyName])
+  }, [selectedFragments, mediaById, storyName, bundleConfigs])
 
   const allSelected = allExportable.length > 0 && allExportable.every((f) => selected.has(f.id))
 
@@ -294,6 +323,36 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
           )}
         </div>
       </ScrollArea>
+
+      {/* Context config toggle */}
+      <div className="px-6 py-3 border-t border-border/30">
+        <div
+          onClick={() => setIncludeConfigs((v) => !v)}
+          className="flex items-center gap-2.5 cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIncludeConfigs((v) => !v) } }}
+        >
+          <Checkbox checked={includeConfigs} className="size-3.5" tabIndex={-1} />
+          <Settings2 className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+            Include context configuration
+          </span>
+        </div>
+        {includeConfigs && configSummary && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 ml-6">
+            {[
+              configSummary.hasBlockConfig && `${configSummary.customBlockCount} custom block${configSummary.customBlockCount !== 1 ? 's' : ''}, ${configSummary.overrideCount} override${configSummary.overrideCount !== 1 ? 's' : ''}`,
+              configSummary.agentCount > 0 && `${configSummary.agentCount} agent config${configSummary.agentCount !== 1 ? 's' : ''}`,
+            ].filter(Boolean).join(', ')}
+          </p>
+        )}
+        {includeConfigs && !configSummary && exportedConfigs && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 ml-6 italic">
+            No custom configuration to export
+          </p>
+        )}
+      </div>
 
       {/* Footer actions */}
       <div className="flex items-center gap-2 px-6 py-4 border-t border-border/50">

@@ -12,12 +12,18 @@ This skill keeps project documentation in sync with git commits.
    - commit feed,
    - suggested docs to review when code changed without doc updates.
 5. Stores state in `.agent/docs-sync-state.json`.
+6. Updates the in-app help component (`src/components/help/help-content.tsx`) when user-facing features change.
 
 ## Run
 
 ```bash
 bun run docs:sync
 ```
+
+## Tracked documentation
+
+- **Markdown docs** — Files in `docs/` and root-level `.md` files.
+- **Help component** — `src/components/help/help-content.tsx` contains the in-app help panel content. When features are added or changed, the corresponding help section/subsection should be updated to match. The help is structured as `HELP_SECTIONS` — an array of `HelpSection` objects each containing `subsections` with JSX content.
 
 ## Baseline behavior
 

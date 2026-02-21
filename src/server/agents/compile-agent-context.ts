@@ -2,9 +2,9 @@ import type { ToolSet } from 'ai'
 import type { ContextBlock, ContextMessage } from '../llm/context-builder'
 import { compileBlocks } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
+import { createScriptHelpers } from '../blocks/script-context'
 import { agentBlockRegistry } from './agent-block-registry'
 import { getAgentBlockConfig } from './agent-block-storage'
-import { getFragment, listFragments } from '../fragments/storage'
 import type { AgentBlockContext } from './agent-block-context'
 
 export interface CompiledAgentContext {
@@ -30,8 +30,7 @@ export async function compileAgentContext(
   const config = await getAgentBlockConfig(dataDir, storyId, agentName)
   const scriptContext = {
     ...blockContext,
-    getFragment: (id: string) => getFragment(dataDir, storyId, id),
-    getFragments: (type?: string) => listFragments(dataDir, storyId, type),
+    ...createScriptHelpers(dataDir, storyId),
   }
   blocks = await applyBlockConfig(blocks, config, scriptContext)
 

@@ -201,8 +201,8 @@ export function FragmentList({
   const [sort, setSort] = useState<SortMode>('order')
   const queryClient = useQueryClient()
   const dragItem = useRef<number | null>(null)
-  const dragOverItem = useRef<number | null>(null)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dragFragmentId, setDragFragmentId] = useState<string | null>(null)
+  const [dragDisplayOrder, setDragDisplayOrder] = useState<Fragment[] | null>(null)
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all'],
@@ -242,10 +242,29 @@ export function FragmentList({
     },
   })
 
+  const fragmentsQueryKey = ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all']
+
   const reorderMutation = useMutation({
     mutationFn: (items: Array<{ id: string; order: number }>) =>
       api.fragments.reorder(storyId, items),
-    onSuccess: () => {
+    onMutate: async (items) => {
+      await queryClient.cancelQueries({ queryKey: ['fragments', storyId] })
+      const previous = queryClient.getQueryData<Fragment[]>(fragmentsQueryKey)
+      queryClient.setQueryData<Fragment[]>(fragmentsQueryKey, (old) => {
+        if (!old) return old
+        const orderMap = new Map(items.map((item) => [item.id, item.order]))
+        return old
+          .map((f) => (orderMap.has(f.id) ? { ...f, order: orderMap.get(f.id)! } : f))
+          .sort((a, b) => a.order - b.order)
+      })
+      return { previous }
+    },
+    onError: (_err, _items, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(fragmentsQueryKey, context.previous)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ['fragments', storyId],
         predicate: (q) => {
@@ -323,38 +342,51 @@ export function FragmentList({
     return map
   }, [imageFragments, iconFragments])
 
-  // Drag handlers — matching BlockEditorPanel pattern
-  const handleDragStart = useCallback((index: number) => {
-    dragItem.current = index
-    setDragIndex(index)
-  }, [])
-
-  const handleDragEnter = useCallback((index: number) => {
-    dragOverItem.current = index
-  }, [])
-
+  // Drag handlers — live shifting + optimistic reorder
   const filteredRef = useRef(filtered)
   filteredRef.current = filtered
   const reorderMutateRef = useRef(reorderMutation.mutate)
   reorderMutateRef.current = reorderMutation.mutate
 
+  const handleDragStart = useCallback((index: number) => {
+    dragItem.current = index
+    const list = filteredRef.current
+    setDragFragmentId(list[index]?.id ?? null)
+    setDragDisplayOrder([...list])
+  }, [])
+
+  const handleDragEnter = useCallback((index: number) => {
+    if (dragItem.current === null || dragItem.current === index) return
+    setDragDisplayOrder((prev) => {
+      if (!prev) return prev
+      const reordered = [...prev]
+      const [removed] = reordered.splice(dragItem.current!, 1)
+      reordered.splice(index, 0, removed)
+      dragItem.current = index
+      return reordered
+    })
+  }, [])
+
   const handleDragEnd = useCallback(() => {
-    if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
-      setDragIndex(null)
+    const displayOrder = dragDisplayOrderRef.current
+    if (!displayOrder) {
+      setDragFragmentId(null)
+      setDragDisplayOrder(null)
       return
     }
 
-    const reordered = [...filteredRef.current]
-    const [removed] = reordered.splice(dragItem.current, 1)
-    reordered.splice(dragOverItem.current, 0, removed)
-
-    const items = reordered.map((f, i) => ({ id: f.id, order: i }))
+    const items = displayOrder.map((f, i) => ({ id: f.id, order: i }))
     reorderMutateRef.current(items)
 
     dragItem.current = null
-    dragOverItem.current = null
-    setDragIndex(null)
+    setDragFragmentId(null)
+    setDragDisplayOrder(null)
   }, [])
+
+  const dragDisplayOrderRef = useRef(dragDisplayOrder)
+  dragDisplayOrderRef.current = dragDisplayOrder
+
+  const displayList = dragDisplayOrder ?? filtered
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground p-4">Loading...</p>
@@ -440,18 +472,18 @@ export function FragmentList({
 
       <ScrollArea className="flex-1 min-h-0" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-scroll')}>
         <div className="p-2 space-y-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-items')}>
-          {filtered.length === 0 && (
+          {displayList.length === 0 && (
             <p className="text-xs text-muted-foreground py-8 text-center italic">
               {search.trim() ? 'No matches' : 'No fragments yet'}
             </p>
           )}
-          {filtered.map((fragment, index) => (
+          {displayList.map((fragment, index) => (
             <FragmentRow
               key={fragment.id}
               fragment={fragment}
               index={index}
               selected={selectedId === fragment.id}
-              isDragging={dragIndex === index}
+              isDragging={dragFragmentId === fragment.id}
               canDrag={canDrag}
               showType={showType}
               mediaById={mediaById}

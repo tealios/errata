@@ -305,6 +305,17 @@ export interface AgentBlocksResponse {
   availableTools: string[]
 }
 
+// Config export/import types
+export interface ExportedConfigs {
+  blockConfig?: BlockConfig
+  agentBlockConfigs?: Record<string, AgentBlockConfig>
+}
+
+export interface ImportConfigsPayload {
+  blockConfig?: BlockConfig
+  agentBlockConfigs?: Record<string, AgentBlockConfig>
+}
+
 // Branch types
 export interface BranchMeta {
   id: string

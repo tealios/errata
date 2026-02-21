@@ -1,10 +1,14 @@
 import { Elysia, t } from 'elysia'
-import { getStory, getFragment, listFragments } from '../fragments/storage'
+import { getStory } from '../fragments/storage'
 import { buildContextState, createDefaultBlocks, compileBlocks } from '../llm/context-builder'
-import { getBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from '../blocks/storage'
+import { getBlockConfig, saveBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
-import { CustomBlockDefinitionSchema } from '../blocks/schema'
-import type { BlockOverride } from '../blocks/schema'
+import { createScriptHelpers } from '../blocks/script-context'
+import { CustomBlockDefinitionSchema, BlockConfigSchema } from '../blocks/schema'
+import type { BlockOverride, BlockConfig } from '../blocks/schema'
+import { agentBlockRegistry } from '../agents/agent-block-registry'
+import { ensureCoreAgentsRegistered } from '../agents/register-core'
+import { getAgentBlockConfig, saveAgentBlockConfig, type AgentBlockConfig } from '../agents/agent-block-storage'
 
 export function blockRoutes(dataDir: string) {
   return new Elysia()
@@ -39,8 +43,7 @@ export function blockRoutes(dataDir: string) {
       const blockConfig = await getBlockConfig(dataDir, params.storyId)
       blocks = await applyBlockConfig(blocks, blockConfig, {
         ...ctxState,
-        getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
-        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
+        ...createScriptHelpers(dataDir, params.storyId),
       })
       const messages = compileBlocks(blocks)
       const blocksMeta = blocks
@@ -105,8 +108,7 @@ export function blockRoutes(dataDir: string) {
       const ctxState = await buildContextState(dataDir, params.storyId, '(preview)')
       const scriptContext = {
         ...ctxState,
-        getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
-        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
+        ...createScriptHelpers(dataDir, params.storyId),
       }
       const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
       try {
@@ -136,5 +138,67 @@ export function blockRoutes(dataDir: string) {
         blockOrder,
       )
       return config
+    })
+
+    .get('/stories/:storyId/export-configs', async ({ params, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const blockConfig = await getBlockConfig(dataDir, params.storyId)
+      const isBlockEmpty =
+        blockConfig.customBlocks.length === 0 &&
+        Object.keys(blockConfig.overrides).length === 0 &&
+        blockConfig.blockOrder.length === 0
+
+      ensureCoreAgentsRegistered()
+      const agentDefs = agentBlockRegistry.list()
+      const agentBlockConfigs: Record<string, AgentBlockConfig> = {}
+      for (const def of agentDefs) {
+        const cfg = await getAgentBlockConfig(dataDir, params.storyId, def.agentName)
+        const isEmpty =
+          cfg.customBlocks.length === 0 &&
+          Object.keys(cfg.overrides).length === 0 &&
+          cfg.blockOrder.length === 0 &&
+          cfg.disabledTools.length === 0
+        if (!isEmpty) {
+          agentBlockConfigs[def.agentName] = cfg
+        }
+      }
+
+      return {
+        ...(isBlockEmpty ? {} : { blockConfig }),
+        ...(Object.keys(agentBlockConfigs).length > 0 ? { agentBlockConfigs } : {}),
+      }
+    })
+
+    .post('/stories/:storyId/import-configs', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      const { blockConfig, agentBlockConfigs } = body as {
+        blockConfig?: BlockConfig
+        agentBlockConfigs?: Record<string, AgentBlockConfig>
+      }
+
+      if (blockConfig) {
+        const parsed = BlockConfigSchema.safeParse(blockConfig)
+        if (parsed.success) {
+          await saveBlockConfig(dataDir, params.storyId, parsed.data)
+        }
+      }
+
+      if (agentBlockConfigs) {
+        for (const [agentName, cfg] of Object.entries(agentBlockConfigs)) {
+          await saveAgentBlockConfig(dataDir, params.storyId, agentName, cfg)
+        }
+      }
+
+      return { ok: true }
     })
 }

@@ -43,7 +43,14 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Story not found' }
       }
       const now = new Date().toISOString()
-      const id = generateFragmentId(body.type)
+      // Use provided ID if available and not already taken, otherwise generate
+      let id: string
+      if (body.id) {
+        const existing = await getFragment(dataDir, params.storyId, body.id)
+        id = existing ? generateFragmentId(body.type) : body.id
+      } else {
+        id = generateFragmentId(body.type)
+      }
       const fragment: Fragment = {
         id,
         type: body.type as Fragment['type'],
@@ -70,6 +77,7 @@ export function fragmentRoutes(dataDir: string) {
         name: t.String(),
         description: t.String(),
         content: t.String(),
+        id: t.Optional(t.String()),
         tags: t.Optional(t.Array(t.String())),
         meta: t.Optional(t.Record(t.String(), t.Unknown())),
       }),

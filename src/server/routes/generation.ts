@@ -14,6 +14,7 @@ import { generateFragmentId } from '@/lib/fragment-ids'
 import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints } from '../llm/context-builder'
 import { getBlockConfig } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
+import { createScriptHelpers } from '../blocks/script-context'
 import { createFragmentTools } from '../llm/tools'
 import { getModel } from '../llm/client'
 import { createWriterAgent } from '../llm/writer-agent'
@@ -174,8 +175,7 @@ export function generationRoutes(dataDir: string) {
       const blockConfig = await getBlockConfig(dataDir, params.storyId)
       blocks = await applyBlockConfig(blocks, blockConfig, {
         ...ctxState,
-        getFragment: (id: string) => getFragment(dataDir, params.storyId, id),
-        getFragments: (type?: string) => listFragments(dataDir, params.storyId, type),
+        ...createScriptHelpers(dataDir, params.storyId),
       })
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
       let messages = compileBlocks(blocks)

@@ -705,6 +705,9 @@ export const HELP_SECTIONS: HelpSection[] = [
                   ['ctx.characterShortlist', 'Non-pinned characters.'],
                   ['ctx.authorInput', 'The author\'s current direction.'],
                   ['ctx.getFragment(id)', 'Fetch any fragment by ID (async — use await).'],
+                  ['ctx.getFragments(type?)', 'List all fragments, optionally filtered by type (async).'],
+                  ['ctx.getFragmentByTag(tag)', 'Fetch the first fragment with a matching tag, or null (async).'],
+                  ['ctx.getFragmentsByTag(tag)', 'Fetch all fragments with a matching tag (async).'],
                 ].map(([field, desc]) => (
                   <div key={field} className="flex gap-2 items-start">
                     <code className="text-[10.5px] font-mono text-primary/70 bg-primary/5 px-1 py-0.5 rounded shrink-0 mt-px">{field}</code>
@@ -734,6 +737,10 @@ return ''`}</div>
 const frag = await ctx.getFragment('kn-abc123')
 if (!frag) return ''
 return \`Reminder: \${frag.content}\``}</div>
+                <div className="rounded-md border border-border/25 bg-accent/15 px-3 py-2 text-[11px] font-mono text-foreground/55 leading-relaxed whitespace-pre-wrap">{`// Lookup by tag (stable across imports)
+const rules = await ctx.getFragmentsByTag('combat')
+if (!rules.length) return ''
+return rules.map(r => r.content).join('\\n')`}</div>
               </div>
             </div>
             <div className="mt-3 mb-1">
@@ -827,13 +834,43 @@ return \`Reminder: \${frag.content}\``}</div>
         ),
       },
       {
+        id: 'export-import',
+        title: 'Export & import',
+        content: (
+          <>
+            <P>
+              Fragment packs let you share characters, guidelines, and knowledge between stories
+              or with other users. Export from the sidebar's export panel, import via the import dialog.
+            </P>
+            <P>
+              Exported packs include full fragment data — content, tags, placement, order, metadata,
+              and attached images. Fragment IDs are preserved on import when possible; if an ID
+              conflicts with an existing fragment, a new one is generated automatically.
+            </P>
+            <P>
+              You can optionally include <strong className="text-foreground/75">context configuration</strong>{' '}
+              in your export — custom blocks, block overrides, and per-agent block configs. On import,
+              per-section checkboxes let you choose which configs to apply. Imported configs replace
+              existing ones for that section.
+            </P>
+            <Tip>
+              Since fragment IDs may change on import, use tags in script blocks instead of hardcoded IDs.
+              For example, tag a fragment "world-rules" and use <Mono>ctx.getFragmentByTag('world-rules')</Mono>{' '}
+              in your custom block script.
+            </Tip>
+          </>
+        ),
+      },
+      {
         id: 'tags-refs',
         title: 'Tags & references',
         content: (
           <>
             <P>
               <strong className="text-foreground/75">Tags</strong> are freeform labels for organizing fragments.
-              Use them for filtering and search.
+              Use them for filtering and search. Tags are preserved when exporting and importing fragment
+              packs, so they're a reliable way to reference fragments in script blocks — use{' '}
+              <Mono>ctx.getFragmentByTag(tag)</Mono> instead of hardcoding IDs, since IDs may change on import.
             </P>
             <P>
               <strong className="text-foreground/75">References</strong> link one fragment to another by ID.
@@ -903,7 +940,7 @@ return \`Reminder: \${frag.content}\``}</div>
             <P>
               <strong className="text-foreground/75">Analyses</strong> — each prose generation gets
               its own analysis entry. Expand one to see the summary update, which characters appeared,
-              any contradictions found, knowledge suggestions, and timeline events detected.
+              any contradictions found, fragment suggestions, and timeline events detected.
             </P>
             <P>
               <strong className="text-foreground/75">Characters</strong> — tracks which characters
@@ -938,18 +975,19 @@ return \`Reminder: \${frag.content}\``}</div>
       },
       {
         id: 'suggestions',
-        title: 'Knowledge suggestions',
+        title: 'Fragment suggestions',
         content: (
           <>
             <P>
               When the librarian detects new information in your prose — a new character, a world-building
-              detail, an important object — it creates a knowledge suggestion. Each suggestion includes
+              detail, an important object — it creates a fragment suggestion. Each suggestion includes
               a name, type, and description.
             </P>
             <P>
               Suggestions can either create a brand new fragment or update an existing one. Click
               the <strong className="text-foreground/75">+</strong> button to accept a suggestion,
-              and the fragment will be created or updated immediately.
+              and the fragment will be created or updated immediately. The librarian can also
+              directly update existing fragments in-place when it detects changes to established details.
             </P>
             <Tip>
               Suggestions that update existing fragments show which fragment they target, so you

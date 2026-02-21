@@ -187,7 +187,11 @@ After each analysis, the librarian can produce **direction suggestions** — pos
 - Librarian tool: `suggestDirections` registered in `src/server/librarian/analysis-tools.ts`
 - Directions from the latest analysis are surfaced in the generation input's **guided mode**
 
-Mentions and knowledge suggestions are deduplicated across multi-turn tool calls to prevent duplicate entries when the librarian's analysis spans several steps.
+Mentions and fragment suggestions are deduplicated across multi-turn tool calls to prevent duplicate entries when the librarian's analysis spans several steps.
+
+## Fragment Suggestions & Updates
+
+The librarian's analysis tools use `fragmentSuggestions` (renamed from `knowledgeSuggestions`) to propose creating or updating character and knowledge fragments. The `suggestFragment` tool collects suggestions; the `updateFragment` tool lets the librarian directly update existing fragments in-place based on new information from the prose. Backward-compatible migration on read handles the old field name.
 
 ## Known Limitations
 

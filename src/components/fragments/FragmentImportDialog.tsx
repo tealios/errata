@@ -1,14 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import {
   parseErrataExport,
   readFileAsText,
   importFragmentEntry,
+  isBlockConfigEmpty,
+  isAgentBlockConfigEmpty,
   type ErrataExportData,
   type FragmentClipboardData,
   type FragmentBundleData,
   type FragmentExportEntry,
 } from '@/lib/fragment-clipboard'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Clipboard, FileJson, AlertCircle, ImageIcon, Upload, Package } from 'lucide-react'
+import { Clipboard, FileJson, AlertCircle, ImageIcon, Upload, Package, Settings2 } from 'lucide-react'
 
 interface FragmentImportDialogProps {
   storyId: string
@@ -51,6 +55,21 @@ export function FragmentImportDialog({
   const [parseError, setParseError] = useState<string | null>(null)
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
   const [dragOver, setDragOver] = useState(false)
+  const [importBlockConfig, setImportBlockConfig] = useState(true)
+  const [importAgentConfigs, setImportAgentConfigs] = useState<Set<string>>(new Set())
+
+  // Detect available configs in parsed bundle
+  const bundleConfigs = useMemo(() => {
+    if (!parsed || !isBundle(parsed)) return null
+    const hasBlockConfig = !!parsed.blockConfig && !isBlockConfigEmpty(parsed.blockConfig)
+    const agentNames = parsed.agentBlockConfigs
+      ? Object.entries(parsed.agentBlockConfigs)
+          .filter(([, cfg]) => !isAgentBlockConfigEmpty(cfg))
+          .map(([name]) => name)
+      : []
+    if (!hasBlockConfig && agentNames.length === 0) return null
+    return { hasBlockConfig, agentNames }
+  }, [parsed])
 
   // Manage dialog state on open/close
   useEffect(() => {
@@ -60,6 +79,8 @@ export function FragmentImportDialog({
       setParseError(null)
       setSelectedIndices(new Set())
       setDragOver(false)
+      setImportBlockConfig(true)
+      setImportAgentConfigs(new Set())
       return
     }
     if (initialData) {
@@ -68,6 +89,7 @@ export function FragmentImportDialog({
       setParseError(null)
       if (isBundle(initialData)) {
         setSelectedIndices(new Set(initialData.fragments.map((_, i) => i)))
+        initConfigSelections(initialData)
       }
     } else {
       // Try reading clipboard automatically
@@ -79,6 +101,7 @@ export function FragmentImportDialog({
           setParseError(null)
           if (isBundle(result)) {
             setSelectedIndices(new Set(result.fragments.map((_, i) => i)))
+            initConfigSelections(result)
           }
         }
       }).catch(() => {
@@ -86,6 +109,16 @@ export function FragmentImportDialog({
       })
     }
   }, [open, initialData])
+
+  function initConfigSelections(data: FragmentBundleData) {
+    setImportBlockConfig(!!data.blockConfig && !isBlockConfigEmpty(data.blockConfig))
+    const agents = data.agentBlockConfigs
+      ? Object.entries(data.agentBlockConfigs)
+          .filter(([, cfg]) => !isAgentBlockConfigEmpty(cfg))
+          .map(([name]) => name)
+      : []
+    setImportAgentConfigs(new Set(agents))
+  }
 
   const handleTextChange = (text: string) => {
     setJsonText(text)
@@ -100,6 +133,7 @@ export function FragmentImportDialog({
       setParseError(null)
       if (isBundle(result)) {
         setSelectedIndices(new Set(result.fragments.map((_, i) => i)))
+        initConfigSelections(result)
       }
     } else {
       setParsed(null)
@@ -170,11 +204,39 @@ export function FragmentImportDialog({
         for (const entry of entries) {
           results.push(await importFragmentEntry(storyId, entry))
         }
+
+        // Import configs if any are selected
+        const hasConfigsToImport =
+          (importBlockConfig && data.blockConfig) ||
+          importAgentConfigs.size > 0
+
+        if (hasConfigsToImport) {
+          const payload: Record<string, unknown> = {}
+          if (importBlockConfig && data.blockConfig) {
+            payload.blockConfig = data.blockConfig
+          }
+          if (importAgentConfigs.size > 0 && data.agentBlockConfigs) {
+            const selected: Record<string, unknown> = {}
+            for (const name of importAgentConfigs) {
+              if (data.agentBlockConfigs[name]) {
+                selected[name] = data.agentBlockConfigs[name]
+              }
+            }
+            if (Object.keys(selected).length > 0) {
+              payload.agentBlockConfigs = selected
+            }
+          }
+          if (Object.keys(payload).length > 0) {
+            await api.blocks.importConfigs(storyId, payload as any)
+          }
+        }
+
         return results
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['blocks', storyId] })
       onOpenChange(false)
       onImported?.()
     },
@@ -272,6 +334,18 @@ export function FragmentImportDialog({
               onSelectAll={() => setSelectedIndices(new Set(parsed.fragments.map((_, i) => i)))}
               onDeselectAll={() => setSelectedIndices(new Set())}
               onClear={() => { setParsed(null); setJsonText(''); setSelectedIndices(new Set()) }}
+              bundleConfigs={bundleConfigs}
+              importBlockConfig={importBlockConfig}
+              onToggleBlockConfig={() => setImportBlockConfig((v) => !v)}
+              importAgentConfigs={importAgentConfigs}
+              onToggleAgentConfig={(name) => {
+                setImportAgentConfigs((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(name)) next.delete(name)
+                  else next.add(name)
+                  return next
+                })
+              }}
             />
           )}
         </div>
@@ -377,6 +451,11 @@ export function BundlePreview({
   onSelectAll,
   onDeselectAll,
   onClear,
+  bundleConfigs,
+  importBlockConfig,
+  onToggleBlockConfig,
+  importAgentConfigs,
+  onToggleAgentConfig,
 }: {
   data: FragmentBundleData
   selectedIndices: Set<number>
@@ -384,6 +463,11 @@ export function BundlePreview({
   onSelectAll: () => void
   onDeselectAll: () => void
   onClear: () => void
+  bundleConfigs?: { hasBlockConfig: boolean; agentNames: string[] } | null
+  importBlockConfig?: boolean
+  onToggleBlockConfig?: () => void
+  importAgentConfigs?: Set<string>
+  onToggleAgentConfig?: (name: string) => void
 }) {
   const allSelected = data.fragments.length === selectedIndices.size
 
@@ -467,6 +551,55 @@ export function BundlePreview({
         ))}
       </div>
 
+      {/* Context configuration section */}
+      {bundleConfigs && (
+        <div className="border-t border-border/30">
+          <div className="px-4 py-2 bg-background/30 border-b border-border/20">
+            <div className="flex items-center gap-1.5">
+              <Settings2 className="size-3 text-muted-foreground" />
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Context Configuration</span>
+            </div>
+          </div>
+          <div className="px-4 py-1.5">
+            {bundleConfigs.hasBlockConfig && (
+              <div
+                onClick={onToggleBlockConfig}
+                className={`flex items-center gap-2.5 w-full py-1.5 text-left transition-colors hover:bg-accent/30 cursor-pointer ${
+                  importBlockConfig ? '' : 'opacity-50'
+                }`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleBlockConfig?.() } }}
+              >
+                <Checkbox checked={importBlockConfig} className="size-3.5 shrink-0" tabIndex={-1} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate leading-tight">Generation blocks</p>
+                  <p className="text-[11px] text-muted-foreground truncate">Custom blocks and overrides for generation context</p>
+                </div>
+              </div>
+            )}
+            {bundleConfigs.agentNames.map((name) => (
+              <div
+                key={name}
+                onClick={() => onToggleAgentConfig?.(name)}
+                className={`flex items-center gap-2.5 w-full py-1.5 text-left transition-colors hover:bg-accent/30 cursor-pointer ${
+                  importAgentConfigs?.has(name) ? '' : 'opacity-50'
+                }`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleAgentConfig?.(name) } }}
+              >
+                <Checkbox checked={importAgentConfigs?.has(name)} className="size-3.5 shrink-0" tabIndex={-1} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate leading-tight">{formatAgentName(name)}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">Agent-specific block configuration</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Clear */}
       <div className="border-t border-border/30 px-4 py-2">
         <button
@@ -478,4 +611,12 @@ export function BundlePreview({
       </div>
     </div>
   )
+}
+
+function formatAgentName(name: string): string {
+  return name
+    .split('.')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .replace(/-/g, ' ')
 }
