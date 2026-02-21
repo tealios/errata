@@ -72,10 +72,12 @@ export function FragmentEditor({
   const { data: _imageFragments } = useQuery({
     queryKey: ['fragments', storyId, 'image'],
     queryFn: () => api.fragments.list(storyId, 'image'),
+    staleTime: 10_000,
   })
   const { data: _iconFragments } = useQuery({
     queryKey: ['fragments', storyId, 'icon'],
     queryFn: () => api.fragments.list(storyId, 'icon'),
+    staleTime: 10_000,
   })
   const mediaById = useMemo(() => {
     const map = new Map<string, Fragment>()
