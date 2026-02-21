@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Plus, Pin, GripVertical, FileDown, UserPlus } from 'lucide-react'
+import { Plus, Pin, FileDown, UserPlus } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -38,40 +38,26 @@ function BubbleSvgShape({ b }: { b: Bubble; i: number }) {
   }
 }
 
-// --- Memoized fragment row to avoid recomputing visuals on every list render ---
+// --- Memoized fragment row ---
 
 interface FragmentRowProps {
   fragment: Fragment
-  index: number
-  selectedId?: string
-  canDrag: boolean
-  dragIndex: number | null
-  type?: string
-  allowedTypes?: string[]
+  selected: boolean
+  showType: boolean
   mediaById: Map<string, Fragment>
   onSelect: (fragment: Fragment) => void
   onPin: (fragment: Fragment) => void
   pinPending: boolean
-  onDragStart: (index: number) => void
-  onDragEnter: (index: number) => void
-  onDragEnd: (e: React.DragEvent) => void
 }
 
 const FragmentRow = memo(function FragmentRow({
   fragment,
-  index,
-  selectedId,
-  canDrag,
-  dragIndex,
-  type,
-  allowedTypes,
+  selected,
+  showType,
   mediaById,
   onSelect,
   onPin,
   pinPending,
-  onDragStart,
-  onDragEnter,
-  onDragEnd,
 }: FragmentRowProps) {
   const visual = useMemo(() => resolveFragmentVisual(fragment, mediaById), [fragment, mediaById])
   const bubbleSet = useMemo(
@@ -84,25 +70,10 @@ const FragmentRow = memo(function FragmentRow({
   return (
     <div
       data-component-id={fragmentComponentId(fragment, 'list-item')}
-      draggable={canDrag}
-      onDragStart={(e) => {
-        e.dataTransfer.setData('application/x-errata-fragment-id', fragment.id)
-        onDragStart(index)
-      }}
-      onDragEnter={() => onDragEnter(index)}
-      onDragEnd={onDragEnd}
-      onDragOver={(e) => e.preventDefault()}
       className={`group flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
-        selectedId === fragment.id ? 'bg-accent' : ''
-      } ${dragIndex === index ? 'opacity-50' : ''}`}
+        selected ? 'bg-accent' : ''
+      }`}
     >
-      {/* Drag handle */}
-      {canDrag && (
-        <div className="shrink-0 pt-0.5 cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-70 transition-opacity">
-          <GripVertical className="size-3.5 text-muted-foreground" data-component-id={fragmentComponentId(fragment, 'drag-handle')} />
-        </div>
-      )}
-
       {visual.imageUrl ? (
         boundary && boundary.width < 1 && boundary.height < 1 ? (
           <div
@@ -149,7 +120,7 @@ const FragmentRow = memo(function FragmentRow({
               sys
             </Badge>
           )}
-          {(type === undefined || allowedTypes?.length) && (
+          {showType && (
             <Badge variant="outline" className="text-[9px] h-3.5 px-1">
               {fragment.type}
             </Badge>
@@ -201,9 +172,6 @@ export function FragmentList({
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortMode>('order')
   const queryClient = useQueryClient()
-  const dragItem = useRef<number | null>(null)
-  const dragOverItem = useRef<number | null>(null)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all'],
@@ -232,7 +200,6 @@ export function FragmentList({
         sticky: !fragment.sticky,
       }),
     onSuccess: (_data, fragment) => {
-      // Only invalidate queries matching this fragment's type (or untyped)
       queryClient.invalidateQueries({
         queryKey: ['fragments', storyId],
         predicate: (q) => {
@@ -244,22 +211,7 @@ export function FragmentList({
     },
   })
 
-  const reorderMutation = useMutation({
-    mutationFn: (items: Array<{ id: string; order: number }>) =>
-      api.fragments.reorder(storyId, items),
-    onSuccess: () => {
-      // Reorder only affects the current list; invalidate matching type queries
-      queryClient.invalidateQueries({
-        queryKey: ['fragments', storyId],
-        predicate: (q) => {
-          const typeSlot = q.queryKey[2]
-          return typeSlot === undefined || typeSlot === type
-        },
-      })
-    },
-  })
-
-  // --- Stable callback refs so FragmentRow memo is never defeated ---
+  // Stable callback refs so FragmentRow memo is never defeated
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const stableOnSelect = useCallback((fragment: Fragment) => {
@@ -271,6 +223,8 @@ export function FragmentList({
   const stableOnPin = useCallback((fragment: Fragment) => {
     pinMutateRef.current(fragment)
   }, [])
+
+  const showType = type === undefined || !!allowedTypes?.length
 
   const filtered = useMemo(() => {
     if (!fragments) return []
@@ -322,46 +276,6 @@ export function FragmentList({
     }
     return map
   }, [imageFragments, iconFragments])
-
-  const canDrag = sort === 'order' && !search.trim()
-
-  const handleDragStart = useCallback((index: number) => {
-    dragItem.current = index
-    setDragIndex(index)
-  }, [])
-
-  const handleDragEnter = useCallback((index: number) => {
-    dragOverItem.current = index
-  }, [])
-
-  const filteredRef = useRef(filtered)
-  filteredRef.current = filtered
-  const reorderMutateRef = useRef(reorderMutation.mutate)
-  reorderMutateRef.current = reorderMutation.mutate
-
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    // If an external drop target (e.g. archive) accepted the drop, skip reorder
-    if (e.dataTransfer.dropEffect !== 'none') {
-      dragItem.current = null
-      dragOverItem.current = null
-      setDragIndex(null)
-      return
-    }
-    if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
-      setDragIndex(null)
-      return
-    }
-    const reordered = [...filteredRef.current]
-    const [removed] = reordered.splice(dragItem.current, 1)
-    reordered.splice(dragOverItem.current, 0, removed)
-
-    const items = reordered.map((f, i) => ({ id: f.id, order: i }))
-    reorderMutateRef.current(items)
-
-    dragItem.current = null
-    dragOverItem.current = null
-    setDragIndex(null)
-  }, [])
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground p-4">Loading...</p>
@@ -452,23 +366,16 @@ export function FragmentList({
               {search.trim() ? 'No matches' : 'No fragments yet'}
             </p>
           )}
-          {filtered.map((fragment, index) => (
+          {filtered.map((fragment) => (
             <FragmentRow
               key={fragment.id}
               fragment={fragment}
-              index={index}
-              selectedId={selectedId}
-              canDrag={canDrag}
-              dragIndex={dragIndex}
-              type={type}
-              allowedTypes={allowedTypes}
+              selected={selectedId === fragment.id}
+              showType={showType}
               mediaById={mediaById}
               onSelect={stableOnSelect}
               onPin={stableOnPin}
               pinPending={pinMutation.isPending}
-              onDragStart={handleDragStart}
-              onDragEnter={handleDragEnter}
-              onDragEnd={handleDragEnd}
             />
           ))}
         </div>
