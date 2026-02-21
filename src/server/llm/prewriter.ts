@@ -61,6 +61,7 @@ export interface PrewriterResult {
   brief: string
   reasoning: string
   messages: Array<{ role: string; content: string }>
+  customBlocks: ContextBlock[]
   durationMs: number
   model: string
   usage?: TokenUsage
@@ -176,7 +177,10 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
     content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
   }))
 
-  return { brief: fullText, reasoning: fullReasoning, messages: serializedMessages, durationMs, model: modelId, usage }
+  // Collect custom blocks from the prewriter's agent block config so they can be forwarded to the writer
+  const customBlocks = prewriterBlocks.filter(b => b.source === 'custom')
+
+  return { brief: fullText, reasoning: fullReasoning, messages: serializedMessages, customBlocks, durationMs, model: modelId, usage }
 }
 
 /**

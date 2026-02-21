@@ -269,16 +269,13 @@ export function generationRoutes(dataDir: string) {
                 prewriterLogMessages = prewriterResult.messages
                 requestLogger.info('Prewriter completed', { briefLength: prewriterBrief.length, durationMs: prewriterDurationMs })
 
-                // Build stripped writer context with only prose + brief
+                // Build stripped writer context with only prose + brief + custom blocks
                 const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList)
-                writerBlocks.push({
-                  id: 'writer-limit-thinking',
-                  name: 'Writer Limit Thinking',
-                  content: 'Limit your thinking/reasoning and tool use to what is necessary to produce the output. Focus on writing prose the thinking has been done for you by the prewriter.',
-                  order: Number.POSITIVE_INFINITY,
-                  role: 'user',
-                  source: 'prewriter',
-                })
+
+                // Carry over: generation custom blocks, system-placement fragments, guideline blocks,
+                // and custom blocks from the prewriter's agent block config
+                const carryOverBlocks = blocks.filter(b => b.source === 'custom' || b.id === 'system-fragments' || b.id.startsWith('gl-'))
+                writerBlocks.push(...carryOverBlocks, ...prewriterResult.customBlocks)
                 const writerCompiled = compileBlocks(writerBlocks)
                 writerMessages = addCacheBreakpoints(writerCompiled)
                 logMessages = writerCompiled
