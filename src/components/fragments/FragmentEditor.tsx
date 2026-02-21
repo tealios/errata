@@ -54,12 +54,15 @@ export function FragmentEditor({
   const savedStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userEditedRef = useRef(false)
 
-  // Fetch live fragment data so sticky/placement updates are reflected immediately
+  // Fetch live fragment data so sticky/placement updates are reflected immediately.
+  // initialDataUpdatedAt prevents TanStack Query from treating initialData as immediately
+  // stale and firing a background refetch on every fragment selection.
   const { data: liveFragment } = useQuery({
     queryKey: ['fragment', storyId, fragmentProp?.id],
     queryFn: () => api.fragments.get(storyId, fragmentProp!.id),
     enabled: !!fragmentProp?.id,
     initialData: fragmentProp ?? undefined,
+    initialDataUpdatedAt: fragmentProp ? Date.now() : undefined,
   })
 
   const fragment = liveFragment ?? fragmentProp
@@ -118,12 +121,26 @@ export function FragmentEditor({
   }, [sourceFragment, createType, prefill, fragmentProp?.id])
 
   const invalidate = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] }),
+    const fType = fragment?.type
+    const promises: Promise<void>[] = [
       queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] }),
-      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] }),
-      ...(fragment?.id ? [queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] })] : []),
-    ])
+    ]
+    // Invalidate only queries whose type slot matches the fragment's type (or has no type slot)
+    // This avoids cascading to unrelated type lists (image, icon, etc.)
+    queryClient.invalidateQueries({
+      queryKey: ['fragments', storyId],
+      predicate: (q) => {
+        const typeSlot = q.queryKey[2]
+        return typeSlot === undefined || typeSlot === fType
+      },
+    })
+    if (fType === 'prose') {
+      promises.push(queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] }))
+    }
+    if (fragment?.id) {
+      promises.push(queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] }))
+    }
+    await Promise.all(promises)
   }
 
   const createMutation = useMutation({
@@ -189,9 +206,18 @@ export function FragmentEditor({
     mutationFn: (data: { name: string; description: string; content: string }) =>
       api.fragments.update(storyId, fragment!.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      const fType = fragment?.type
+      queryClient.invalidateQueries({
+        queryKey: ['fragments', storyId],
+        predicate: (q) => {
+          const typeSlot = q.queryKey[2]
+          return typeSlot === undefined || typeSlot === fType
+        },
+      })
       queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] })
-      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      if (fType === 'prose') {
+        queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      }
       setSaveStatus('saved')
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus(s => s === 'saved' ? 'idle' : s), 2000)

@@ -82,9 +82,15 @@ function StoryEditorPage() {
     queryFn: () => api.stories.get(storyId),
   })
 
-  const { data: allFragments } = useQuery({
-    queryKey: ['fragments', storyId],
-    queryFn: () => api.fragments.list(storyId),
+  // Only used to check if story has any fragments (for wizard auto-show).
+  // Uses a distinct query key to avoid being caught in fragment invalidation storms.
+  const { data: fragmentCount } = useQuery({
+    queryKey: ['fragment-count', storyId],
+    queryFn: async () => {
+      const list = await api.fragments.list(storyId)
+      return list.length
+    },
+    staleTime: 30_000,
   })
 
   const { data: plugins } = useQuery({
@@ -200,8 +206,8 @@ function StoryEditorPage() {
   }, [queryClient])
 
   // Auto-show wizard when story has no fragments
-  if (showWizard === null && allFragments !== undefined) {
-    if (allFragments.length === 0) {
+  if (showWizard === null && fragmentCount !== undefined) {
+    if (fragmentCount === 0) {
       setShowWizard(true)
     } else {
       setShowWizard(false)

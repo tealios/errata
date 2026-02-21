@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, memo } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { componentId, fragmentComponentId } from '@/lib/dom-ids'
@@ -37,6 +37,153 @@ function BubbleSvgShape({ b }: { b: Bubble; i: number }) {
       return <circle key={`${b.cx}-${b.cy}`} cx={b.cx} cy={b.cy} r={b.r} fill={b.color} opacity={b.opacity} />
   }
 }
+
+// --- Memoized fragment row to avoid recomputing visuals on every list render ---
+
+interface FragmentRowProps {
+  fragment: Fragment
+  index: number
+  selectedId?: string
+  canDrag: boolean
+  dragIndex: number | null
+  type?: string
+  allowedTypes?: string[]
+  mediaById: Map<string, Fragment>
+  onSelect: (fragment: Fragment) => void
+  onPin: (fragment: Fragment) => void
+  pinPending: boolean
+  onDragStart: (index: number) => void
+  onDragEnter: (index: number) => void
+  onDragEnd: (e: React.DragEvent) => void
+}
+
+const FragmentRow = memo(function FragmentRow({
+  fragment,
+  index,
+  selectedId,
+  canDrag,
+  dragIndex,
+  type,
+  allowedTypes,
+  mediaById,
+  onSelect,
+  onPin,
+  pinPending,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
+}: FragmentRowProps) {
+  const visual = useMemo(() => resolveFragmentVisual(fragment, mediaById), [fragment, mediaById])
+  const bubbleSet = useMemo(
+    () => (!visual.imageUrl ? generateBubbles(fragment.id, fragment.type) : null),
+    [fragment.id, fragment.type, visual.imageUrl],
+  )
+
+  const boundary = visual.boundary
+
+  return (
+    <div
+      data-component-id={fragmentComponentId(fragment, 'list-item')}
+      draggable={canDrag}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-errata-fragment-id', fragment.id)
+        onDragStart(index)
+      }}
+      onDragEnter={() => onDragEnter(index)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => e.preventDefault()}
+      className={`group flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
+        selectedId === fragment.id ? 'bg-accent' : ''
+      } ${dragIndex === index ? 'opacity-50' : ''}`}
+    >
+      {/* Drag handle */}
+      {canDrag && (
+        <div className="shrink-0 pt-0.5 cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-70 transition-opacity">
+          <GripVertical className="size-3.5 text-muted-foreground" data-component-id={fragmentComponentId(fragment, 'drag-handle')} />
+        </div>
+      )}
+
+      {visual.imageUrl ? (
+        boundary && boundary.width < 1 && boundary.height < 1 ? (
+          <div
+            className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted bg-no-repeat"
+            style={{
+              backgroundImage: `url("${visual.imageUrl}")`,
+              backgroundSize: `${100 / boundary.width}% ${100 / boundary.height}%`,
+              backgroundPosition: `${boundary.width < 1 ? (boundary.x / (1 - boundary.width)) * 100 : 50}% ${boundary.height < 1 ? (boundary.y / (1 - boundary.height)) * 100 : 50}%`,
+            }}
+          />
+        ) : (
+          <div className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted">
+            <img src={visual.imageUrl} alt="" className="size-full object-cover" />
+          </div>
+        )
+      ) : bubbleSet ? (
+        <div className="size-9 shrink-0 rounded-lg overflow-hidden">
+          <svg viewBox="0 0 36 36" className="size-full" aria-hidden>
+            <rect width="36" height="36" fill={bubbleSet.bg} />
+            {bubbleSet.bubbles.map((b, i) => (
+              <BubbleSvgShape key={`${b.cx}-${b.cy}`} b={b} i={i} />
+            ))}
+          </svg>
+        </div>
+      ) : null}
+
+      <button
+        onClick={() => onSelect(fragment)}
+        className="flex-grow w-0 text-left overflow-hidden"
+        data-component-id={fragmentComponentId(fragment, 'select')}
+      >
+        <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="text-[10px] font-mono text-muted-foreground">
+            {fragment.id}
+          </span>
+          {fragment.sticky && (
+            <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
+              pinned
+            </Badge>
+          )}
+          {fragment.sticky && fragment.placement === 'system' && (
+            <Badge variant="outline" className="text-[9px] h-3.5 px-1">
+              sys
+            </Badge>
+          )}
+          {(type === undefined || allowedTypes?.length) && (
+            <Badge variant="outline" className="text-[9px] h-3.5 px-1">
+              {fragment.type}
+            </Badge>
+          )}
+        </div>
+        {fragment.description && (
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            {fragment.description}
+          </p>
+        )}
+      </button>
+
+      {/* Pin button */}
+      <Button
+        size="icon"
+        variant="ghost"
+        data-component-id={fragmentComponentId(fragment, 'pin-toggle')}
+        className={`size-6 shrink-0 transition-opacity ${
+          fragment.sticky
+            ? 'opacity-100 text-primary'
+            : 'opacity-0 group-hover:opacity-50 hover:opacity-100 hover:text-foreground'
+        }`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onPin(fragment)
+        }}
+        disabled={pinPending}
+        title={fragment.sticky ? 'Unpin' : 'Pin to context'}
+      >
+        <Pin className={`size-3.5 ${fragment.sticky ? 'fill-current' : ''}`} />
+      </Button>
+    </div>
+  )
+})
 
 type SortMode = 'name' | 'newest' | 'oldest' | 'order'
 
@@ -81,8 +228,16 @@ export function FragmentList({
         content: fragment.content,
         sticky: !fragment.sticky,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    onSuccess: (_data, fragment) => {
+      // Only invalidate queries matching this fragment's type (or untyped)
+      queryClient.invalidateQueries({
+        queryKey: ['fragments', storyId],
+        predicate: (q) => {
+          const typeSlot = q.queryKey[2]
+          return typeSlot === undefined || typeSlot === fragment.type
+        },
+      })
+      queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragment.id] })
     },
   })
 
@@ -90,7 +245,14 @@ export function FragmentList({
     mutationFn: (items: Array<{ id: string; order: number }>) =>
       api.fragments.reorder(storyId, items),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      // Reorder only affects the current list; invalidate matching type queries
+      queryClient.invalidateQueries({
+        queryKey: ['fragments', storyId],
+        predicate: (q) => {
+          const typeSlot = q.queryKey[2]
+          return typeSlot === undefined || typeSlot === type
+        },
+      })
     },
   })
 
@@ -270,121 +432,23 @@ export function FragmentList({
             </p>
           )}
           {filtered.map((fragment, index) => (
-            <div
+            <FragmentRow
               key={fragment.id}
-              data-component-id={fragmentComponentId(fragment, 'list-item')}
-              draggable={canDrag}
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/x-errata-fragment-id', fragment.id)
-                handleDragStart(index)
-              }}
-              onDragEnter={() => handleDragEnter(index)}
+              fragment={fragment}
+              index={index}
+              selectedId={selectedId}
+              canDrag={canDrag}
+              dragIndex={dragIndex}
+              type={type}
+              allowedTypes={allowedTypes}
+              mediaById={mediaById}
+              onSelect={onSelect}
+              onPin={pinMutation.mutate}
+              pinPending={pinMutation.isPending}
+              onDragStart={handleDragStart}
+              onDragEnter={handleDragEnter}
               onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-              className={`group flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 text-sm transition-colors duration-100 hover:bg-accent/50 ${
-                selectedId === fragment.id ? 'bg-accent' : ''
-              } ${dragIndex === index ? 'opacity-50' : ''}`}
-            >
-              {/* Drag handle */}
-              {canDrag && (
-                <div className="shrink-0 pt-0.5 cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-70 transition-opacity">
-                  <GripVertical className="size-3.5 text-muted-foreground" data-component-id={fragmentComponentId(fragment, 'drag-handle')} />
-                </div>
-              )}
-
-              {(() => {
-                const visual = resolveFragmentVisual(fragment, mediaById)
-                const boundary = visual.boundary
-
-                if (visual.imageUrl) {
-                  if (boundary && boundary.width < 1 && boundary.height < 1) {
-                    // Zoom into the cropped region
-                    const bgPosX = boundary.width < 1 ? (boundary.x / (1 - boundary.width)) * 100 : 50
-                    const bgPosY = boundary.height < 1 ? (boundary.y / (1 - boundary.height)) * 100 : 50
-                    return (
-                      <div
-                        className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted bg-no-repeat"
-                        style={{
-                          backgroundImage: `url("${visual.imageUrl}")`,
-                          backgroundSize: `${100 / boundary.width}% ${100 / boundary.height}%`,
-                          backgroundPosition: `${bgPosX}% ${bgPosY}%`,
-                        }}
-                      />
-                    )
-                  }
-                  return (
-                    <div className="size-9 shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted">
-                      <img src={visual.imageUrl} alt="" className="size-full object-cover" />
-                    </div>
-                  )
-                }
-
-                const bubbleSet = generateBubbles(fragment.id, fragment.type)
-                return (
-                  <div className="size-9 shrink-0 rounded-lg overflow-hidden">
-                    <svg viewBox="0 0 36 36" className="size-full" aria-hidden>
-                      <rect width="36" height="36" fill={bubbleSet.bg} />
-                      {bubbleSet.bubbles.map((b, i) => (
-                        <BubbleSvgShape key={`${b.cx}-${b.cy}`} b={b} i={i} />
-                      ))}
-                    </svg>
-                  </div>
-                )
-              })()}
-
-              <button
-                onClick={() => onSelect(fragment)}
-                className="flex-grow w-0 text-left overflow-hidden"
-                data-component-id={fragmentComponentId(fragment, 'select')}
-              >
-                <p className="font-medium text-sm truncate leading-tight">{fragment.name}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    {fragment.id}
-                  </span>
-                  {fragment.sticky && (
-                    <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
-                      pinned
-                    </Badge>
-                  )}
-                  {fragment.sticky && fragment.placement === 'system' && (
-                    <Badge variant="outline" className="text-[9px] h-3.5 px-1">
-                      sys
-                    </Badge>
-                  )}
-                  {(type === undefined || allowedTypes?.length) && (
-                    <Badge variant="outline" className="text-[9px] h-3.5 px-1">
-                      {fragment.type}
-                    </Badge>
-                  )}
-                </div>
-                {fragment.description && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {fragment.description}
-                  </p>
-                )}
-              </button>
-
-              {/* Pin button - visible on hover or when pinned */}
-              <Button
-                size="icon"
-                variant="ghost"
-                data-component-id={fragmentComponentId(fragment, 'pin-toggle')}
-                className={`size-6 shrink-0 transition-opacity ${
-                  fragment.sticky
-                    ? 'opacity-100 text-primary'
-                    : 'opacity-0 group-hover:opacity-50 hover:opacity-100 hover:text-foreground'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  pinMutation.mutate(fragment)
-                }}
-                disabled={pinMutation.isPending}
-                title={fragment.sticky ? 'Unpin' : 'Pin to context'}
-              >
-                <Pin className={`size-3.5 ${fragment.sticky ? 'fill-current' : ''}`} />
-              </Button>
-            </div>
+            />
           ))}
         </div>
       </ScrollArea>
