@@ -29,6 +29,12 @@ export interface GenerationLog {
   stepsExceeded: boolean
   totalUsage?: TokenUsage
   reasoning?: string
+  prewriterBrief?: string
+  prewriterReasoning?: string
+  prewriterMessages?: Array<{ role: string; content: string }>
+  prewriterDurationMs?: number
+  prewriterModel?: string
+  prewriterUsage?: TokenUsage
 }
 
 export interface GenerationLogSummary {

@@ -42,6 +42,7 @@ function makeStory(id: string = TEST_STORY_ID): StoryMeta {
       summarizationThreshold: 4,
       maxSteps: 10,
       modelOverrides: {},
+      generationMode: 'standard' as const,
       autoApplyLibrarianSuggestions: false,
       contextOrderMode: 'simple',
       fragmentOrder: [],

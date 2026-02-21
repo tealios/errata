@@ -338,7 +338,7 @@ export function fragmentRoutes(dataDir: string) {
       }
       for (const item of body.items) {
         const fragment = await getFragment(dataDir, params.storyId, item.id)
-        if (fragment) {
+        if (fragment && fragment.order !== item.order) {
           const updated: Fragment = {
             ...fragment,
             order: item.order,

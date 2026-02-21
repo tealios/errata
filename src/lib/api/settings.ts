@@ -11,6 +11,7 @@ export const settings = {
     // Legacy fields (backward compat)
     providerId?: string | null
     modelId?: string | null
+    generationMode?: 'standard' | 'prewriter'
     autoApplyLibrarianSuggestions?: boolean
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]

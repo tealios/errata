@@ -782,6 +782,17 @@ export function SettingsPanel({
               disabled={updateMutation.isPending}
             />
           </SettingRow>
+          <SettingRow label="Generation mode" description="How prose generation is handled">
+            <SegmentedControl
+              value={(story.settings.generationMode ?? 'standard') as 'standard' | 'prewriter'}
+              options={[
+                { value: 'standard' as const, label: 'Standard' },
+                { value: 'prewriter' as const, label: 'Prewriter' },
+              ]}
+              onChange={(v) => updateMutation.mutate({ generationMode: v })}
+              disabled={updateMutation.isPending}
+            />
+          </SettingRow>
         </div>
       </div>
 

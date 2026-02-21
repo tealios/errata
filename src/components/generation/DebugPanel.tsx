@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { BlockContentView } from '@/components/blocks/BlockContentView'
-import { X, ChevronDown, ChevronRight, Copy, Check, Brain } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, Copy, Check, Brain, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DebugPanelProps {
@@ -18,7 +18,7 @@ interface DebugPanelProps {
 
 export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelProps) {
   const [selectedLogId, setSelectedLogId] = useState<string | null>(logId ?? null)
-  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'output'>('prompt')
+  const [activeTab, setActiveTab] = useState<'prompt' | 'prewriter-prompt' | 'tools' | 'output'>('prompt')
   const directLookup = !!(logId || fragmentId)
 
   const { data: logs } = useQuery({
@@ -83,18 +83,23 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
             <>
               {/* Tabs */}
               <div className="flex items-center gap-1 px-4 py-2.5 border-b border-border/50">
-                {(['prompt', 'tools', 'output'] as const).map((tab) => (
+                {([
+                  ...(selectedLog.prewriterMessages?.length ? ['prewriter-prompt'] as const : []),
+                  'prompt' as const,
+                  'tools' as const,
+                  'output' as const,
+                ]).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     data-component-id={`debug-tab-${tab}`}
-                    className={`text-xs px-2.5 py-1 rounded-md capitalize transition-colors ${
+                    className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
                       activeTab === tab
                         ? 'bg-accent text-accent-foreground font-medium'
                         : 'text-muted-foreground hover:text-muted-foreground'
                     }`}
                   >
-                    {tab}
+                    {tab === 'prewriter-prompt' ? 'prewriter prompt' : tab}
                     {tab === 'tools' && selectedLog.toolCalls.length > 0 && (
                       <Badge variant="secondary" className="ml-1 text-[9px] px-1 h-3.5">
                         {selectedLog.toolCalls.length}
@@ -105,6 +110,11 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
 
                 {/* Stats */}
                 <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
+                  {selectedLog.prewriterModel && (
+                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 font-normal border-primary/20 text-primary/60">
+                      prewriter
+                    </Badge>
+                  )}
                   <span>{selectedLog.model}</span>
                   <span>{selectedLog.durationMs}ms</span>
                   <span>{selectedLog.stepCount ?? 1} steps</span>
@@ -130,8 +140,8 @@ export function DebugPanel({ storyId, logId, fragmentId, onClose }: DebugPanelPr
               )}
 
               {/* Tab content */}
-              {activeTab === 'prompt' ? (
-                <BlockContentView messages={selectedLog.messages} />
+              {activeTab === 'prompt' || activeTab === 'prewriter-prompt' ? (
+                <BlockContentView messages={activeTab === 'prewriter-prompt' ? (selectedLog.prewriterMessages ?? []) : selectedLog.messages} />
               ) : (
                 <ScrollArea className="flex-1 min-h-0">
                   <div className="p-4 space-y-2">
@@ -469,10 +479,78 @@ function ToolsTab({ log }: { log: GenerationLog }) {
 }
 
 function OutputTab({ log }: { log: GenerationLog }) {
+  const [prewriterExpanded, setPrewriterExpanded] = useState(false)
+  const [prewriterReasoningExpanded, setPrewriterReasoningExpanded] = useState(false)
   const [reasoningExpanded, setReasoningExpanded] = useState(false)
 
   return (
     <div className="space-y-2">
+      {log.prewriterReasoning && (
+        <div className="rounded-lg border border-primary/15 overflow-hidden">
+          <button
+            onClick={() => setPrewriterReasoningExpanded(!prewriterReasoningExpanded)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-primary/[0.03] border-b border-primary/10 hover:bg-primary/[0.06] transition-colors"
+          >
+            {prewriterReasoningExpanded ? <ChevronDown className="size-3 text-primary/50" /> : <ChevronRight className="size-3 text-primary/50" />}
+            <Brain className="size-3 text-primary/50" />
+            <span className="text-[10px] font-medium text-primary/70">
+              Prewriter Reasoning
+            </span>
+            <span className="text-[9px] text-muted-foreground tabular-nums ml-auto shrink-0">
+              {log.prewriterReasoning.length.toLocaleString()} chars
+            </span>
+          </button>
+          {prewriterReasoningExpanded && (
+            <div className="p-3 max-h-[300px] overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-[11px] font-mono text-muted-foreground italic leading-relaxed">
+                {log.prewriterReasoning}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {log.prewriterBrief && (
+        <div className="rounded-lg border border-primary/15 overflow-hidden">
+          <button
+            onClick={() => setPrewriterExpanded(!prewriterExpanded)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-primary/[0.03] border-b border-primary/10 hover:bg-primary/[0.06] transition-colors"
+          >
+            {prewriterExpanded ? <ChevronDown className="size-3 text-primary/50" /> : <ChevronRight className="size-3 text-primary/50" />}
+            <FileText className="size-3 text-primary/50" />
+            <span className="text-[10px] font-medium text-primary/70">
+              Writing Brief
+            </span>
+            {log.prewriterModel && (
+              <span className="text-[9px] text-muted-foreground font-mono">
+                {log.prewriterModel}
+              </span>
+            )}
+            <span className="text-[9px] text-muted-foreground tabular-nums ml-auto shrink-0 flex items-center gap-2">
+              {log.prewriterDurationMs != null && (
+                <span>{log.prewriterDurationMs.toLocaleString()}ms</span>
+              )}
+              {log.prewriterUsage && (
+                <span title={`In: ${log.prewriterUsage.inputTokens.toLocaleString()} / Out: ${log.prewriterUsage.outputTokens.toLocaleString()}`}>
+                  {(log.prewriterUsage.inputTokens + log.prewriterUsage.outputTokens).toLocaleString()} tok
+                </span>
+              )}
+              <span>{log.prewriterBrief.length.toLocaleString()} chars</span>
+            </span>
+          </button>
+          {prewriterExpanded && (
+            <div className="p-3 max-h-[400px] overflow-y-auto">
+              <div className="flex justify-end mb-1.5">
+                <CopyButton text={log.prewriterBrief} />
+              </div>
+              <div className="text-[11px] text-muted-foreground leading-relaxed prose prose-sm prose-muted max-w-none [&_p]:text-[11px] [&_p]:text-muted-foreground [&_p]:leading-relaxed">
+                <StreamMarkdown content={log.prewriterBrief} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {log.reasoning && (
         <div className="rounded-lg border border-border/20 overflow-hidden">
           <button

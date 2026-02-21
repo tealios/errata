@@ -18,6 +18,7 @@ import { createScriptHelpers } from '../blocks/script-context'
 import { createFragmentTools } from '../llm/tools'
 import { getModel } from '../llm/client'
 import { createWriterAgent } from '../llm/writer-agent'
+import { runPrewriter, createWriterBriefBlocks } from '../llm/prewriter'
 import {
   saveGenerationLog,
   type GenerationLog,
@@ -182,24 +183,39 @@ export function generationRoutes(dataDir: string) {
       messages = await runBeforeGeneration(enabledPlugins, messages)
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 
+      // Prewriter phase: if enabled, run prewriter and replace messages with stripped context
+      let prewriterBrief: string | undefined
+      let prewriterReasoning: string | undefined
+      let prewriterDurationMs: number | undefined
+      let prewriterModel: string | undefined
+      let prewriterUsage: { inputTokens: number; outputTokens: number } | undefined
+      let prewriterLogMessages: Array<{ role: string; content: string }> | undefined
+      let logMessages = messages // messages saved to generation log — updated to writer context in prewriter mode
+      const isPrewriterMode = story.settings.generationMode === 'prewriter'
+
       const modelMessages = addCacheBreakpoints(messages)
 
       requestLogger.info('Starting LLM stream...')
       const { model, modelId: resolvedModelId } = await getModel(dataDir, params.storyId)
       requestLogger.info('Resolved model', { resolvedModelId })
-      const writerAgent = createWriterAgent({
-        model,
-        tools,
-        maxSteps: story.settings.maxSteps ?? 10,
-      })
       const abortController = new AbortController()
-      const result = await writerAgent.stream({
-        messages: modelMessages,
-        abortSignal: abortController.signal,
-      })
 
-      // Build NDJSON event stream from fullStream (same pattern as librarian chat)
-      const fullStream = result.fullStream
+      // Build tool description lines for reuse (same logic as context-builder createDefaultBlocks)
+      const toolLinesList: string[] = []
+      {
+        const types = (await import('../fragments/registry')).registry.listTypes()
+        for (const t of types) {
+          if (t.llmTools === false) continue
+          const cap = t.type.charAt(0).toUpperCase() + t.type.slice(1)
+          const plural = ['prose', 'knowledge'].includes(t.type) ? cap : cap + 's'
+          toolLinesList.push(`- get${cap}(id): Get full content of a ${t.type} fragment`)
+          toolLinesList.push(`- list${plural}(): List all ${t.type} fragments`)
+        }
+        toolLinesList.push('- listFragmentTypes(): List all available fragment types')
+        for (const t of extraTools) {
+          toolLinesList.push(`- ${t.name}: ${t.description}`)
+        }
+      }
 
       let fullText = ''
       let fullReasoning = ''
@@ -219,7 +235,71 @@ export function generationRoutes(dataDir: string) {
       const eventStream = new ReadableStream<Uint8Array>({
         async start(controller) {
           const encoder = new TextEncoder()
+          const emit = (event: Record<string, unknown>) => {
+            controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
+          }
           try {
+            // Run prewriter inside the stream so events are streamed live
+            let writerMessages = modelMessages
+            if (isPrewriterMode) {
+              emit({ type: 'phase', phase: 'prewriting' })
+
+              const prewriterActivityId = registerActiveAgent(params.storyId, 'prewriter')
+              try {
+                const prewriterResult = await runPrewriter({
+                  dataDir,
+                  storyId: params.storyId,
+                  compiledMessages: messages,
+                  authorInput: effectiveInput,
+                  mode,
+                  abortSignal: abortController.signal,
+                  onEvent: (event) => {
+                    if (event.type === 'text') {
+                      emit({ type: 'prewriter-text', text: event.text })
+                    } else {
+                      emit(event)
+                    }
+                  },
+                })
+                prewriterBrief = prewriterResult.brief
+                prewriterReasoning = prewriterResult.reasoning || undefined
+                prewriterDurationMs = prewriterResult.durationMs
+                prewriterModel = prewriterResult.model
+                prewriterUsage = prewriterResult.usage
+                prewriterLogMessages = prewriterResult.messages
+                requestLogger.info('Prewriter completed', { briefLength: prewriterBrief.length, durationMs: prewriterDurationMs })
+
+                // Build stripped writer context with only prose + brief
+                const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList)
+                writerBlocks.push({
+                  id: 'writer-limit-thinking',
+                  name: 'Writer Limit Thinking',
+                  content: 'Limit your thinking/reasoning and tool use to what is necessary to produce the output. Focus on writing prose the thinking has been done for you by the prewriter.',
+                  order: Number.POSITIVE_INFINITY,
+                  role: 'user',
+                  source: 'prewriter',
+                })
+                const writerCompiled = compileBlocks(writerBlocks)
+                writerMessages = addCacheBreakpoints(writerCompiled)
+                logMessages = writerCompiled
+              } finally {
+                unregisterActiveAgent(prewriterActivityId)
+              }
+
+              emit({ type: 'phase', phase: 'writing' })
+            }
+
+            const writerAgent = createWriterAgent({
+              model,
+              tools,
+              maxSteps: story.settings.maxSteps ?? 10,
+            })
+            const result = await writerAgent.stream({
+              messages: writerMessages,
+              abortSignal: abortController.signal,
+            })
+            const fullStream = result.fullStream
+
             for await (const part of fullStream) {
               let event: Record<string, unknown> | null = null
               const p = part as Record<string, unknown>
@@ -429,7 +509,7 @@ export function generationRoutes(dataDir: string) {
                 id: logId,
                 createdAt: now,
                 input: body.input,
-                messages: messages.map((m) => ({
+                messages: logMessages.map((m) => ({
                   role: String(m.role),
                   content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
                 })),
@@ -443,6 +523,12 @@ export function generationRoutes(dataDir: string) {
                 stepsExceeded,
                 ...(totalUsage ? { totalUsage } : {}),
                 ...(fullReasoning ? { reasoning: fullReasoning } : {}),
+                ...(prewriterBrief ? { prewriterBrief } : {}),
+                ...(prewriterReasoning ? { prewriterReasoning } : {}),
+                ...(prewriterLogMessages ? { prewriterMessages: prewriterLogMessages } : {}),
+                ...(prewriterDurationMs ? { prewriterDurationMs } : {}),
+                ...(prewriterModel ? { prewriterModel } : {}),
+                ...(prewriterUsage ? { prewriterUsage } : {}),
               }
               await saveGenerationLog(dataDir, params.storyId, log)
               requestLogger.info('Generation log saved', { logId, stepCount, finishReason, stepsExceeded })

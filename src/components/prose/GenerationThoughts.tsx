@@ -3,7 +3,7 @@ import {
   ChainOfThoughtContent,
   ChainOfThoughtStep,
 } from '@/components/ui/chain-of-thought'
-import { Loader2, Brain, Wrench, CheckCircle2 } from 'lucide-react'
+import { Loader2, Brain, Wrench, CheckCircle2, PenLine, FileText } from 'lucide-react'
 import { type ThoughtStep } from './InlineGenerationInput'
 
 function formatToolName(name: string): string {
@@ -58,6 +58,31 @@ export function GenerationThoughts({
                     {step.text}
                   </div>
                 </ChainOfThoughtStep>
+              )
+            }
+            if (step.type === 'prewriter-text') {
+              const isActive = streaming && i === steps.length - 1
+              return (
+                <ChainOfThoughtStep
+                  key={`prewriter-text-${i}`}
+                  icon={FileText}
+                  label="Writing Brief"
+                  status={isActive ? 'active' : 'complete'}
+                >
+                  <div className="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">
+                    {step.text}
+                  </div>
+                </ChainOfThoughtStep>
+              )
+            }
+            if (step.type === 'phase') {
+              return (
+                <ChainOfThoughtStep
+                  key={`phase-${i}`}
+                  icon={step.phase === 'prewriting' ? Brain : PenLine}
+                  label={step.phase === 'prewriting' ? 'Planning...' : 'Writing...'}
+                  status={streaming && i === steps.length - 1 ? 'active' : 'complete'}
+                />
               )
             }
             if (step.type === 'tool-call') {

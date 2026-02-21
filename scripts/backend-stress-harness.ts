@@ -239,6 +239,7 @@ async function seedStory(dataDir: string, options: HarnessOptions): Promise<{
       summarizationThreshold: 4,
       maxSteps: 10,
       modelOverrides: {},
+      generationMode: 'standard' as const,
       autoApplyLibrarianSuggestions: false,
       contextOrderMode: 'simple',
       fragmentOrder: [],

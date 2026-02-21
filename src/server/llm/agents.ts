@@ -1,7 +1,9 @@
 import { agentBlockRegistry } from '../agents/agent-block-registry'
+import { modelRoleRegistry } from '../agents/model-role-registry'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import { registry } from '../fragments/registry'
 import { createDefaultBlocks, buildContextState, type ContextBuildState, type ContextBlock } from './context-builder'
+import { createPrewriterBlocks, buildPrewriterPreviewContext } from './prewriter'
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -73,6 +75,22 @@ export function registerGenerationBlocks(): void {
     availableTools: getAvailableTools(),
     createDefaultBlocks: createGenerationBlocks,
     buildPreviewContext: buildGenerationPreviewContext,
+  })
+
+  modelRoleRegistry.register({
+    key: 'prewriter',
+    label: 'Prewriter',
+    description: 'Planning agent that creates writing briefs',
+    fallback: ['generation'],
+  })
+
+  agentBlockRegistry.register({
+    agentName: 'prewriter',
+    displayName: 'Prewriter',
+    description: 'Creates a focused writing brief from full story context.',
+    availableTools: [],
+    createDefaultBlocks: createPrewriterBlocks,
+    buildPreviewContext: buildPrewriterPreviewContext,
   })
 
   registered = true

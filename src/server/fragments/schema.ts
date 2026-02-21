@@ -96,6 +96,7 @@ export const StoryMetaSchema = z.object({
       librarianRefineModelId: z.string().nullable().optional(),
       directionsProviderId: z.string().nullable().optional(),
       directionsModelId: z.string().nullable().optional(),
+      generationMode: z.enum(['standard', 'prewriter']).default('standard'),
       autoApplyLibrarianSuggestions: z.boolean().default(false),
       contextOrderMode: z.enum(['simple', 'advanced']).default('simple'),
       fragmentOrder: z.array(z.string()).default([]),
@@ -113,7 +114,7 @@ export const StoryMetaSchema = z.object({
       guidedSceneSettingPrompt: z.string().optional(),
       guidedSuggestPrompt: z.string().optional(),
     })
-    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, modelOverrides: {}, autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
+    .default({ outputFormat: 'markdown', enabledPlugins: [], summarizationThreshold: 4, maxSteps: 10, modelOverrides: {}, generationMode: 'standard', autoApplyLibrarianSuggestions: false, contextOrderMode: 'simple', fragmentOrder: [], enabledBuiltinTools: [], contextCompact: { type: 'proseLimit', value: 10 }, summaryCompact: { maxCharacters: 12000, targetCharacters: 9000 }, enableHierarchicalSummary: false }),
 })
 
 export type StoryMeta = z.infer<typeof StoryMetaSchema>

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Plus, Pin, GripVertical, FileDown, UserPlus } from 'lucide-react'
+import { Plus, Pin, GripVertical, FileDown, UserPlus, Archive } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -51,7 +51,7 @@ interface FragmentRowProps {
   onSelect: (fragment: Fragment) => void
   onPin: (fragment: Fragment) => void
   pinPending: boolean
-  onDragStart: (index: number) => void
+  onDragStart: (index: number, e: React.DragEvent) => void
   onDragEnter: (index: number) => void
   onDragEnd: () => void
 }
@@ -83,7 +83,7 @@ const FragmentRow = memo(function FragmentRow({
     <div
       data-component-id={fragmentComponentId(fragment, 'list-item')}
       draggable={canDrag}
-      onDragStart={() => onDragStart(index)}
+      onDragStart={(e) => onDragStart(index, e)}
       onDragEnter={() => onDragEnter(index)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => e.preventDefault()}
@@ -203,6 +203,7 @@ export function FragmentList({
   const dragItem = useRef<number | null>(null)
   const [dragFragmentId, setDragFragmentId] = useState<string | null>(null)
   const [dragDisplayOrder, setDragDisplayOrder] = useState<Fragment[] | null>(null)
+  const [isDragOverArchive, setIsDragOverArchive] = useState(false)
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all'],
@@ -272,6 +273,15 @@ export function FragmentList({
           return typeSlot === undefined || typeSlot === type
         },
       })
+    },
+  })
+
+  const archiveMutation = useMutation({
+    mutationFn: (fragmentId: string) => api.fragments.archive(storyId, fragmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
     },
   })
 
@@ -348,11 +358,17 @@ export function FragmentList({
   const reorderMutateRef = useRef(reorderMutation.mutate)
   reorderMutateRef.current = reorderMutation.mutate
 
-  const handleDragStart = useCallback((index: number) => {
+  const handleDragStart = useCallback((index: number, e: React.DragEvent) => {
     dragItem.current = index
     const list = filteredRef.current
-    setDragFragmentId(list[index]?.id ?? null)
+    const id = list[index]?.id ?? null
+    setDragFragmentId(id)
     setDragDisplayOrder([...list])
+    // Set data transfer so the sidebar Archive button can accept this drop
+    if (id) {
+      e.dataTransfer.setData('application/x-errata-fragment-id', id)
+      e.dataTransfer.effectAllowed = 'move'
+    }
   }, [])
 
   const handleDragEnter = useCallback((index: number) => {
@@ -367,7 +383,17 @@ export function FragmentList({
     })
   }, [])
 
+  const droppedOnArchiveRef = useRef(false)
+
   const handleDragEnd = useCallback(() => {
+    if (droppedOnArchiveRef.current) {
+      droppedOnArchiveRef.current = false
+      dragItem.current = null
+      setDragFragmentId(null)
+      setDragDisplayOrder(null)
+      return
+    }
+
     const displayOrder = dragDisplayOrderRef.current
     if (!displayOrder) {
       setDragFragmentId(null)
@@ -375,8 +401,16 @@ export function FragmentList({
       return
     }
 
-    const items = displayOrder.map((f, i) => ({ id: f.id, order: i }))
-    reorderMutateRef.current(items)
+    // Only send fragments whose order actually changed
+    const items = displayOrder
+      .map((f, i) => ({ id: f.id, order: i }))
+      .filter((item) => {
+        const original = filteredRef.current.find((f) => f.id === item.id)
+        return original && original.order !== item.order
+      })
+    if (items.length > 0) {
+      reorderMutateRef.current(items)
+    }
 
     dragItem.current = null
     setDragFragmentId(null)
@@ -495,6 +529,30 @@ export function FragmentList({
               onDragEnd={handleDragEnd}
             />
           ))}
+
+          {/* Archive drop zone — visible during drag */}
+          {dragFragmentId && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+              onDragEnter={() => setIsDragOverArchive(true)}
+              onDragLeave={() => setIsDragOverArchive(false)}
+              onDrop={() => {
+                if (dragFragmentId) {
+                  droppedOnArchiveRef.current = true
+                  archiveMutation.mutate(dragFragmentId)
+                }
+                setIsDragOverArchive(false)
+              }}
+              className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed py-4 mt-2 transition-colors ${
+                isDragOverArchive
+                  ? 'border-destructive/60 bg-destructive/10 text-destructive'
+                  : 'border-muted-foreground/30 text-muted-foreground'
+              }`}
+            >
+              <Archive className="size-4" />
+              <span className="text-xs font-medium">Drop to archive</span>
+            </div>
+          )}
         </div>
       </ScrollArea>
     </div>

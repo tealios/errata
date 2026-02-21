@@ -34,6 +34,7 @@ export function storyRoutes(dataDir: string) {
           summarizationThreshold: 4,
           maxSteps: 10,
           modelOverrides: {},
+          generationMode: 'standard' as const,
           autoApplyLibrarianSuggestions: false,
           contextOrderMode: 'simple' as const,
           fragmentOrder: [],
@@ -148,6 +149,7 @@ export function storyRoutes(dataDir: string) {
           // Legacy fields (kept for backward compat with older clients)
           ...(body.providerId !== undefined ? { providerId: body.providerId } : {}),
           ...(body.modelId !== undefined ? { modelId: body.modelId } : {}),
+          ...(body.generationMode !== undefined ? { generationMode: body.generationMode } : {}),
           ...(body.autoApplyLibrarianSuggestions !== undefined ? { autoApplyLibrarianSuggestions: body.autoApplyLibrarianSuggestions } : {}),
           ...(body.contextOrderMode !== undefined ? { contextOrderMode: body.contextOrderMode } : {}),
           ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
@@ -175,6 +177,7 @@ export function storyRoutes(dataDir: string) {
         // Legacy fields (backward compat)
         providerId: t.Optional(t.Union([t.String(), t.Null()])),
         modelId: t.Optional(t.Union([t.String(), t.Null()])),
+        generationMode: t.Optional(t.Union([t.Literal('standard'), t.Literal('prewriter')])),
         autoApplyLibrarianSuggestions: t.Optional(t.Boolean()),
         contextOrderMode: t.Optional(t.Union([t.Literal('simple'), t.Literal('advanced')])),
         fragmentOrder: t.Optional(t.Array(t.String())),

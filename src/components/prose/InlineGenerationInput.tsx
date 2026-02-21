@@ -9,8 +9,10 @@ import type { SuggestionDirection } from '@/lib/api/types'
 
 export type ThoughtStep =
   | { type: 'reasoning'; text: string }
+  | { type: 'prewriter-text'; text: string }
   | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
+  | { type: 'phase'; phase: string }
 
 type InputMode = 'freeform' | 'guided'
 
@@ -189,6 +191,19 @@ export function InlineGenerationInput({
           thoughtsDirty = true
         } else if (value.type === 'tool-result') {
           thoughtSteps.push({ type: 'tool-result', id: value.id, toolName: value.toolName, result: value.result })
+          thoughtsDirty = true
+        } else if (value.type === 'prewriter-text') {
+          const last = thoughtSteps[thoughtSteps.length - 1]
+          if (last && last.type === 'prewriter-text') {
+            last.text += value.text
+          } else {
+            accumulatedReasoning = ''
+            thoughtSteps.push({ type: 'prewriter-text', text: value.text })
+          }
+          thoughtsDirty = true
+        } else if (value.type === 'phase') {
+          accumulatedReasoning = ''
+          thoughtSteps.push({ type: 'phase', phase: value.phase })
           thoughtsDirty = true
         }
 

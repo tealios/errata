@@ -17,6 +17,7 @@ export interface StoryMeta {
     // Legacy fields (backward compat)
     providerId?: string | null
     modelId?: string | null
+    generationMode?: 'standard' | 'prewriter'
     autoApplyLibrarianSuggestions?: boolean
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]
@@ -220,6 +221,12 @@ export interface GenerationLog {
   stepsExceeded: boolean
   totalUsage?: { inputTokens: number; outputTokens: number }
   reasoning?: string
+  prewriterBrief?: string
+  prewriterReasoning?: string
+  prewriterMessages?: Array<{ role: string; content: string }>
+  prewriterDurationMs?: number
+  prewriterModel?: string
+  prewriterUsage?: { inputTokens: number; outputTokens: number }
 }
 
 export interface PluginManifestInfo {
@@ -340,8 +347,10 @@ export interface SuggestionDirection {
 export type ChatEvent =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
+  | { type: 'prewriter-text'; text: string }
   | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
+  | { type: 'phase'; phase: string }
   | { type: 'finish'; finishReason: string; stepCount: number }
 
 // Character Chat types
