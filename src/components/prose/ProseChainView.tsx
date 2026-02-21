@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment as ReactFragment } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment as ReactFragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type Fragment } from '@/lib/api'
+import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { Loader2, Wand2, Bookmark } from 'lucide-react'
@@ -23,7 +23,7 @@ interface ProseChainViewProps {
 }
 
 /** Thin hover zone between blocks that reveals a "+ Chapter" insert button */
-function InsertChapterDivider({
+const InsertChapterDivider = memo(function InsertChapterDivider({
   storyId,
   position,
 }: {
@@ -55,19 +55,24 @@ function InsertChapterDivider({
       </button>
     </div>
   )
-}
+})
 
-export function ProseChainView({
+/**
+ * Owns all streaming generation state so that rapid stream-chunk updates
+ * only re-render this subtree, not the entire prose list above.
+ */
+function StreamingSection({
   storyId,
-  coverImage,
-  onSelectFragment,
-  onEditProse,
-  onDebugLog,
-  onLaunchWizard,
-  onAskLibrarian,
-}: ProseChainViewProps) {
+  proseFragmentCount,
+  lastFragmentContent,
+  scrollAreaRef,
+}: {
+  storyId: string
+  proseFragmentCount: number
+  lastFragmentContent: string | undefined
+  scrollAreaRef: React.RefObject<HTMLDivElement | null>
+}) {
   const FOLLOW_GENERATION_KEY = 'errata:follow-generation'
-  // State for streaming generation
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
   const [thoughtSteps, setThoughtSteps] = useState<ThoughtStep[]>([])
@@ -79,6 +84,101 @@ export function ProseChainView({
     if (saved === '1') return true
     return true
   })
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(FOLLOW_GENERATION_KEY, followGeneration ? '1' : '0')
+  }, [followGeneration])
+
+  const scrollRafRef = useRef(0)
+  useEffect(() => {
+    if (followGeneration && isGenerating && (streamedText || thoughtSteps.length > 0) && scrollAreaRef.current) {
+      cancelAnimationFrame(scrollRafRef.current)
+      scrollRafRef.current = requestAnimationFrame(() => {
+        const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight
+        }
+      })
+    }
+  }, [streamedText, thoughtSteps, followGeneration, isGenerating, scrollAreaRef])
+
+  useEffect(() => {
+    if (!isGenerating && streamedText && fragmentCountBeforeGeneration !== null) {
+      if (proseFragmentCount > fragmentCountBeforeGeneration ||
+          lastFragmentContent === streamedText) {
+        const timeout = setTimeout(() => {
+          setStreamedText('')
+          setThoughtSteps([])
+          setFragmentCountBeforeGeneration(null)
+        }, 100)
+        return () => clearTimeout(timeout)
+      }
+
+      const retryTimeout = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+        queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      }, 500)
+      return () => clearTimeout(retryTimeout)
+    }
+  }, [proseFragmentCount, lastFragmentContent, isGenerating, streamedText, fragmentCountBeforeGeneration, queryClient, storyId])
+
+  return (
+    <>
+      {(isGenerating || streamedText) && (
+        <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300" data-component-id="prose-streaming-block">
+          <div className="rounded-lg p-4 -mx-4 bg-card/30">
+            {thoughtSteps.length > 0 && (
+              <GenerationThoughts
+                steps={thoughtSteps}
+                streaming={isGenerating}
+                hasText={!!streamedText}
+              />
+            )}
+            <StreamMarkdown content={streamedText} streaming={isGenerating} variant="prose" />
+            {isGenerating && (
+              <div className="flex items-center gap-2 mt-3 opacity-60">
+                <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">
+                  generating...
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <InlineGenerationInput
+        storyId={storyId}
+        isGenerating={isGenerating}
+        onGenerationStart={() => {
+          setIsGenerating(true)
+          setStreamedText('')
+          setThoughtSteps([])
+          setFragmentCountBeforeGeneration(proseFragmentCount)
+        }}
+        onGenerationStream={setStreamedText}
+        onGenerationThoughts={setThoughtSteps}
+        onGenerationComplete={() => setIsGenerating(false)}
+        onGenerationError={() => setIsGenerating(false)}
+        followGeneration={followGeneration}
+        onToggleFollowGeneration={() => setFollowGeneration((value) => !value)}
+      />
+    </>
+  )
+}
+
+export function ProseChainView({
+  storyId,
+  coverImage,
+  onSelectFragment,
+  onEditProse,
+  onDebugLog,
+  onLaunchWizard,
+  onAskLibrarian,
+}: ProseChainViewProps) {
+
   const [activeIndex, setActiveIndex] = useState(0)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [quickSwitch] = useQuickSwitch()
@@ -130,18 +230,30 @@ export function ProseChainView({
     return map
   }, [imageFragments, iconFragments])
 
-  // Build color overrides from character `color=` tags
+  // Build color overrides from character `color=` tags.
+  // Ref-stabilised: return the previous Map when entries haven't changed so
+  // downstream memo'd components keep the same reference.
+  const mentionColorsRef = useRef<Map<string, string>>(new Map())
   const mentionColors = useMemo(() => {
-    const map = new Map<string, string>()
+    const next = new Map<string, string>()
     for (const char of characterFragments) {
       const tag = char.tags.find(t => t.startsWith('color='))
       if (!tag) continue
       const value = tag.slice(6)
       if (/^#[0-9a-fA-F]{3,8}$/.test(value) || value.startsWith('oklch(')) {
-        map.set(char.id, value)
+        next.set(char.id, value)
       }
     }
-    return map
+    const prev = mentionColorsRef.current
+    if (prev.size === next.size) {
+      let same = true
+      for (const [k, v] of next) {
+        if (prev.get(k) !== v) { same = false; break }
+      }
+      if (same) return prev
+    }
+    mentionColorsRef.current = next
+    return next
   }, [characterFragments])
 
   // Build combined fragment map from prose + markers
@@ -172,21 +284,28 @@ export function ProseChainView({
     [orderedItems],
   )
 
-  // Map fragments to their section index in the chain
-  const getSectionIndex = (fragmentId: string): number => {
-    if (!proseChain) return -1
-    return proseChain.entries.findIndex(entry =>
-      entry.proseFragments.some(f => f.id === fragmentId)
-    )
-  }
+  // Precompute lookup maps so children receive stable references
+  const sectionIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!proseChain) return map
+    for (let i = 0; i < proseChain.entries.length; i++) {
+      for (const f of proseChain.entries[i].proseFragments) {
+        map.set(f.id, i)
+      }
+    }
+    return map
+  }, [proseChain])
 
-  // Get chain entry for a fragment
-  const getChainEntry = (fragmentId: string) => {
-    if (!proseChain) return null
-    return proseChain.entries.find(entry =>
-      entry.proseFragments.some(f => f.id === fragmentId)
-    ) || null
-  }
+  const chainEntryMap = useMemo(() => {
+    const map = new Map<string, ProseChainEntry>()
+    if (!proseChain) return map
+    for (const entry of proseChain.entries) {
+      for (const f of entry.proseFragments) {
+        map.set(f.id, entry)
+      }
+    }
+    return map
+  }, [proseChain])
 
   const handleDeleteSection = useCallback((sectionIndex: number) => {
     api.proseChain.removeSection(storyId, sectionIndex).then(() => {
@@ -194,11 +313,6 @@ export function ProseChainView({
       queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
     })
   }, [storyId, queryClient])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(FOLLOW_GENERATION_KEY, followGeneration ? '1' : '0')
-  }, [followGeneration])
 
   // Persist scroll position to sessionStorage
   const SCROLL_POS_KEY = `errata:scroll-pos:${storyId}`
@@ -240,49 +354,6 @@ export function ProseChainView({
     }
     restoredRef.current = true
   }, [orderedItems, SCROLL_POS_KEY])
-
-  // Scroll to bottom when streaming new content (throttled to RAF)
-  const scrollRafRef = useRef(0)
-  useEffect(() => {
-    if (followGeneration && isGenerating && (streamedText || thoughtSteps.length > 0) && scrollAreaRef.current) {
-      cancelAnimationFrame(scrollRafRef.current)
-      scrollRafRef.current = requestAnimationFrame(() => {
-        const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight
-        }
-      })
-    }
-  }, [streamedText, thoughtSteps, followGeneration, isGenerating])
-
-  // Clear streamed text once fragments update (new prose was saved)
-  useEffect(() => {
-    if (!isGenerating && streamedText && fragmentCountBeforeGeneration !== null) {
-      // Check if a new fragment was added (count increased) or if the last fragment's content matches
-      const currentCount = orderedProseFragments.length
-      const lastFragment = orderedProseFragments[orderedProseFragments.length - 1]
-
-      // Clear if fragment count increased (new fragment added) or content matches
-      if (currentCount > fragmentCountBeforeGeneration ||
-          (lastFragment && lastFragment.content === streamedText)) {
-        // Give a small delay so the transition is smooth
-        const timeout = setTimeout(() => {
-          setStreamedText('')
-          setThoughtSteps([])
-          setFragmentCountBeforeGeneration(null)
-        }, 100)
-        return () => clearTimeout(timeout)
-      }
-
-      // Fragment hasn't appeared yet — server save may still be in progress.
-      // Re-invalidate queries after a short delay to pick up the saved fragment.
-      const retryTimeout = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-        queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
-      }, 500)
-      return () => clearTimeout(retryTimeout)
-    }
-  }, [orderedProseFragments, isGenerating, streamedText, fragmentCountBeforeGeneration, queryClient, storyId])
 
   // Track which prose block is currently visible
   useEffect(() => {
@@ -333,7 +404,8 @@ export function ProseChainView({
 
   const handleBranchFrom = useCallback((sectionIndex: number) => {
     branchFromMutation.mutate(sectionIndex)
-  }, [branchFromMutation])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchFromMutation.mutate])
 
   const handleMentionClick = useCallback((fragmentId: string) => {
     // Find the character fragment from the already-fetched prose fragments won't work;
@@ -377,8 +449,8 @@ export function ProseChainView({
                     storyId={storyId}
                     fragment={fragment}
                     displayIndex={idx}
-                    sectionIndex={getSectionIndex(fragment.id)}
-                    onSelect={() => onSelectFragment(fragment)}
+                    sectionIndex={sectionIndexMap.get(fragment.id) ?? -1}
+                    onSelect={onSelectFragment}
                     onDelete={handleDeleteSection}
                   />
                 ) : (
@@ -386,12 +458,12 @@ export function ProseChainView({
                     storyId={storyId}
                     fragment={fragment}
                     displayIndex={idx}
-                    sectionIndex={getSectionIndex(fragment.id)}
-                    chainEntry={getChainEntry(fragment.id)}
-                    isLast={idx === orderedItems.length - 1 && !isGenerating}
+                    sectionIndex={sectionIndexMap.get(fragment.id) ?? -1}
+                    chainEntry={chainEntryMap.get(fragment.id) ?? null}
+                    isLast={idx === orderedItems.length - 1}
                     isFirst={idx === 0}
-                    onSelect={() => onSelectFragment(fragment)}
-                    onEdit={onEditProse ? () => onEditProse(fragment.id) : undefined}
+                    onSelect={onSelectFragment}
+                    onEdit={onEditProse}
                     onDebugLog={onDebugLog}
                     onBranchFrom={handleBranchFrom}
                     onAskLibrarian={onAskLibrarian}
@@ -424,54 +496,11 @@ export function ProseChainView({
             </div>
           )}
 
-          {/* Streaming text displayed inline as part of the prose chain */}
-          {(isGenerating || streamedText) && (
-            <div className="relative mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300" data-component-id="prose-streaming-block">
-              {/* Match prose block styling - no border, minimal background */}
-              <div className="rounded-lg p-4 -mx-4 bg-card/30">
-                {thoughtSteps.length > 0 && (
-                  <GenerationThoughts
-                    steps={thoughtSteps}
-                    streaming={isGenerating}
-                    hasText={!!streamedText}
-                  />
-                )}
-                <StreamMarkdown content={streamedText} streaming={isGenerating} variant="prose" />
-
-                {/* Minimal generating indicator matching prose metadata bar style */}
-                {isGenerating && (
-                  <div className="flex items-center gap-2 mt-3 opacity-60">
-                    <Loader2 className="size-3 animate-spin text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground">
-                      generating...
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <InlineGenerationInput
+          <StreamingSection
             storyId={storyId}
-            isGenerating={isGenerating}
-            onGenerationStart={() => {
-              setIsGenerating(true)
-              setStreamedText('')
-              setThoughtSteps([])
-              setFragmentCountBeforeGeneration(orderedProseFragments.length)
-            }}
-            onGenerationStream={(text) => setStreamedText(text)}
-            onGenerationThoughts={(steps) => setThoughtSteps(steps)}
-            onGenerationComplete={() => {
-              setIsGenerating(false)
-              // Note: streamedText is NOT cleared here - it will be cleared after
-              // the fragments query refreshes and the new fragment appears
-            }}
-            onGenerationError={() => {
-              setIsGenerating(false)
-            }}
-            followGeneration={followGeneration}
-            onToggleFollowGeneration={() => setFollowGeneration((value) => !value)}
+            proseFragmentCount={orderedProseFragments.length}
+            lastFragmentContent={orderedProseFragments[orderedProseFragments.length - 1]?.content}
+            scrollAreaRef={scrollAreaRef}
           />
         </div>
         </CharacterMentionProvider>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -17,10 +17,10 @@ interface ProseBlockProps {
   chainEntry: ProseChainEntry | null
   isLast: boolean
   isFirst?: boolean
-  onSelect: () => void
+  onSelect: (fragment: Fragment) => void
   onDebugLog?: (logId: string) => void
   onBranchFrom?: (sectionIndex: number) => void
-  onEdit?: () => void
+  onEdit?: (fragmentId: string) => void
   onAskLibrarian?: (fragmentId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
@@ -28,7 +28,66 @@ interface ProseBlockProps {
   onClickMention?: (fragmentId: string) => void
 }
 
-export function ProseBlock({
+/** Isolated sub-component so query cache subscriptions don't force ProseBlock re-renders */
+function ProviderQuickSwitch({
+  storyId,
+  isStreamingAction,
+}: {
+  storyId: string
+  isStreamingAction: boolean
+}) {
+  const queryClient = useQueryClient()
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
+  const { data: globalConfig } = useQuery({
+    queryKey: ['global-config'],
+    queryFn: () => api.config.getProviders(),
+  })
+  const providerMutation = useMutation({
+    mutationFn: (data: { providerId: string | null; modelId: string | null }) => {
+      const overrides = story?.settings.modelOverrides ?? {}
+      return api.settings.update(storyId, {
+        modelOverrides: { ...overrides, generation: { providerId: data.providerId, modelId: data.modelId } },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+    },
+  })
+
+  if (!globalConfig) return null
+
+  const providers = globalConfig.providers.filter(p => p.enabled)
+  const defaultProvider = globalConfig.defaultProviderId
+    ? providers.find(p => p.id === globalConfig.defaultProviderId)
+    : null
+
+  return (
+    <select
+      value={story?.settings.modelOverrides?.generation?.providerId ?? ''}
+      onChange={(e) => {
+        const providerId = e.target.value || null
+        providerMutation.mutate({ providerId, modelId: null })
+      }}
+      disabled={providerMutation.isPending || isStreamingAction}
+      className="text-[10px] text-muted-foreground bg-transparent hover:bg-muted/40 border border-border/30 hover:border-border/50 rounded outline-none cursor-pointer transition-all appearance-none pl-1.5 pr-4 py-0.5 font-mono max-w-[140px] truncate disabled:opacity-30 focus:ring-1 focus:ring-primary/20"
+      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center' }}
+    >
+      <option value="">
+        {defaultProvider ? defaultProvider.defaultModel : 'No provider'}
+      </option>
+      {providers
+        .filter(p => p.id !== globalConfig.defaultProviderId)
+        .map(p => (
+          <option key={p.id} value={p.id}>{p.defaultModel}</option>
+        ))}
+    </select>
+  )
+}
+
+export const ProseBlock = memo(function ProseBlock({
   storyId,
   fragment,
   displayIndex,
@@ -62,27 +121,6 @@ export function ProseBlock({
   const blockRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
   const promptInputRef = useRef<HTMLInputElement>(null)
-
-  // Provider quick-switch (fetched lazily, only rendered when editing prompt)
-  const { data: story } = useQuery({
-    queryKey: ['story', storyId],
-    queryFn: () => api.stories.get(storyId),
-  })
-  const { data: globalConfig } = useQuery({
-    queryKey: ['global-config'],
-    queryFn: () => api.config.getProviders(),
-  })
-  const providerMutation = useMutation({
-    mutationFn: (data: { providerId: string | null; modelId: string | null }) => {
-      const overrides = story?.settings.modelOverrides ?? {}
-      return api.settings.update(storyId, {
-        modelOverrides: { ...overrides, generation: { providerId: data.providerId, modelId: data.modelId } },
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
-    },
-  })
 
   useEffect(() => {
     return () => {
@@ -402,38 +440,7 @@ export function ProseBlock({
                   }}
                 />
                 <div className="flex items-center gap-2 mt-1.5">
-                  {/* Model quick-switch */}
-                  {globalConfig && (
-                    <select
-                      value={story?.settings.modelOverrides?.generation?.providerId ?? ''}
-                      onChange={(e) => {
-                        const providerId = e.target.value || null
-                        providerMutation.mutate({ providerId, modelId: null })
-                      }}
-                      disabled={providerMutation.isPending || isStreamingAction}
-                      className="text-[10px] text-muted-foreground bg-transparent hover:bg-muted/40 border border-border/30 hover:border-border/50 rounded outline-none cursor-pointer transition-all appearance-none pl-1.5 pr-4 py-0.5 font-mono max-w-[140px] truncate disabled:opacity-30 focus:ring-1 focus:ring-primary/20"
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center' }}
-                    >
-                      {(() => {
-                        const providers = globalConfig.providers.filter(p => p.enabled)
-                        const defaultProvider = globalConfig.defaultProviderId
-                          ? providers.find(p => p.id === globalConfig.defaultProviderId)
-                          : null
-                        return (
-                          <>
-                            <option value="">
-                              {defaultProvider ? defaultProvider.defaultModel : 'No provider'}
-                            </option>
-                            {providers
-                              .filter(p => p.id !== globalConfig.defaultProviderId)
-                              .map(p => (
-                                <option key={p.id} value={p.id}>{p.defaultModel}</option>
-                              ))}
-                          </>
-                        )
-                      })()}
-                    </select>
-                  )}
+                  <ProviderQuickSwitch storyId={storyId} isStreamingAction={isStreamingAction} />
                   <span className="text-[10px] text-muted-foreground">
                     Enter &middot; Esc
                   </span>
@@ -631,7 +638,7 @@ export function ProseBlock({
               <div className="inline-flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto max-w-[calc(100vw-3rem)]">
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { if (onEdit) { onEdit(); setShowActions(false) } }}
+                  onClick={() => { if (onEdit) { onEdit(fragment.id); setShowActions(false) } }}
                   disabled={!onEdit}
                   data-component-id={`prose-${fragment.id}-edit`}
                 >
@@ -681,7 +688,7 @@ export function ProseBlock({
                 <div className="w-px h-4 bg-border/30 mx-0.5" />
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { onSelect(); setShowActions(false) }}
+                  onClick={() => { onSelect(fragment); setShowActions(false) }}
                 >
                   Details
                 </button>
@@ -727,4 +734,4 @@ export function ProseBlock({
 
     </div>
   )
-}
+})

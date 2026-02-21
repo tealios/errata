@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, memo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -9,11 +9,11 @@ interface ChapterMarkerProps {
   fragment: Fragment
   displayIndex: number
   sectionIndex: number
-  onSelect: () => void
+  onSelect: (fragment: Fragment) => void
   onDelete: (sectionIndex: number) => void
 }
 
-export function ChapterMarker({
+export const ChapterMarker = memo(function ChapterMarker({
   storyId,
   fragment,
   displayIndex,
@@ -113,7 +113,7 @@ export function ChapterMarker({
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={onSelect}
+              onClick={() => onSelect(fragment)}
               className="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-amber-400/70 hover:bg-amber-500/10 transition-colors duration-200"
             >
               <Pencil className="size-3" />
@@ -176,4 +176,4 @@ export function ChapterMarker({
       )}
     </div>
   )
-}
+})
