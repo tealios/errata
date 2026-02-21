@@ -75,8 +75,19 @@ const DEFAULT_META: AgentMeta = {
   icon: Bot,
 }
 
+function titleCase(s: string): string {
+  return s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function getAgentMeta(agentName: string): AgentMeta {
-  return AGENT_META[agentName] ?? DEFAULT_META
+  if (AGENT_META[agentName]) return AGENT_META[agentName]
+
+  // Derive readable label/action from the agent name (e.g. "librarian.summarize" → "Librarian · Summarize")
+  const parts = agentName.split('.')
+  const label = titleCase(parts[0])
+  const action = parts[1] ? titleCase(parts[1]) : 'Working'
+
+  return { ...DEFAULT_META, label, action }
 }
 
 // ── Wisp state management ───────────────────────────────
