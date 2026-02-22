@@ -578,9 +578,47 @@ function TraceTree({ run }: { run: AgentRunTraceRecord }) {
 
   return (
     <div className="border-t border-border/15 px-1 py-2 bg-muted/15">
+      {run.input && <TraceDataSection label="Input" data={run.input} />}
+      {run.output && <TraceDataSection label="Output" data={run.output} />}
       {roots.map((root) => renderNode(root, 0))}
       {run.error && (
         <p className="text-[9px] text-red-500/60 px-2 mt-1">{run.error}</p>
+      )}
+    </div>
+  )
+}
+
+function TraceDataSection({ label, data }: { label: string; data: Record<string, unknown> }) {
+  const [expanded, setExpanded] = useState(false)
+  const entries = Object.entries(data)
+  if (entries.length === 0) return null
+
+  // Build a compact summary: show short scalar values inline
+  const previewParts: string[] = []
+  for (const [key, value] of entries) {
+    if (typeof value === 'string' && value.length <= 60) {
+      previewParts.push(`${key}: ${value}`)
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      previewParts.push(`${key}: ${String(value)}`)
+    }
+    if (previewParts.length >= 3) break
+  }
+  const preview = previewParts.length > 0 ? previewParts.join(', ') : `${entries.length} fields`
+
+  return (
+    <div className="px-2 py-0.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[9px] text-muted-foreground hover:text-foreground/60 transition-colors"
+      >
+        {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
+        <span className="font-medium">{label}</span>
+        {!expanded && <span className="font-mono truncate max-w-[200px]">{preview}</span>}
+      </button>
+      {expanded && (
+        <pre className="mt-1 text-[9px] text-muted-foreground leading-relaxed whitespace-pre-wrap break-all px-4 py-1 rounded-md border border-border/15 bg-muted/10">
+          {JSON.stringify(data, null, 2)}
+        </pre>
       )}
     </div>
   )

@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-// Mock the agent runner
-const mockInvokeAgent = vi.fn()
+// Mock the agent instance factory
+const mockExecute = vi.fn()
+const mockFail = vi.fn()
 vi.mock('@/server/agents', () => ({
-  invokeAgent: (...args: unknown[]) => mockInvokeAgent(...args),
+  createAgentInstance: (agentName: string, context: { dataDir: string; storyId: string }) => {
+    return {
+      agentName,
+      _context: context,
+      execute: (...args: unknown[]) => mockExecute(agentName, context, ...args),
+      fail: mockFail,
+    }
+  },
 }))
 
 import { createTempDir, makeTestSettings } from '../setup'
@@ -106,7 +114,8 @@ describe('librarian refine endpoint', () => {
     dataDir = tmp.path
     cleanup = tmp.cleanup
     app = createApp(dataDir)
-    mockInvokeAgent.mockClear()
+    mockExecute.mockClear()
+    mockFail.mockClear()
   })
 
   afterEach(async () => {
@@ -126,11 +135,7 @@ describe('librarian refine endpoint', () => {
     await createFragment(dataDir, story.id, fragment)
 
     const refinedText = 'Bob is a master blacksmith with a mysterious past.'
-    const { eventStream, completion } = createMockStreamResult(refinedText)
-    mockInvokeAgent.mockResolvedValue({
-      output: { eventStream, completion },
-      trace: [],
-    })
+    mockExecute.mockResolvedValue(createMockStreamResult(refinedText))
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -157,7 +162,7 @@ describe('librarian refine endpoint', () => {
     const fragment = makeFragment({ type: 'guideline', id: 'gl-refine', name: 'Tone' })
     await createFragment(dataDir, story.id, fragment)
 
-    mockInvokeAgent.mockResolvedValue({ output: createMockStreamResult('Updated guideline'), trace: [] })
+    mockExecute.mockResolvedValue(createMockStreamResult('Updated guideline'))
 
     await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -170,9 +175,9 @@ describe('librarian refine endpoint', () => {
       }),
     )
 
-    expect(mockInvokeAgent).toHaveBeenCalled()
-    const callArgs = mockInvokeAgent.mock.calls[0][0]
-    expect(callArgs.agentName).toBe('librarian.refine')
+    expect(mockExecute).toHaveBeenCalled()
+    const [agentName] = mockExecute.mock.calls[0]
+    expect(agentName).toBe('librarian.refine')
   })
 
   it('includes refinement system prompt', async () => {
@@ -182,7 +187,7 @@ describe('librarian refine endpoint', () => {
     const fragment = makeFragment({ type: 'character', id: 'ch-refine2', name: 'Eve' })
     await createFragment(dataDir, story.id, fragment)
 
-    mockInvokeAgent.mockResolvedValue({ output: createMockStreamResult('Refined'), trace: [] })
+    mockExecute.mockResolvedValue(createMockStreamResult('Refined'))
 
     await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -195,9 +200,9 @@ describe('librarian refine endpoint', () => {
       }),
     )
 
-    expect(mockInvokeAgent).toHaveBeenCalled()
-    const callArgs = mockInvokeAgent.mock.calls[0][0]
-    expect(callArgs.input.instructions).toContain('Refine')
+    expect(mockExecute).toHaveBeenCalled()
+    const [, , input] = mockExecute.mock.calls[0]
+    expect(input.instructions).toContain('Refine')
   })
 
   it('includes story context in messages', async () => {
@@ -208,11 +213,7 @@ describe('librarian refine endpoint', () => {
     const character = makeFragment({ type: 'character', id: 'ch-refine', name: 'Hero', content: 'A brave warrior' })
     await createFragment(dataDir, story.id, character)
 
-    const mockResult = createMockStreamResult('Refined character')
-    mockInvokeAgent.mockResolvedValue({
-      output: mockResult,
-      trace: [],
-    })
+    mockExecute.mockResolvedValue(createMockStreamResult('Refined character'))
 
     await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -225,10 +226,10 @@ describe('librarian refine endpoint', () => {
       }),
     )
 
-    expect(mockInvokeAgent).toHaveBeenCalled()
-    const callArgs = mockInvokeAgent.mock.calls[0][0]
-    expect(callArgs.storyId).toBe(story.id)
-    expect(callArgs.input.fragmentId).toBe(character.id)
+    expect(mockExecute).toHaveBeenCalled()
+    const [, context, input] = mockExecute.mock.calls[0]
+    expect(context.storyId).toBe(story.id)
+    expect(input.fragmentId).toBe(character.id)
   })
 
   it('works without instructions (autonomous mode)', async () => {
@@ -238,11 +239,7 @@ describe('librarian refine endpoint', () => {
     const fragment = makeFragment({ type: 'knowledge', id: 'kn-refine', name: 'Magic' })
     await createFragment(dataDir, story.id, fragment)
 
-    const mockResult = createMockStreamResult('Improved knowledge')
-    mockInvokeAgent.mockResolvedValue({
-      output: mockResult,
-      trace: [],
-    })
+    mockExecute.mockResolvedValue(createMockStreamResult('Improved knowledge'))
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -269,11 +266,7 @@ describe('librarian refine endpoint', () => {
     })
     await createFragment(dataDir, story.id, fragment)
 
-    const mockResult = createMockStreamResult('Enhanced style guide')
-    mockInvokeAgent.mockResolvedValue({
-      output: mockResult,
-      trace: [],
-    })
+    mockExecute.mockResolvedValue(createMockStreamResult('Enhanced style guide'))
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/refine`, {
@@ -307,15 +300,11 @@ describe('librarian refine endpoint', () => {
 
     const transformedText = 'The sentinel darted down the corridor.'
     const reasoningText = 'I kept the same action and tone while tightening diction.'
-    const { eventStream, completion } = createMockEventStreamResult([
+    mockExecute.mockResolvedValue(createMockEventStreamResult([
       { type: 'reasoning', text: reasoningText },
       { type: 'text', text: transformedText },
       { type: 'finish', finishReason: 'stop', stepCount: 1 },
-    ], transformedText, reasoningText)
-    mockInvokeAgent.mockResolvedValue({
-      output: { eventStream, completion },
-      trace: [],
-    })
+    ], transformedText, reasoningText))
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stories/${story.id}/librarian/prose-transform`, {
@@ -337,10 +326,10 @@ describe('librarian refine endpoint', () => {
     expect(responseText).toContain('"type":"reasoning"')
     expect(responseText).toContain('"type":"text"')
     expect(responseText).toContain(transformedText)
-    expect(mockInvokeAgent).toHaveBeenCalled()
-    const callArgs = mockInvokeAgent.mock.calls[0][0]
-    expect(callArgs.agentName).toBe('librarian.prose-transform')
-    expect(callArgs.input.operation).toBe('rewrite')
+    expect(mockExecute).toHaveBeenCalled()
+    const [agentName, , input] = mockExecute.mock.calls[0]
+    expect(agentName).toBe('librarian.prose-transform')
+    expect(input.operation).toBe('rewrite')
   })
 
   it('rejects prose transform requests for non-prose fragments', async () => {
@@ -368,6 +357,6 @@ describe('librarian refine endpoint', () => {
     )
 
     expect(res.status).toBe(422)
-    expect(mockInvokeAgent).not.toHaveBeenCalled()
+    expect(mockExecute).not.toHaveBeenCalled()
   })
 })

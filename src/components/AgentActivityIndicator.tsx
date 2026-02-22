@@ -37,6 +37,13 @@ const AGENT_META: Record<string, AgentMeta> = {
     glow: 'oklch(0.70 0.10 80 / 35%)',
     icon: MessageSquare,
   },
+  'librarian.optimize-character': {
+    label: 'Librarian',
+    action: 'Optimizing',
+    color: 'oklch(0.75 0.13 60)',
+    glow: 'oklch(0.75 0.13 60 / 35%)',
+    icon: Sparkles,
+  },
   'librarian.prose-transform': {
     label: 'Librarian',
     action: 'Transforming',

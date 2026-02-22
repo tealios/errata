@@ -11,6 +11,12 @@ const SuggestInputSchema = z.object({
   count: z.optional(z.number()),
 })
 
+declare module '../agents/agent-instance' {
+  interface AgentInputMap {
+    'directions.suggest': z.infer<typeof SuggestInputSchema>
+  }
+}
+
 const suggestDefinition: AgentDefinition<typeof SuggestInputSchema> = {
   name: 'directions.suggest',
   description: 'Suggest possible story directions based on current context.',

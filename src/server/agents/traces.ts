@@ -10,6 +10,8 @@ export interface AgentRunTraceRecord {
   finishedAt: string
   durationMs: number
   error?: string
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   trace: AgentTraceEntry[]
 }
 

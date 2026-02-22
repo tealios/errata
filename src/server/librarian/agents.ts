@@ -62,6 +62,16 @@ const ProseTransformInputSchema = z.object({
   contextAfter: z.string().optional(),
 })
 
+declare module '../agents/agent-instance' {
+  interface AgentInputMap {
+    'librarian.analyze': z.infer<typeof AnalyzeInputSchema>
+    'librarian.refine': z.infer<typeof RefineInputSchema>
+    'librarian.chat': z.infer<typeof ChatInputSchema>
+    'librarian.optimize-character': z.infer<typeof OptimizeCharacterInputSchema>
+    'librarian.prose-transform': z.infer<typeof ProseTransformInputSchema>
+  }
+}
+
 const analyzeDefinition: AgentDefinition<typeof AnalyzeInputSchema> = {
   name: 'librarian.analyze',
   description: 'Analyze a prose fragment for continuity signals and summary updates.',

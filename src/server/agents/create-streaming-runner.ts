@@ -110,7 +110,7 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
 ): (dataDir: string, storyId: string, opts: TOpts) => Promise<AgentStreamResult> {
   const logger = createLogger(config.name)
   const role = config.role ?? config.name
-  const defaultMaxSteps = config.maxSteps ?? 5
+  const defaultMaxSteps = config.maxSteps ?? 10
   const shouldBuildContext = config.buildContext !== false
 
   return async function run(dataDir: string, storyId: string, opts: TOpts): Promise<AgentStreamResult> {

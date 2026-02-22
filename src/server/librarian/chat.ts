@@ -10,9 +10,9 @@ import { createLogger } from '../logging'
 import { createToolAgent } from '../agents/create-agent'
 import { createEventStream } from '../agents/create-event-stream'
 import { compileAgentContext } from '../agents/compile-agent-context'
+import { createAgentInstance } from '../agents/agent-instance'
 import { getFragmentsByTag } from '../fragments/associations'
 import { runLibrarian } from './agent'
-import { optimizeCharacter } from './optimize-character'
 import { withBranch } from '../fragments/branches'
 import type { ChatStreamEvent, ChatResult } from '../agents/stream-types'
 import type { AgentBlockContext } from '../agents/agent-block-context'
@@ -110,11 +110,13 @@ async function librarianChatInner(
     }),
     execute: async ({ fragmentId, instructions }: { fragmentId: string; instructions?: string }) => {
       requestLogger.info('Optimizing character via chat tool', { fragmentId })
+      const agent = createAgentInstance('librarian.optimize-character', { dataDir, storyId })
       try {
-        const result = await optimizeCharacter(dataDir, storyId, { fragmentId, instructions })
+        const result = await agent.execute({ fragmentId, instructions })
         await result.completion
         return { ok: true, fragmentId }
       } catch (err) {
+        agent.fail(err)
         return { error: err instanceof Error ? err.message : String(err) }
       }
     },

@@ -1,7 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { getStory, getFragment } from '../fragments/storage'
-import { invokeAgent } from '../agents'
-import { registerActiveAgent, unregisterActiveAgent } from '../agents/active-registry'
+import { createAgentInstance } from '../agents'
 import {
   saveConversation as saveCharacterConversation,
   getConversation as getCharacterConversation,
@@ -12,7 +11,6 @@ import {
 } from '../character-chat/storage'
 import { createLogger } from '../logging'
 import { encodeStream } from './encode-stream'
-import type { AgentStreamResult } from '../agents/stream-types'
 
 export function characterChatRoutes(dataDir: string) {
   const logger = createLogger('api:character-chat', { dataDir })
@@ -102,27 +100,17 @@ export function characterChatRoutes(dataDir: string) {
       }
 
       try {
-        const { output: chatOutput, trace } = await invokeAgent({
-          dataDir,
-          storyId: params.storyId,
-          agentName: 'character-chat.chat',
-          input: {
-            characterId: conv.characterId,
-            persona: conv.persona,
-            storyPointFragmentId: conv.storyPointFragmentId,
-            messages: body.messages,
-            maxSteps: story.settings.maxSteps ?? 10,
-          },
+        const agent = createAgentInstance('character-chat.chat', { dataDir, storyId: params.storyId })
+        const { eventStream, completion } = await agent.execute({
+          characterId: conv.characterId,
+          persona: conv.persona,
+          storyPointFragmentId: conv.storyPointFragmentId,
+          messages: body.messages,
+          maxSteps: story.settings.maxSteps ?? 10,
         })
-
-        const { eventStream, completion } = chatOutput as AgentStreamResult
-        requestLogger.info('Agent trace (character-chat)', { trace })
-
-        const chatActivityId = registerActiveAgent(params.storyId, 'character-chat.chat')
 
         // Persist conversation after completion (in background)
         completion.then(async (result) => {
-          unregisterActiveAgent(chatActivityId)
           requestLogger.info('Character chat completed', {
             stepCount: result.stepCount,
             finishReason: result.finishReason,
@@ -148,7 +136,6 @@ export function characterChatRoutes(dataDir: string) {
           }
           await saveCharacterConversation(dataDir, params.storyId, updatedConv)
         }).catch((err) => {
-          unregisterActiveAgent(chatActivityId)
           requestLogger.error('Character chat completion error', { error: err instanceof Error ? err.message : String(err) })
         })
 

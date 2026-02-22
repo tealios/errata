@@ -9,6 +9,12 @@ const SummarizeInputSchema = z.object({
   fragmentId: z.string(),
 })
 
+declare module '../agents/agent-instance' {
+  interface AgentInputMap {
+    'chapters.summarize': z.infer<typeof SummarizeInputSchema>
+  }
+}
+
 const summarizeDefinition: AgentDefinition<typeof SummarizeInputSchema> = {
   name: 'chapters.summarize',
   description: 'Summarize a chapter by collecting prose from marker to next marker and generating a summary.',

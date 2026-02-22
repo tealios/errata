@@ -241,6 +241,7 @@ export function generationRoutes(dataDir: string) {
           const emit = (event: Record<string, unknown>) => {
             controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
           }
+          let totalUsagePromise: PromiseLike<{ inputTokens?: number; outputTokens?: number }> | undefined
           try {
             // Run prewriter inside the stream so events are streamed live
             let writerMessages = modelMessages
@@ -308,6 +309,7 @@ export function generationRoutes(dataDir: string) {
               messages: writerMessages,
               abortSignal: abortController.signal,
             })
+            totalUsagePromise = result.totalUsage
             const fullStream = result.fullStream
 
             for await (const part of fullStream) {
@@ -505,7 +507,7 @@ export function generationRoutes(dataDir: string) {
               const stepsExceeded = stepCount >= 10 && finishReason !== 'stop'
               let totalUsage: { inputTokens: number; outputTokens: number } | undefined
               try {
-                const rawUsage = await result.totalUsage
+                const rawUsage = await totalUsagePromise
                 if (rawUsage && typeof rawUsage.inputTokens === 'number') {
                   totalUsage = { inputTokens: rawUsage.inputTokens, outputTokens: rawUsage.outputTokens ? rawUsage.outputTokens : 0 }
                 }

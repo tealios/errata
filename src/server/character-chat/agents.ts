@@ -24,6 +24,12 @@ const ChatInputSchema = z.object({
   maxSteps: z.int().positive().optional(),
 })
 
+declare module '../agents/agent-instance' {
+  interface AgentInputMap {
+    'character-chat.chat': z.infer<typeof ChatInputSchema>
+  }
+}
+
 const chatDefinition: AgentDefinition<typeof ChatInputSchema> = {
   name: 'character-chat.chat',
   description: 'In-character conversation with a story character.',

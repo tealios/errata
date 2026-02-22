@@ -95,6 +95,7 @@ export function DetailPanel({
   const [mounted, setMounted] = useState(open)
   const [visible, setVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const librarianActivated = useRef(false)
 
   // Keep content rendered for the section that's closing
   const [renderedSection, setRenderedSection] = useState(section)
@@ -124,6 +125,9 @@ export function DetailPanel({
   if (!mounted) return null
 
   const activeSection = renderedSection!
+  if (activeSection === 'agent-activity') {
+    librarianActivated.current = true
+  }
   const isPlugin = activeSection?.startsWith('plugin-')
   const pluginName = isPlugin ? activeSection.replace('plugin-', '') : null
   const title = isPlugin
@@ -161,8 +165,10 @@ export function DetailPanel({
         <ContextOrderPanel storyId={storyId} story={story} />
       )}
 
-      {activeSection === 'agent-activity' && (
-        <LibrarianPanel storyId={storyId} />
+      {librarianActivated.current && (
+        <div className={activeSection === 'agent-activity' ? 'h-full overflow-hidden' : 'hidden'}>
+          <LibrarianPanel storyId={storyId} />
+        </div>
       )}
 
       {activeSection === 'archive' && (
