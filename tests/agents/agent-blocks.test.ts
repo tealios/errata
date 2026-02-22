@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { makeTestSettings } from '../setup'
 import { ensureCoreAgentsRegistered } from '@/server/agents'
 import { agentBlockRegistry } from '@/server/agents/agent-block-registry'
+import { modelRoleRegistry } from '@/server/agents/model-role-registry'
 import type { AgentBlockContext } from '@/server/agents/agent-block-context'
 import type { Fragment, StoryMeta } from '@/server/fragments/schema'
 
@@ -81,6 +82,46 @@ describe('Agent Block Registry', () => {
 
   it('returns undefined for unknown agent', () => {
     expect(agentBlockRegistry.get('nonexistent')).toBeUndefined()
+  })
+
+  it('does not have modelRole on agent definitions', () => {
+    const agents = agentBlockRegistry.list()
+    for (const agent of agents) {
+      expect(agent).not.toHaveProperty('modelRole')
+    }
+  })
+})
+
+describe('Model Role Registry — fallback chain derivation', () => {
+  it('derives chain for a two-segment agent name', () => {
+    const chain = modelRoleRegistry.getFallbackChain('librarian.chat')
+    expect(chain).toEqual(['librarian.chat', 'librarian', 'generation'])
+  })
+
+  it('derives chain for generation.prewriter', () => {
+    const chain = modelRoleRegistry.getFallbackChain('generation.prewriter')
+    expect(chain).toEqual(['generation.prewriter', 'generation'])
+  })
+
+  it('returns just [generation] for the root role', () => {
+    const chain = modelRoleRegistry.getFallbackChain('generation')
+    expect(chain).toEqual(['generation'])
+  })
+
+  it('derives chain for a hyphenated two-segment agent name', () => {
+    const chain = modelRoleRegistry.getFallbackChain('character-chat.chat')
+    expect(chain).toEqual(['character-chat.chat', 'character-chat', 'generation'])
+  })
+
+  it('derives chain for a deeply nested key', () => {
+    const chain = modelRoleRegistry.getFallbackChain('a.b.c')
+    expect(chain).toEqual(['a.b.c', 'a.b', 'a', 'generation'])
+  })
+
+  it('registers namespace-level roles only (4 total)', () => {
+    const roles = modelRoleRegistry.list()
+    const keys = roles.map(r => r.key).sort()
+    expect(keys).toEqual(['character-chat', 'directions', 'generation', 'librarian'])
   })
 })
 

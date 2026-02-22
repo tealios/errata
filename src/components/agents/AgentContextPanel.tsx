@@ -27,6 +27,9 @@ import {
 import { BlockCreateDialog } from '@/components/blocks/BlockCreateDialog'
 import { BlockContentView } from '@/components/blocks/BlockContentView'
 import { ScriptBlockEditor, FragmentReference } from '@/components/blocks/ScriptBlockEditor'
+import { ProviderSelect } from '@/components/settings/ProviderSelect'
+import { ModelSelect } from '@/components/settings/ModelSelect'
+import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
 import { cn } from '@/lib/utils'
 
 interface AgentContextPanelProps {
@@ -173,6 +176,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showModel, setShowModel] = useState(false)
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -188,6 +192,30 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
     queryKey: ['agent-block-preview', storyId, agentName],
     queryFn: () => api.agentBlocks.preview(storyId, agentName),
     enabled: showPreview,
+  })
+
+  // Model selection queries
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
+
+  const { data: globalConfig } = useQuery({
+    queryKey: ['global-config'],
+    queryFn: () => api.config.getProviders(),
+  })
+
+  const { data: modelRoles } = useQuery({
+    queryKey: ['model-roles'],
+    queryFn: () => api.agentBlocks.listModelRoles(),
+  })
+
+  const modelOverrideMutation = useMutation({
+    mutationFn: (data: { modelOverrides: Record<string, { providerId?: string | null; modelId?: string | null }> }) =>
+      api.settings.update(storyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
+    },
   })
 
   const configMutation = useMutation({
@@ -396,6 +424,69 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
 
       <ScrollArea className="flex-1 min-h-0 [&>[data-slot=scroll-area-viewport]>div]:!block">
         <div className="px-2 py-3 space-y-1">
+          {/* Model selection section */}
+          {agent && story && (() => {
+            const overrideKey = agent.agentName
+            const roles = modelRoles ?? []
+            const overrides = story.settings.modelOverrides ?? {}
+            const directProviderId = overrides[overrideKey]?.providerId ?? null
+            const directModelId = overrides[overrideKey]?.modelId ?? null
+            const effectiveProviderId = resolveProvider(overrideKey, story.settings, globalConfig ?? null)
+            const isGeneration = overrideKey === 'generation'
+
+            return (
+              <div className="mb-3">
+                <button
+                  className="flex items-center gap-2 px-1 mb-1.5 w-full"
+                  onClick={() => setShowModel(!showModel)}
+                >
+                  <div className="size-1 rounded-full bg-muted-foreground/50" />
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] font-medium">
+                    Model
+                  </span>
+                  <div className="flex-1 h-px bg-border/20" />
+                  <ChevronDown className={cn(
+                    'size-3 text-muted-foreground transition-transform duration-150',
+                    showModel && 'rotate-180',
+                  )} />
+                </button>
+
+                {showModel && (
+                  <div className="px-1 py-1.5 space-y-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Provider</label>
+                      <ProviderSelect
+                        value={directProviderId}
+                        globalConfig={globalConfig ?? null}
+                        onChange={(id) => {
+                          modelOverrideMutation.mutate({
+                            modelOverrides: { ...overrides, [overrideKey]: { providerId: id, modelId: null } },
+                          })
+                        }}
+                        disabled={modelOverrideMutation.isPending}
+                        inheritLabel={isGeneration ? undefined : getInheritLabel(overrideKey, roles, story.settings, globalConfig ?? null)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Model</label>
+                      <ModelSelect
+                        providerId={effectiveProviderId}
+                        value={directModelId}
+                        onChange={(mid) => {
+                          modelOverrideMutation.mutate({
+                            modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], modelId: mid } },
+                          })
+                        }}
+                        disabled={modelOverrideMutation.isPending}
+                        defaultLabel={isGeneration ? 'Default' : 'Inherit'}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Tool toggles section */}
           {availableTools.length > 0 && (
             <div className="mb-3">

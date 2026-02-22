@@ -56,15 +56,14 @@ export function registerCharacterChatAgents(): void {
   // Agent definition
   agentRegistry.register(chatDefinition)
 
-  // Model role
-  modelRoleRegistry.register({ key: 'characterChat', label: 'Character Chat', description: 'In-character conversations', fallback: ['generation'] })
+  // Model role (namespace-level — per-agent resolution via dot-separated names)
+  modelRoleRegistry.register({ key: 'character-chat', label: 'Character Chat', description: 'In-character conversations' })
 
   // Block definition
   agentBlockRegistry.register({
     agentName: 'character-chat.chat',
     displayName: 'Character Chat',
     description: 'In-character conversation with a story character.',
-    modelRole: 'characterChat',
     createDefaultBlocks: createCharacterChatBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',

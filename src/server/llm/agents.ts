@@ -1,5 +1,4 @@
 import { agentBlockRegistry } from '../agents/agent-block-registry'
-import { modelRoleRegistry } from '../agents/model-role-registry'
 import { instructionRegistry } from '../instructions'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import { registry } from '../fragments/registry'
@@ -80,30 +79,21 @@ export function registerGenerationBlocks(): void {
   instructionRegistry.registerDefault('generation.tools-suffix', GENERATION_TOOLS_SUFFIX)
   instructionRegistry.registerDefault('generation.writer-brief.system', WRITER_BRIEF_SYSTEM_PROMPT)
   instructionRegistry.registerDefault('generation.writer-brief.tools-suffix', WRITER_BRIEF_TOOLS_SUFFIX)
-  instructionRegistry.registerDefault('prewriter.system', PREWRITER_INSTRUCTIONS)
+  instructionRegistry.registerDefault('generation.prewriter.system', PREWRITER_INSTRUCTIONS)
 
   agentBlockRegistry.register({
-    agentName: 'generation',
+    agentName: 'generation.writer',
     displayName: 'Writer',
     description: 'Prose continuation and generation',
-    modelRole: 'generation',
     availableTools: getAvailableTools(),
     createDefaultBlocks: createGenerationBlocks,
     buildPreviewContext: buildGenerationPreviewContext,
   })
 
-  modelRoleRegistry.register({
-    key: 'prewriter',
-    label: 'Prewriter',
-    description: 'Planning agent that creates writing briefs',
-    fallback: ['generation'],
-  })
-
   agentBlockRegistry.register({
-    agentName: 'prewriter',
+    agentName: 'generation.prewriter',
     displayName: 'Prewriter',
     description: 'Creates a focused writing brief from full story context.',
-    modelRole: 'prewriter',
     availableTools: getAvailableTools(),
     createDefaultBlocks: createPrewriterBlocks,
     buildPreviewContext: buildPrewriterPreviewContext,

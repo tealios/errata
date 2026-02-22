@@ -5,7 +5,6 @@ export interface AgentBlockDefinition {
   agentName: string
   displayName: string
   description: string
-  modelRole?: string
   createDefaultBlocks: (ctx: AgentBlockContext) => ContextBlock[]
   availableTools?: string[]
   buildPreviewContext: (dataDir: string, storyId: string) => Promise<AgentBlockContext>

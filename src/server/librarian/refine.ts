@@ -49,7 +49,7 @@ async function refineFragmentInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarianRefine' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.refine' })
   requestLogger.info('Resolved model', { modelId })
 
   // Build context (exclude target fragment to avoid duplication — LLM reads it via tool)

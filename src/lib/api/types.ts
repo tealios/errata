@@ -292,7 +292,6 @@ export interface ModelRoleInfo {
   key: string
   label: string
   description: string
-  fallback: string[]
 }
 
 export interface AgentBlockInfo {
@@ -300,7 +299,6 @@ export interface AgentBlockInfo {
   displayName: string
   description: string
   availableTools: string[]
-  modelRole: string | null
 }
 
 export interface AgentBlockConfig extends BlockConfig {

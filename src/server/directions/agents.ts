@@ -31,13 +31,12 @@ export function registerDirectionsAgents(): void {
 
   agentRegistry.register(suggestDefinition)
 
-  modelRoleRegistry.register({ key: 'directions', label: 'Directions', description: 'Story direction suggestions', fallback: ['generation'] })
+  modelRoleRegistry.register({ key: 'directions', label: 'Directions', description: 'Story direction suggestions' })
 
   agentBlockRegistry.register({
     agentName: 'directions.suggest',
     displayName: 'Directions',
     description: 'Suggests possible story directions based on current context.',
-    modelRole: 'directions',
     createDefaultBlocks: createDirectionsSuggestBlocks,
     availableTools: [],
     buildPreviewContext: buildDirectionsPreviewContext,

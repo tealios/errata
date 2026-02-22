@@ -62,7 +62,7 @@ async function transformProseSelectionInner(
     : OPERATION_GUIDANCE[opts.operation]
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'proseTransform' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.prose-transform' })
   requestLogger.info('Resolved model', { modelId })
 
   // Build agent block context

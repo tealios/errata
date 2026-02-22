@@ -39,7 +39,6 @@ export function agentBlockRoutes(dataDir: string) {
         displayName: def.displayName,
         description: def.description,
         availableTools: def.availableTools ?? [],
-        modelRole: def.modelRole ?? null,
       }))
     })
 
@@ -96,10 +95,10 @@ export function agentBlockRoutes(dataDir: string) {
       const modelId = (query as Record<string, string | undefined>).modelId
       if (modelId) {
         previewCtx.modelId = modelId
-      } else if (def.modelRole) {
-        // Auto-resolve from the agent's model role
+      } else {
+        // Auto-resolve from the agent name (used as the model role key)
         try {
-          const resolved = await getModel(dataDir, params.storyId, { role: def.modelRole })
+          const resolved = await getModel(dataDir, params.storyId, { role: params.agentName })
           if (resolved.modelId) previewCtx.modelId = resolved.modelId
         } catch {
           // If model resolution fails (no provider configured), leave modelId unset

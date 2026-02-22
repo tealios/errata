@@ -224,7 +224,7 @@ describe('generation endpoint', () => {
   })
 
   it('POST /stories/:storyId/generate excludes tools listed in disabledTools', async () => {
-    await saveAgentBlockConfig(dataDir, storyId, 'generation', {
+    await saveAgentBlockConfig(dataDir, storyId, 'generation.writer', {
       customBlocks: [],
       overrides: {},
       blockOrder: [],

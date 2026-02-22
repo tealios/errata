@@ -46,7 +46,7 @@ export async function suggestDirections(
   // Load story to get custom prompt if configured
   const story = await getStory(dataDir, storyId)
 
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'directions' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'directions.suggest' })
 
   const resolvedTemplate = instructionRegistry.resolve('directions.suggest-template', modelId)
   const promptTemplate = story?.settings.guidedSuggestPrompt || resolvedTemplate

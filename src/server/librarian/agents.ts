@@ -108,18 +108,14 @@ export function registerLibrarianAgents(): void {
   agentRegistry.register(chatDefinition)
   agentRegistry.register(proseTransformDefinition)
 
-  // Model roles
-  modelRoleRegistry.register({ key: 'librarian', label: 'Librarian', description: 'Background analysis and summaries', fallback: ['generation'] })
-  modelRoleRegistry.register({ key: 'proseTransform', label: 'Prose Transform', description: 'Rewrite, expand, compress selected text', fallback: ['librarian', 'generation'] })
-  modelRoleRegistry.register({ key: 'librarianChat', label: 'Librarian Chat', description: 'Interactive librarian conversation', fallback: ['librarian', 'generation'] })
-  modelRoleRegistry.register({ key: 'librarianRefine', label: 'Librarian Refine', description: 'Fragment refinement', fallback: ['librarian', 'generation'] })
+  // Model role (namespace-level only — per-agent resolution via dot-separated names)
+  modelRoleRegistry.register({ key: 'librarian', label: 'Librarian', description: 'Background analysis and summaries' })
 
   // Block definitions
   agentBlockRegistry.register({
     agentName: 'librarian.analyze',
     displayName: 'Librarian Analyze',
     description: 'Analyzes prose fragments for continuity signals and summary updates.',
-    modelRole: 'librarian',
     createDefaultBlocks: createLibrarianAnalyzeBlocks,
     availableTools: ['updateSummary', 'reportMentions', 'reportContradictions', 'suggestFragment', 'updateFragment', 'reportTimeline', 'suggestDirections'],
     buildPreviewContext: buildAnalyzePreviewContext,
@@ -129,7 +125,6 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.chat',
     displayName: 'Librarian Chat',
     description: 'Conversational librarian assistant with write-enabled fragment tools.',
-    modelRole: 'librarianChat',
     createDefaultBlocks: createLibrarianChatBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
@@ -143,7 +138,6 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.refine',
     displayName: 'Librarian Refine',
     description: 'Refines non-prose fragments using story context and fragment tools.',
-    modelRole: 'librarianRefine',
     createDefaultBlocks: createLibrarianRefineBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
@@ -157,7 +151,6 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.prose-transform',
     displayName: 'Prose Transform',
     description: 'Transforms selected prose spans (rewrite, expand, compress, custom).',
-    modelRole: 'proseTransform',
     createDefaultBlocks: createProseTransformBlocks,
     availableTools: [],
     buildPreviewContext: buildProseTransformPreviewContext,

@@ -67,7 +67,7 @@ async function librarianChatInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarianChat' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.chat' })
   requestLogger.info('Resolved model', { modelId })
 
   // Create write-enabled fragment tools + enabled plugin tools

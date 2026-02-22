@@ -5,14 +5,38 @@ import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import type { LanguageModel } from 'ai'
 
+// Normalize old camelCase modelOverrides keys to dot-separated agent names
+const OVERRIDE_KEY_ALIASES: Record<string, string> = {
+  characterChat: 'character-chat.chat',
+  librarianChat: 'librarian.chat',
+  librarianRefine: 'librarian.refine',
+  proseTransform: 'librarian.prose-transform',
+  prewriter: 'generation.prewriter',
+}
+
+/** Apply key aliases to a modelOverrides map, returning a normalized copy */
+function normalizeOverrideKeys(
+  overrides: Record<string, { providerId?: string | null; modelId?: string | null }>,
+): Record<string, { providerId?: string | null; modelId?: string | null }> {
+  const result: Record<string, { providerId?: string | null; modelId?: string | null }> = {}
+  for (const [key, value] of Object.entries(overrides)) {
+    const normalizedKey = OVERRIDE_KEY_ALIASES[key] ?? key
+    // Don't overwrite if the new key already exists (new-style key takes priority)
+    if (!(normalizedKey in result)) {
+      result[normalizedKey] = value
+    }
+  }
+  return result
+}
+
 // Legacy field name mapping for backward compat with old story JSON files
 const LEGACY_FIELD_MAP: Record<string, { providerId: string; modelId: string }> = {
   generation: { providerId: 'providerId', modelId: 'modelId' },
   librarian: { providerId: 'librarianProviderId', modelId: 'librarianModelId' },
-  characterChat: { providerId: 'characterChatProviderId', modelId: 'characterChatModelId' },
-  proseTransform: { providerId: 'proseTransformProviderId', modelId: 'proseTransformModelId' },
-  librarianChat: { providerId: 'librarianChatProviderId', modelId: 'librarianChatModelId' },
-  librarianRefine: { providerId: 'librarianRefineProviderId', modelId: 'librarianRefineModelId' },
+  'character-chat': { providerId: 'characterChatProviderId', modelId: 'characterChatModelId' },
+  'librarian.prose-transform': { providerId: 'proseTransformProviderId', modelId: 'proseTransformModelId' },
+  'librarian.chat': { providerId: 'librarianChatProviderId', modelId: 'librarianChatModelId' },
+  'librarian.refine': { providerId: 'librarianRefineProviderId', modelId: 'librarianRefineModelId' },
   directions: { providerId: 'directionsProviderId', modelId: 'directionsModelId' },
 }
 
@@ -67,7 +91,7 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
   if (storyId) {
     const story = await getStory(dataDir, storyId)
     if (story?.settings) {
-      const overrides = story.settings.modelOverrides ?? {}
+      const overrides = normalizeOverrideKeys(story.settings.modelOverrides ?? {})
       const settings = story.settings as Record<string, unknown>
 
       for (const r of chain) {

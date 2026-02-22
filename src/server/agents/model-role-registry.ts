@@ -2,7 +2,6 @@ export interface ModelRoleDefinition {
   key: string
   label: string
   description: string
-  fallback: string[]
 }
 
 class ModelRoleRegistry {
@@ -20,11 +19,25 @@ class ModelRoleRegistry {
     return [...this.definitions.values()]
   }
 
-  /** Walk the fallback chain for a role, returning [role, ...fallbacks] */
+  /**
+   * Derive the fallback chain from a dot-separated key.
+   * e.g. 'librarian.chat' → ['librarian.chat', 'librarian', 'generation']
+   *      'prewriter' → ['prewriter', 'generation']
+   *      'generation' → ['generation']
+   */
   getFallbackChain(key: string): string[] {
-    const def = this.definitions.get(key)
-    if (!def) return [key]
-    return [key, ...def.fallback]
+    const chain: string[] = [key]
+    const parts = key.split('.')
+    // Walk up the hierarchy: drop the last segment each time
+    while (parts.length > 1) {
+      parts.pop()
+      chain.push(parts.join('.'))
+    }
+    // Always end at 'generation' if not already there
+    if (chain[chain.length - 1] !== 'generation') {
+      chain.push('generation')
+    }
+    return chain
   }
 
   clear(): void {
@@ -39,5 +52,4 @@ modelRoleRegistry.register({
   key: 'generation',
   label: 'Generation',
   description: 'Main prose writing',
-  fallback: [],
 })

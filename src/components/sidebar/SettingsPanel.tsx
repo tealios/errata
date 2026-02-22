@@ -7,7 +7,8 @@ import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
 import { CustomTransformsPanel } from '@/components/settings/CustomTransformsPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
-import type { ModelRoleInfo } from '@/lib/api/types'
+import { ProviderSelect } from '@/components/settings/ProviderSelect'
+import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
 
 interface SettingsPanelProps {
   storyId: string
@@ -142,81 +143,6 @@ function FontPicker({ role, label, description, activeFont, onSelect }: {
   )
 }
 
-function ProviderSelect({ value, globalConfig, onChange, disabled, inheritLabel }: {
-  value: string | null
-  globalConfig: GlobalConfigSafe | null
-  onChange: (providerId: string | null) => void
-  disabled?: boolean
-  inheritLabel?: string
-}) {
-  const defaultProvider = globalConfig?.defaultProviderId
-    ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)
-    : null
-
-  const emptyLabel = inheritLabel
-    ? inheritLabel
-    : defaultProvider
-      ? defaultProvider.name
-      : 'DeepSeek (env)'
-
-  return (
-    <select
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      className="w-full max-w-[140px] h-[26px] px-2 text-[11px] text-foreground/80 bg-muted/50 border border-border/50 rounded-md focus:border-primary/30 focus:outline-none truncate"
-      disabled={disabled}
-    >
-      <option value="">
-        {emptyLabel}
-      </option>
-      {(globalConfig?.providers ?? []).map((p) => (
-        <option key={p.id} value={p.id}>{p.name}</option>
-      ))}
-    </select>
-  )
-}
-
-/** Resolve the effective providerId for a role by walking the fallback chain */
-function resolveProvider(
-  roleKey: string,
-  role: ModelRoleInfo,
-  settings: StoryMeta['settings'],
-  globalConfig: GlobalConfigSafe | null,
-): string | null {
-  const overrides = settings.modelOverrides ?? {}
-  const chain = [roleKey, ...role.fallback]
-  for (const r of chain) {
-    const pid = overrides[r]?.providerId
-    if (pid) return pid
-  }
-  return globalConfig?.defaultProviderId ?? null
-}
-
-/** Get the inherit label for a role's provider dropdown (e.g. "Inherit (Librarian)") */
-function getInheritLabel(
-  role: ModelRoleInfo,
-  roles: ModelRoleInfo[],
-  settings: StoryMeta['settings'],
-  globalConfig: GlobalConfigSafe | null,
-): string {
-  const overrides = settings.modelOverrides ?? {}
-
-  // Walk fallback chain to find which parent has a provider set
-  for (const parentKey of role.fallback) {
-    const pid = overrides[parentKey]?.providerId
-    if (pid) {
-      const provider = globalConfig?.providers.find(p => p.id === pid)
-      const parentRole = roles.find(r => r.key === parentKey)
-      return `Inherit${parentRole ? ` \u00b7 ${parentRole.label}` : ''}${provider ? ` (${provider.name})` : ''}`
-    }
-  }
-
-  // Falls through to global default
-  const defaultProvider = globalConfig?.defaultProviderId
-    ? globalConfig.providers.find(p => p.id === globalConfig.defaultProviderId)
-    : null
-  return `Inherit${defaultProvider ? ` (${defaultProvider.name})` : ''}`
-}
 
 function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: {
   story: StoryMeta
@@ -252,7 +178,7 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
         {roles.map((role) => {
           const directProviderId = overrides[role.key]?.providerId ?? null
           const directModelId = overrides[role.key]?.modelId ?? null
-          const effectiveProviderId = resolveProvider(role.key, role, settings, globalConfig)
+          const effectiveProviderId = resolveProvider(role.key, settings, globalConfig)
           const isGeneration = role.key === 'generation'
 
           return (
@@ -274,7 +200,7 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                       })
                     }}
                     disabled={updateMutation.isPending}
-                    inheritLabel={isGeneration ? undefined : getInheritLabel(role, roles, settings, globalConfig)}
+                    inheritLabel={isGeneration ? undefined : getInheritLabel(role.key, roles, settings, globalConfig)}
                   />
                 </div>
                 <div className="min-w-0 flex-1">

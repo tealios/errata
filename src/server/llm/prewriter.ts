@@ -83,7 +83,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
   const requestLogger = logger.child({ storyId })
 
   const startTime = Date.now()
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'prewriter' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'generation.prewriter' })
   requestLogger.info('Prewriter model resolved', { modelId })
 
   // Build the prewriter prompt from blocks (allows user customization via block editor)
@@ -102,7 +102,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
 
   let prewriterBlocks: ContextBlock[]
   try {
-    const compiled = await compileAgentContext(dataDir, storyId, 'prewriter', blockContext, {})
+    const compiled = await compileAgentContext(dataDir, storyId, 'generation.prewriter', blockContext, {})
     prewriterBlocks = compiled.blocks
   } catch {
     // If no agent block config exists, use default blocks
@@ -220,7 +220,7 @@ export function createPrewriterBlocks(_ctx: AgentBlockContext): ContextBlock[] {
     {
       id: 'instructions',
       role: 'system' as const,
-      content: instructionRegistry.resolve('prewriter.system', _ctx.modelId),
+      content: instructionRegistry.resolve('generation.prewriter.system', _ctx.modelId),
       order: 100,
       source: 'builtin',
     },

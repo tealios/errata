@@ -82,7 +82,7 @@ async function characterChatInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'characterChat' })
+  const { model, modelId } = await getModel(dataDir, storyId, { role: 'character-chat.chat' })
   requestLogger.info('Resolved model', { modelId })
 
   // Build context state limited to the story point

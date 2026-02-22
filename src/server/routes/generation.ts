@@ -162,7 +162,7 @@ export function generationRoutes(dataDir: string) {
       const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
       const { tools: pluginTools, origins: pluginToolOrigins } = collectPluginToolsWithOrigin(enabledPlugins, dataDir, params.storyId)
       const allTools = { ...fragmentTools, ...pluginTools }
-      const agentConfig = await getAgentBlockConfig(dataDir, params.storyId, 'generation')
+      const agentConfig = await getAgentBlockConfig(dataDir, params.storyId, 'generation.writer')
       const disabledTools = new Set(agentConfig.disabledTools ?? [])
       const tools: Record<string, (typeof allTools)[string]> = {}
       for (const [name, t] of Object.entries(allTools)) {
@@ -233,7 +233,7 @@ export function generationRoutes(dataDir: string) {
         new Promise<void>((resolve) => { completionResolve = resolve })
       }
 
-      const genActivityId = registerActiveAgent(params.storyId, 'generation')
+      const genActivityId = registerActiveAgent(params.storyId, 'generation.writer')
 
       const eventStream = new ReadableStream<Uint8Array>({
         async start(controller) {
@@ -248,7 +248,7 @@ export function generationRoutes(dataDir: string) {
             if (isPrewriterMode) {
               emit({ type: 'phase', phase: 'prewriting' })
 
-              const prewriterActivityId = registerActiveAgent(params.storyId, 'prewriter')
+              const prewriterActivityId = registerActiveAgent(params.storyId, 'generation.prewriter')
               try {
                 const configuredMax = story.settings.maxSteps ?? 10
                 const prewriterMaxSteps = Math.max(1, Math.floor(configuredMax / 2))
