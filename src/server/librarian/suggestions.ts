@@ -8,6 +8,7 @@ import {
   updateFragmentVersioned,
 } from '../fragments/storage'
 import { registry } from '../fragments/registry'
+import { checkFragmentWrite } from '../fragments/protection'
 import type { LibrarianAnalysis } from './storage'
 
 type FragmentSuggestion = LibrarianAnalysis['fragmentSuggestions'][number]
@@ -78,6 +79,10 @@ export async function applyFragmentSuggestion(args: {
   const existing = await findSuggestionFragment(dataDir, storyId, analysis, suggestion)
 
   if (existing) {
+    const protection = checkFragmentWrite(existing, { content: suggestion.content })
+    if (!protection.allowed) {
+      throw new Error(`Cannot apply suggestion: ${protection.reason}`)
+    }
     const versioned = await updateFragmentVersioned(
       dataDir,
       storyId,

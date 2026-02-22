@@ -58,6 +58,11 @@ export interface FragmentVersion {
   reason?: string
 }
 
+export interface FrozenSection {
+  id: string
+  text: string
+}
+
 export interface FragmentTypeInfo {
   type: string
   prefix: string
@@ -160,6 +165,8 @@ export interface AgentRunTraceRecord {
   finishedAt: string
   durationMs: number
   error?: string
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
   trace: AgentTraceEntry[]
 }
 

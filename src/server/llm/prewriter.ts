@@ -315,6 +315,19 @@ export function createWriterBriefBlocks(
       order: 100,
       source: 'builtin',
     })
+  } else {
+    blocks.push({
+      id: 'new-story',
+      role: 'user' as const,
+      content: [
+        '## New Story',
+        'There is no existing prose yet. You are writing the very beginning of this story.',
+        'Establish the opening scene — setting, tone, and any initial characters — based on the writing brief below.',
+        'Do NOT reference or continue from any prior narrative; start fresh.',
+      ].join('\n'),
+      order: 100,
+      source: 'builtin',
+    })
   }
 
   blocks.push({

@@ -249,6 +249,11 @@ code {
   letter-spacing: 0.005em;
 }
 
+/* Paragraph spacing inside the tiptap editor */
+.ProseMirror p + p {
+  margin-top: 0.75em;
+}
+
 /* Subtle text fade animation for streaming */
 @keyframes text-fade-in {
   from { opacity: 0.4; }

@@ -15,6 +15,7 @@ import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 import { generateFragmentId } from '@/lib/fragment-ids'
+import { checkFragmentWrite, isFragmentLocked } from '../fragments/protection'
 
 const logger = createLogger('llm-tools')
 const TOOL_LOG_MAX_CHARS = 1200
@@ -291,6 +292,8 @@ export function createFragmentTools(
         if (!fragment) {
           return { error: `Fragment not found: ${fragmentId}` }
         }
+        const protection = checkFragmentWrite(fragment, { content: newContent })
+        if (!protection.allowed) return { error: protection.reason }
         const updated = await updateFragmentVersioned(
           dataDir,
           storyId,
@@ -324,11 +327,14 @@ export function createFragmentTools(
         if (!fragment.content.includes(oldText)) {
           return { error: `Text not found in fragment ${fragmentId}: "${oldText}"` }
         }
+        const editedContent = fragment.content.replace(oldText, newText)
+        const protection = checkFragmentWrite(fragment, { content: editedContent })
+        if (!protection.allowed) return { error: protection.reason }
         const updated = await updateFragmentVersioned(
           dataDir,
           storyId,
           fragmentId,
-          { content: fragment.content.replace(oldText, newText) },
+          { content: editedContent },
           { reason: 'llm-editFragment' },
         )
         if (!updated) {
@@ -344,6 +350,10 @@ export function createFragmentTools(
         fragmentId: z.string().describe('The fragment ID to delete'),
       }),
       execute: withToolLogging('deleteFragment', storyId, async ({ fragmentId }) => {
+        const fragment = await getFragment(dataDir, storyId, fragmentId)
+        if (fragment && isFragmentLocked(fragment)) {
+          return { error: 'Fragment is locked and cannot be modified by AI tools.' }
+        }
         await deleteFragment(dataDir, storyId, fragmentId)
         return { ok: true, id: fragmentId }
       }),
@@ -372,21 +382,31 @@ export function createFragmentTools(
         }
 
         const edited: string[] = []
+        const skipped: string[] = []
         for (const f of proseFragments) {
           if (f.content.includes(oldText)) {
+            const newContent = f.content.replace(oldText, newText)
+            const protection = checkFragmentWrite(f, { content: newContent })
+            if (!protection.allowed) {
+              skipped.push(f.id)
+              continue
+            }
             const updated: Fragment = {
               ...f,
-              content: f.content.replace(oldText, newText),
+              content: newContent,
               updatedAt: new Date().toISOString(),
             }
             await updateFragment(dataDir, storyId, updated)
             edited.push(f.id)
           }
         }
-        if (edited.length === 0) {
+        if (edited.length === 0 && skipped.length === 0) {
           return { error: `Text not found in any active prose fragment: "${oldText.slice(0, 80)}"` }
         }
-        return { ok: true, editedFragments: edited, count: edited.length }
+        if (edited.length === 0 && skipped.length > 0) {
+          return { error: `Text found but all matching fragments are protected (locked or have frozen sections): ${skipped.join(', ')}` }
+        }
+        return { ok: true, editedFragments: edited, count: edited.length, ...(skipped.length > 0 ? { skippedProtected: skipped } : {}) }
       }),
     })
 

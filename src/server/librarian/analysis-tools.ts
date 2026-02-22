@@ -1,6 +1,7 @@
 import { tool } from 'ai'
 import { z } from 'zod/v4'
 import { getFragment, updateFragmentVersioned } from '../fragments/storage'
+import { checkFragmentWrite } from '../fragments/protection'
 
 // --- Collector ---
 
@@ -207,6 +208,8 @@ export function createAnalysisTools(collector: AnalysisCollector, opts?: { dataD
         const existing = await getFragment(opts.dataDir, opts.storyId, fragmentId)
         if (!existing) return { error: `Fragment ${fragmentId} not found` }
         if (existing.type === 'prose') return { error: 'Cannot update prose fragments via this tool' }
+        const protection = checkFragmentWrite(existing, { content })
+        if (!protection.allowed) return { error: protection.reason }
         const updates: Record<string, string> = {}
         if (name !== undefined) updates.name = name
         if (description !== undefined) updates.description = description

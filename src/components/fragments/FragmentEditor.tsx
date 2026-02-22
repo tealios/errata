@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check, Sparkles } from 'lucide-react'
+import { Pin, Trash2, X, Monitor, User, Upload, ImagePlus, Link2, Unlink, Crop, Archive, Undo2, Copy, Check, Sparkles, Lock, Unlock, Snowflake } from 'lucide-react'
+import type { FrozenSection } from '@/lib/api/types'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { copyFragmentToClipboard } from '@/lib/fragment-clipboard'
 import { CropDialog } from '@/components/fragments/CropDialog'
@@ -47,6 +48,9 @@ export function FragmentEditor({
   const [copied, setCopied] = useState(false)
   const [showRefine, setShowRefine] = useState(false)
   const [previewVersion, setPreviewVersion] = useState<FragmentVersion | null>(null)
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [hasTextSelection, setHasTextSelection] = useState(false)
+  const lastSelectionRef = useRef('')
 
   // Auto-save state for edit mode
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -262,6 +266,105 @@ export function FragmentEditor({
     }
   }, [])
 
+  // --- Protection helpers ---
+  const isLocked = fragment?.meta?.locked === true
+  const frozenSections: FrozenSection[] = useMemo(() => {
+    const raw = fragment?.meta?.frozenSections
+    if (!Array.isArray(raw)) return []
+    return raw.filter(
+      (s): s is FrozenSection =>
+        typeof s === 'object' && s !== null &&
+        typeof s.id === 'string' && typeof s.text === 'string' && s.text !== '',
+    )
+  }, [fragment?.meta?.frozenSections])
+
+  const metaMutation = useMutation({
+    mutationFn: (newMeta: Record<string, unknown>) => {
+      if (!fragment) throw new Error('No fragment')
+      return api.fragments.update(storyId, fragment.id, {
+        name: fragment.name,
+        description: fragment.description,
+        content: fragment.content,
+        meta: newMeta,
+      })
+    },
+    onSuccess: () => {
+      invalidate()
+    },
+  })
+
+  const toggleLock = () => {
+    if (!fragment) return
+    metaMutation.mutate({ ...fragment.meta, locked: !isLocked })
+  }
+
+  const freezeSelection = () => {
+    if (!fragment) return
+    const selected = lastSelectionRef.current
+    if (!selected.trim()) return
+    const id = `fs-${Math.random().toString(36).slice(2, 10)}`
+    const next: FrozenSection[] = [...frozenSections, { id, text: selected }]
+    metaMutation.mutate({ ...fragment.meta, frozenSections: next })
+  }
+
+  const unfreezeSection = (sectionId: string) => {
+    if (!fragment) return
+    const next = frozenSections.filter((s) => s.id !== sectionId)
+    metaMutation.mutate({ ...fragment.meta, frozenSections: next })
+  }
+
+  // Split content into editable/frozen segments for inline display
+  type ContentSegment =
+    | { type: 'editable'; text: string }
+    | { type: 'frozen'; text: string; id: string }
+
+  const contentSegments = useMemo((): ContentSegment[] | null => {
+    if (frozenSections.length === 0) return null
+    const matches: Array<{ start: number; end: number; id: string; text: string }> = []
+    for (const s of frozenSections) {
+      const idx = content.indexOf(s.text)
+      if (idx !== -1) matches.push({ start: idx, end: idx + s.text.length, id: s.id, text: s.text })
+    }
+    if (matches.length === 0) return null
+    matches.sort((a, b) => a.start - b.start)
+    // Remove overlapping matches
+    const filtered: typeof matches = []
+    let lastEnd = 0
+    for (const m of matches) {
+      if (m.start >= lastEnd) { filtered.push(m); lastEnd = m.end }
+    }
+    const segments: ContentSegment[] = []
+    let pos = 0
+    for (const m of filtered) {
+      segments.push({ type: 'editable', text: content.slice(pos, m.start) })
+      segments.push({ type: 'frozen', text: m.text, id: m.id })
+      pos = m.end
+    }
+    segments.push({ type: 'editable', text: content.slice(pos) })
+    return segments
+  }, [content, frozenSections])
+
+  const orphanedFrozen = useMemo(
+    () => frozenSections.filter((s) => !content.includes(s.text)),
+    [content, frozenSections],
+  )
+
+  const handleSegmentChange = useCallback(
+    (segmentIndex: number, newText: string) => {
+      if (!contentSegments) return
+      const rebuilt = contentSegments.map((seg, i) => (i === segmentIndex ? newText : seg.text)).join('')
+      userEditedRef.current = true
+      setContent(rebuilt)
+    },
+    [contentSegments],
+  )
+
+  const resizeTextarea = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = '0'
+    el.style.height = el.scrollHeight + 'px'
+  }, [])
+
   const revertVersionMutation = useMutation({
     mutationFn: (version: number) => api.fragments.revertToVersion(storyId, fragment!.id, version),
     onSuccess: () => {
@@ -396,6 +499,23 @@ export function FragmentEditor({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Refine this fragment with Librarian</TooltipContent>
+            </Tooltip>
+          )}
+          {fragment && !fragment.archived && mode !== 'create' && fragment.type !== 'prose' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 text-xs gap-1 ${isLocked ? 'text-amber-500 hover:text-amber-600' : ''}`}
+                  onClick={toggleLock}
+                  disabled={metaMutation.isPending}
+                >
+                  {isLocked ? <Lock className="size-3" /> : <Unlock className="size-3" />}
+                  {isLocked ? 'Locked' : 'Lock'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{isLocked ? 'Unlock — allow AI modifications' : 'Lock — prevent AI from modifying'}</TooltipContent>
             </Tooltip>
           )}
           {fragment && (
@@ -566,7 +686,7 @@ export function FragmentEditor({
 
         <div className="h-px bg-border/30 mx-6" />
 
-        <div className="flex-1 px-6 py-5">
+        <div className="px-6 py-5">
           {isMediaType ? (
             <>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">
@@ -654,17 +774,115 @@ export function FragmentEditor({
           ) : (
             <>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block uppercase tracking-wider">Content</label>
-              <Textarea
-                value={content}
-                onChange={(e) => { userEditedRef.current = true; setContent(e.target.value) }}
-                disabled={!isEditing}
-                className="min-h-[200px] h-full resize-none font-mono text-sm bg-transparent"
-                required
-              />
-              <div className="flex justify-end gap-3 mt-1 text-[10px] text-muted-foreground tabular-nums">
-                <span>{content.trim() ? content.trim().split(/\s+/).length : 0} words</span>
-                <span>{content.length} chars</span>
+
+              {contentSegments ? (
+                /* Split editor — editable textareas interleaved with frozen divs */
+                <div className="rounded-md border border-input overflow-hidden min-h-[200px] focus-within:ring-1 focus-within:ring-ring">
+                  {contentSegments.map((seg, i) =>
+                    seg.type === 'editable' ? (
+                      <textarea
+                        key={`seg-${i}`}
+                        ref={(el) => {
+                          resizeTextarea(el)
+                        }}
+                        value={seg.text}
+                        onChange={(e) => {
+                          handleSegmentChange(i, e.target.value)
+                          resizeTextarea(e.target)
+                        }}
+                        onFocus={(e) => {
+                          contentTextareaRef.current = e.currentTarget
+                        }}
+                        onSelect={(e) => {
+                          const ta = e.currentTarget
+                          const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd)
+                          lastSelectionRef.current = sel
+                          setHasTextSelection(sel.length > 0)
+                        }}
+                        disabled={!isEditing}
+                        rows={Math.max(1, seg.text.split('\n').length)}
+                        className="block w-full px-3 py-1.5 font-mono text-sm leading-relaxed bg-transparent resize-none border-none outline-none focus:ring-0 focus-visible:ring-0"
+                      />
+                    ) : (
+                      <div key={seg.id} className="group relative bg-sky-500/[0.06] dark:bg-sky-400/[0.06]">
+                        <div className="absolute inset-y-0 left-0 w-0.5 bg-sky-500/40" />
+                        <div className="flex items-start gap-2 pl-3 pr-2 py-1.5">
+                          <pre className="flex-1 min-w-0 font-mono text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
+                            {seg.text}
+                          </pre>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => unfreezeSection(seg.id)}
+                                disabled={metaMutation.isPending}
+                                className="shrink-0 mt-0.5 inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] text-sky-600/70 dark:text-sky-400/60 opacity-0 group-hover:opacity-100 hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-300 transition-all"
+                              >
+                                <Snowflake className="size-2.5" />
+                                <span>Unfreeze</span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Remove freeze protection</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
+              ) : (
+                /* Single textarea — no frozen sections in content */
+                <Textarea
+                  ref={contentTextareaRef}
+                  value={content}
+                  onChange={(e) => { userEditedRef.current = true; setContent(e.target.value) }}
+                  onSelect={(e) => {
+                    const ta = e.currentTarget
+                    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd)
+                    lastSelectionRef.current = sel
+                    setHasTextSelection(sel.length > 0)
+                  }}
+                  disabled={!isEditing}
+                  className="min-h-[40vh] resize-none font-mono text-sm leading-relaxed bg-transparent"
+                  required
+                />
+              )}
+
+              <div className="flex items-center justify-between mt-1.5">
+                {fragment && !fragment.archived && mode !== 'create' && !isLocked && fragment.type !== 'prose' ? (
+                  <button
+                    type="button"
+                    onClick={freezeSelection}
+                    disabled={!hasTextSelection || metaMutation.isPending}
+                    className={`
+                      inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] transition-all
+                      ${hasTextSelection
+                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 hover:bg-sky-500/20 cursor-pointer'
+                        : 'text-muted-foreground/50 cursor-default'
+                      }
+                    `}
+                  >
+                    <Snowflake className="size-3" />
+                    {hasTextSelection ? 'Freeze selected text' : 'Select text to freeze'}
+                  </button>
+                ) : <span />}
+                <div className="flex gap-3 text-[10px] text-muted-foreground tabular-nums">
+                  <span>{content.trim() ? content.trim().split(/\s+/).length : 0} words</span>
+                  <span>{content.length} chars</span>
+                </div>
               </div>
+
+              {/* Orphaned frozen sections — text no longer in content */}
+              {orphanedFrozen.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400/70">Orphaned:</span>
+                  {orphanedFrozen.map((s) => (
+                    <span key={s.id} className="inline-flex items-center gap-1 h-5 px-1.5 rounded border border-amber-500/20 bg-amber-500/[0.05] text-[10px] text-amber-700 dark:text-amber-400/60">
+                      <span className="max-w-[120px] truncate">{s.text}</span>
+                      <button type="button" onClick={() => unfreezeSection(s.id)} className="hover:text-destructive transition-colors">&times;</button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

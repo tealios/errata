@@ -643,6 +643,19 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
       order: 500,
       source: 'builtin',
     })
+  } else {
+    blocks.push({
+      id: 'new-story',
+      role: 'user',
+      content: [
+        '## New Story',
+        'There is no existing prose yet. You are writing the very beginning of this story.',
+        'Establish the opening scene — setting, tone, and any initial characters — based on the author\'s direction below.',
+        'Do NOT reference or continue from any prior narrative; start fresh.',
+      ].join('\n'),
+      order: 500,
+      source: 'builtin',
+    })
   }
 
   blocks.push({
