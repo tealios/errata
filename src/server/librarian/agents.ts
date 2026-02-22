@@ -119,6 +119,7 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.analyze',
     displayName: 'Librarian Analyze',
     description: 'Analyzes prose fragments for continuity signals and summary updates.',
+    modelRole: 'librarian',
     createDefaultBlocks: createLibrarianAnalyzeBlocks,
     availableTools: ['updateSummary', 'reportMentions', 'reportContradictions', 'suggestFragment', 'updateFragment', 'reportTimeline', 'suggestDirections'],
     buildPreviewContext: buildAnalyzePreviewContext,
@@ -128,6 +129,7 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.chat',
     displayName: 'Librarian Chat',
     description: 'Conversational librarian assistant with write-enabled fragment tools.',
+    modelRole: 'librarianChat',
     createDefaultBlocks: createLibrarianChatBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
@@ -141,6 +143,7 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.refine',
     displayName: 'Librarian Refine',
     description: 'Refines non-prose fragments using story context and fragment tools.',
+    modelRole: 'librarianRefine',
     createDefaultBlocks: createLibrarianRefineBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
@@ -154,6 +157,7 @@ export function registerLibrarianAgents(): void {
     agentName: 'librarian.prose-transform',
     displayName: 'Prose Transform',
     description: 'Transforms selected prose spans (rewrite, expand, compress, custom).',
+    modelRole: 'proseTransform',
     createDefaultBlocks: createProseTransformBlocks,
     availableTools: [],
     buildPreviewContext: buildProseTransformPreviewContext,

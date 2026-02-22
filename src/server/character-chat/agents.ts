@@ -64,6 +64,7 @@ export function registerCharacterChatAgents(): void {
     agentName: 'character-chat.chat',
     displayName: 'Character Chat',
     description: 'In-character conversation with a story character.',
+    modelRole: 'characterChat',
     createDefaultBlocks: createCharacterChatBlocks,
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',

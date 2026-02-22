@@ -5,6 +5,7 @@ import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import { listActiveAgents } from '../agents/active-registry'
 import { compileBlocks } from '../llm/context-builder'
+import { getModel } from '../llm/client'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
 import { CustomBlockDefinitionSchema } from '../blocks/schema'
@@ -38,6 +39,7 @@ export function agentBlockRoutes(dataDir: string) {
         displayName: def.displayName,
         description: def.description,
         availableTools: def.availableTools ?? [],
+        modelRole: def.modelRole ?? null,
       }))
     })
 
@@ -92,7 +94,17 @@ export function agentBlockRoutes(dataDir: string) {
       const previewCtx = await def.buildPreviewContext(dataDir, params.storyId)
       // Allow ?modelId= to preview model-specific instruction overrides
       const modelId = (query as Record<string, string | undefined>).modelId
-      if (modelId) previewCtx.modelId = modelId
+      if (modelId) {
+        previewCtx.modelId = modelId
+      } else if (def.modelRole) {
+        // Auto-resolve from the agent's model role
+        try {
+          const resolved = await getModel(dataDir, params.storyId, { role: def.modelRole })
+          if (resolved.modelId) previewCtx.modelId = resolved.modelId
+        } catch {
+          // If model resolution fails (no provider configured), leave modelId unset
+        }
+      }
       let blocks = def.createDefaultBlocks(previewCtx)
       const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
       blocks = await applyBlockConfig(blocks, config, {

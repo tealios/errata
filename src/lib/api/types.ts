@@ -300,6 +300,7 @@ export interface AgentBlockInfo {
   displayName: string
   description: string
   availableTools: string[]
+  modelRole: string | null
 }
 
 export interface AgentBlockConfig extends BlockConfig {

@@ -37,6 +37,7 @@ export function registerDirectionsAgents(): void {
     agentName: 'directions.suggest',
     displayName: 'Directions',
     description: 'Suggests possible story directions based on current context.',
+    modelRole: 'directions',
     createDefaultBlocks: createDirectionsSuggestBlocks,
     availableTools: [],
     buildPreviewContext: buildDirectionsPreviewContext,
