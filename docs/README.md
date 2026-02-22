@@ -20,6 +20,10 @@
   - Frontend `data-component-id` contract for extensibility and automation.
 - `docs/publishing-plugin-sdk.md`
   - How to publish `@tealios/errata-plugin-sdk` manually and via GitHub Actions.
+- `docs/instruction-registry.md`
+  - Instruction registry: centralized prompt management, model-specific instruction overrides, InstructionSet schema, and registered keys.
+- `docs/generation-pipeline.md`
+  - Generation pipeline: standard and prewriter modes, context assembly, streaming events, generation logs, and mode-specific behavior.
 - `docs/commit-doc-sync.md`
   - Auto-generated commit-driven documentation sync report with baseline detection and follow-up suggestions.
 - `docs/documentation-sync-skill.md`

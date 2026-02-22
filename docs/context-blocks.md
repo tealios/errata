@@ -586,15 +586,86 @@ interface AgentBlockDefinition {
 }
 ```
 
+## Model Resolution
+
+Agent names double as model role keys. The system derives a **fallback chain** from each dot-separated key and walks it until a configured provider is found.
+
+### Fallback Chain Derivation
+
+Algorithm: split the key on `.`, pop the last segment, repeat. Append `generation` if not already terminal.
+
+```
+librarian.chat       → ['librarian.chat', 'librarian', 'generation']
+generation.prewriter → ['generation.prewriter', 'generation']
+character-chat.chat  → ['character-chat.chat', 'character-chat', 'generation']
+directions.suggest   → ['directions.suggest', 'directions', 'generation']
+generation           → ['generation']
+```
+
+### Resolution Flow
+
+`getModel(dataDir, storyId, { role })` in `src/server/llm/client.ts` resolves a model by walking the fallback chain:
+
+1. **Story `modelOverrides` map** — For each key in the chain, check `story.settings.modelOverrides[key]` for a `providerId`/`modelId` pair.
+2. **Legacy field map** — If no override matched, check legacy per-field story settings (e.g. `librarianProviderId`, `characterChatModelId`). See backward compatibility below.
+3. **Global default** — If the story has no match, fall back to `globalConfig.defaultProviderId`.
+4. **Error** — If nothing is configured, throw with a descriptive message.
+
+The first non-null `providerId` found wins. If the match includes a `modelId`, that model is used; otherwise the provider's `defaultModel` is used.
+
+### Backward Compatibility
+
+Two compatibility layers normalize old configuration formats:
+
+**`OVERRIDE_KEY_ALIASES`** — Normalizes old camelCase keys in `modelOverrides` to dot-separated agent names:
+
+| Old key | Normalized to |
+|---|---|
+| `characterChat` | `character-chat.chat` |
+| `librarianChat` | `librarian.chat` |
+| `librarianRefine` | `librarian.refine` |
+| `proseTransform` | `librarian.prose-transform` |
+| `prewriter` | `generation.prewriter` |
+
+If both old and new key forms exist, the new-style key takes priority.
+
+**`LEGACY_FIELD_MAP`** — Maps fallback chain keys to old per-field story JSON property names:
+
+| Key | `providerId` field | `modelId` field |
+|---|---|---|
+| `generation` | `providerId` | `modelId` |
+| `librarian` | `librarianProviderId` | `librarianModelId` |
+| `character-chat` | `characterChatProviderId` | `characterChatModelId` |
+| `librarian.prose-transform` | `proseTransformProviderId` | `proseTransformModelId` |
+| `librarian.chat` | `librarianChatProviderId` | `librarianChatModelId` |
+| `librarian.refine` | `librarianRefineProviderId` | `librarianRefineModelId` |
+| `directions` | `directionsProviderId` | `directionsModelId` |
+
+### Namespace vs Per-Agent
+
+The Settings panel exposes **four namespace-level roles** for model selection. These serve as defaults for all agents within that namespace:
+
+| Key | Label | Description |
+|---|---|---|
+| `generation` | Generation | Main prose writing |
+| `librarian` | Librarian | Background analysis and summaries |
+| `character-chat` | Character Chat | In-character conversations |
+| `directions` | Directions | Story direction suggestions |
+
+**Per-agent overrides** are configured in the Agent Context panel's block editor. For example, setting a model on `generation.prewriter` overrides only the prewriter, while the writer inherits from `generation`. An agent with no per-agent override walks up to its namespace, then to `generation`, then to the global default.
+
 ## Registered Agents
 
 | Agent Name | Display Name | Description |
 |---|---|---|
+| `generation.writer` | Writer | Main prose generation agent |
+| `generation.prewriter` | Prewriter | Writing planner that produces briefs for the writer |
 | `librarian.analyze` | Librarian Analyze | Analyzes prose fragments for continuity signals |
 | `librarian.chat` | Librarian Chat | Conversational assistant with write-enabled tools |
 | `librarian.refine` | Librarian Refine | Refines non-prose fragments using story context |
 | `librarian.prose-transform` | Prose Transform | Transforms selected prose spans |
 | `character-chat.chat` | Character Chat | In-character conversation |
+| `directions.suggest` | Directions | Suggests possible story directions based on current context |
 
 ## Storage
 
