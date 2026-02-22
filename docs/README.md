@@ -24,6 +24,8 @@
   - Instruction registry: centralized prompt management, model-specific instruction overrides, InstructionSet schema, and registered keys.
 - `docs/generation-pipeline.md`
   - Generation pipeline: standard and prewriter modes, context assembly, streaming events, generation logs, and mode-specific behavior.
+- `docs/adding-agents.md`
+  - Contributor guide for adding new agents: file structure, system prompts, block builders, runtime logic, registration, model resolution, UI integration, testing checklist.
 - `docs/commit-doc-sync.md`
   - Auto-generated commit-driven documentation sync report with baseline detection and follow-up suggestions.
 - `docs/documentation-sync-skill.md`

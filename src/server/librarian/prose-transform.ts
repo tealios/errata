@@ -1,14 +1,9 @@
-import { getModel } from '../llm/client'
-import { getStory, getFragment } from '../fragments/storage'
+import { getFragment } from '../fragments/storage'
+import { createStreamingRunner } from '../agents/create-streaming-runner'
 import { createLogger } from '../logging'
-import { createToolAgent } from '../agents/create-agent'
-import { createEventStream } from '../agents/create-event-stream'
-import { compileAgentContext } from '../agents/compile-agent-context'
-import { withBranch } from '../fragments/branches'
 import type { AgentStreamResult } from '../agents/stream-types'
-import type { AgentBlockContext } from '../agents/agent-block-context'
 
-const logger = createLogger('librarian-prose-transform')
+const transformLogger = createLogger('librarian-prose-transform')
 
 export type ProseTransformOperation = 'rewrite' | 'expand' | 'compress' | 'custom'
 
@@ -20,6 +15,7 @@ export interface ProseTransformOptions {
   sourceContent?: string
   contextBefore?: string
   contextAfter?: string
+  maxSteps?: number
 }
 
 export type ProseTransformResult = AgentStreamResult
@@ -30,91 +26,47 @@ const OPERATION_GUIDANCE: Record<Exclude<ProseTransformOperation, 'custom'>, str
   compress: 'Compress the selected span to a tighter version while preserving essential meaning and continuity.',
 }
 
-export async function transformProseSelection(
-  dataDir: string,
-  storyId: string,
-  opts: ProseTransformOptions,
-): Promise<ProseTransformResult> {
-  return withBranch(dataDir, storyId, () => transformProseSelectionInner(dataDir, storyId, opts))
-}
+export const transformProseSelection = createStreamingRunner<ProseTransformOptions, { sourceContent: string; selectedText: string; guidance: string }>({
+  name: 'librarian.prose-transform',
+  role: 'librarian.prose-transform',
+  maxSteps: 1,
+  toolChoice: 'none',
+  buildContext: false,
+  readOnly: 'none',
 
-async function transformProseSelectionInner(
-  dataDir: string,
-  storyId: string,
-  opts: ProseTransformOptions,
-): Promise<ProseTransformResult> {
-  const requestLogger = logger.child({ storyId, extra: { fragmentId: opts.fragmentId, operation: opts.operation } })
-  requestLogger.info('Starting prose transform')
+  validate: async ({ dataDir, storyId, opts }) => {
+    const fragment = await getFragment(dataDir, storyId, opts.fragmentId)
+    if (!fragment) throw new Error(`Fragment ${opts.fragmentId} not found`)
+    if (fragment.type !== 'prose') throw new Error(`Fragment ${opts.fragmentId} is not prose`)
 
-  const story = await getStory(dataDir, storyId)
-  if (!story) throw new Error(`Story ${storyId} not found`)
+    const sourceContent = (opts.sourceContent ?? fragment.content).trim()
+    const selectedText = opts.selectedText.trim()
+    if (!selectedText) throw new Error('Selected text is required')
 
-  const fragment = await getFragment(dataDir, storyId, opts.fragmentId)
-  if (!fragment) throw new Error(`Fragment ${opts.fragmentId} not found`)
-  if (fragment.type !== 'prose') throw new Error(`Fragment ${opts.fragmentId} is not prose`)
+    const guidance = opts.operation === 'custom'
+      ? (opts.instruction || 'Improve the selected text.')
+      : OPERATION_GUIDANCE[opts.operation]
 
-  const sourceContent = (opts.sourceContent ?? fragment.content).trim()
-  const selectedText = opts.selectedText.trim()
-  if (!selectedText) throw new Error('Selected text is required')
+    return { sourceContent, selectedText, guidance }
+  },
 
-  const guidance = opts.operation === 'custom'
-    ? (opts.instruction || 'Improve the selected text.')
-    : OPERATION_GUIDANCE[opts.operation]
-
-  // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.prose-transform' })
-  requestLogger.info('Resolved model', { modelId })
-
-  // Build agent block context
-  const blockContext: AgentBlockContext = {
-    story,
-    proseFragments: [],
-    stickyGuidelines: [],
-    stickyKnowledge: [],
-    stickyCharacters: [],
-    guidelineShortlist: [],
-    knowledgeShortlist: [],
-    characterShortlist: [],
-    systemPromptFragments: [],
+  extraContext: async ({ opts, validated }) => ({
     operation: opts.operation,
-    guidance,
-    selectedText,
-    sourceContent,
+    guidance: validated.guidance,
+    selectedText: validated.selectedText,
+    sourceContent: validated.sourceContent,
     contextBefore: opts.contextBefore,
     contextAfter: opts.contextAfter,
-    modelId,
-  }
+  }),
 
-  // Compile context via block system
-  const compiled = await compileAgentContext(dataDir, storyId, 'librarian.prose-transform', blockContext, {})
-
-  // Extract system instructions from compiled messages
-  const systemMessage = compiled.messages.find(m => m.role === 'system')
-  const userMessage = compiled.messages.find(m => m.role === 'user')
-
-  const agent = createToolAgent({
-    model,
-    instructions: systemMessage?.content ?? '',
-    tools: compiled.tools,
-    maxSteps: 1,
-    toolChoice: 'none',
-  })
-
-  const result = await agent.stream({
-    messages: userMessage ? [{ role: 'user' as const, content: userMessage.content }] : [],
-  })
-
-  const streamResult = createEventStream(result.fullStream)
-
-  // Log completion in background
-  streamResult.completion.then((c) => {
-    requestLogger.info('Prose transform completed', {
-      stepCount: c.stepCount,
-      finishReason: c.finishReason,
-      outputLength: c.text.trim().length,
-      reasoningLength: c.reasoning.trim().length,
-    })
-  }).catch(() => {})
-
-  return streamResult
-}
+  afterStream: (result) => {
+    result.completion.then((c) => {
+      transformLogger.info('Prose transform completed', {
+        stepCount: c.stepCount,
+        finishReason: c.finishReason,
+        outputLength: c.text.trim().length,
+        reasoningLength: c.reasoning.trim().length,
+      })
+    }).catch(() => {})
+  },
+})

@@ -576,7 +576,7 @@ export function SettingsPanel({
               disabled={updateMutation.isPending}
             />
           </SettingRow>
-          <SettingRow label="Prompt control" description="Advanced mode enables Block Editor and fragment ordering" helpTopic="settings#prompt-control">
+          <SettingRow label="Prompt control" description="Advanced mode enables Agent configuration and fragment ordering" helpTopic="settings#prompt-control">
             <SegmentedControl
               value={story.settings.contextOrderMode ?? 'simple'}
               options={[

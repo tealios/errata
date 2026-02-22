@@ -233,11 +233,11 @@ export function StorySidebar({
                     <SidebarMenuButton
                       isActive={activeSection === 'agent-context'}
                       onClick={() => handleToggle('agent-context')}
-                      tooltip="Block Editor"
+                      tooltip="Agents"
                       data-component-id="sidebar-section-agent-context"
                     >
                       <Layers className="size-4" />
-                      <span>Block Editor</span>
+                      <span>Agents</span>
                       <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -2,8 +2,21 @@ import type { ContextBlock } from '../llm/context-builder'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { getFragmentsByTag } from '../fragments/associations'
-import { buildContextState } from '../llm/context-builder'
 import { instructionRegistry } from '../instructions'
+import {
+  instructionsBlock,
+  systemFragmentsBlock,
+  storyInfoBlock,
+  stickyFragmentsBlock,
+  recentProseBlock,
+  proseSummariesBlock,
+  targetFragmentBlock,
+  allCharactersBlock,
+  shortlistBlock,
+  compactBlocks,
+  buildBasePreviewContext,
+  loadSystemPromptFragments,
+} from '../agents/block-helpers'
 
 // ─── Librarian Analyze ───
 
@@ -35,31 +48,15 @@ Only return 'Analysis complete' in your final output.
 export function createLibrarianAnalyzeBlocks(ctx: AgentBlockContext): ContextBlock[] {
   const blocks: ContextBlock[] = []
 
-  blocks.push({
-    id: 'instructions',
-    role: 'system',
-    content: instructionRegistry.resolve('librarian.analyze.system', ctx.modelId),
-    order: 100,
-    source: 'builtin',
-  })
+  blocks.push(instructionsBlock('librarian.analyze.system', ctx))
 
-  if (ctx.systemPromptFragments.length > 0) {
-    blocks.push({
-      id: 'system-fragments',
-      role: 'system',
-      content: ctx.systemPromptFragments.map(frag => `## ${frag.name}\n${frag.content}`).join('\n\n'),
-      order: 200,
-      source: 'builtin',
-    })
-  }
+  const sysFrags = systemFragmentsBlock(ctx)
+  if (sysFrags) blocks.push(sysFrags)
 
-  const summaryParts: string[] = []
-  summaryParts.push('## Story Summary So Far')
-  summaryParts.push(ctx.story.summary || '(No summary yet — this may be the beginning of the story.)')
   blocks.push({
     id: 'story-summary',
     role: 'user',
-    content: summaryParts.join('\n'),
+    content: ['## Story Summary So Far', ctx.story.summary || '(No summary yet — this may be the beginning of the story.)'].join('\n'),
     order: 100,
     source: 'builtin',
   })
@@ -113,13 +110,7 @@ export async function buildAnalyzePreviewContext(dataDir: string, storyId: strin
 
   const allCharacters = await listFragments(dataDir, storyId, 'character')
   const allKnowledge = await listFragments(dataDir, storyId, 'knowledge')
-
-  const sysFragIds = await getFragmentsByTag(dataDir, storyId, 'pass-to-librarian-system-prompt')
-  const systemPromptFragments = []
-  for (const id of sysFragIds) {
-    const frag = await getFragment(dataDir, storyId, id)
-    if (frag) systemPromptFragments.push(frag)
-  }
+  const systemPromptFragments = await loadSystemPromptFragments(dataDir, storyId, getFragmentsByTag, getFragment)
 
   return {
     story,
@@ -155,6 +146,7 @@ Your tools:
 - getStorySummary() — Read the current rolling story summary.
 - updateStorySummary(summary) — Replace the story's rolling summary with a new version. Use this to rewrite, condense, or correct the summary based on all available prose.
 - reanalyzeFragment(fragmentId) — Re-run librarian analysis on a prose fragment. Updates the fragment's summary, detects mentions, flags contradictions, and suggests knowledge. Use when the author asks to re-examine or reanalyze a specific prose section.
+- optimizeCharacter(fragmentId, instructions?) — Optimize a character sheet using depth-focused writing methodology. Rewrites with causality, Egri dimensions, friction, and contrast.
 
 Instructions:
 1. Your context includes a story summary and fragment summaries (IDs, names, descriptions) — not full content. Use getFragment(id) to read the full content of any fragment you need.
@@ -188,7 +180,9 @@ export function createLibrarianChatBlocks(ctx: AgentBlockContext): ContextBlock[
     source: 'builtin',
   })
 
-  if (ctx.systemPromptFragments.length > 0) {
+  const sysFrags = systemFragmentsBlock(ctx)
+  if (sysFrags) {
+    // Chat uses a different format for system fragments (dash-list vs ## headers)
     blocks.push({
       id: 'system-fragments',
       role: 'system',
@@ -198,104 +192,24 @@ export function createLibrarianChatBlocks(ctx: AgentBlockContext): ContextBlock[
     })
   }
 
-  // Story info
-  const storyInfoParts: string[] = []
-  storyInfoParts.push(`## Story: ${ctx.story.name}`)
-  storyInfoParts.push(ctx.story.description)
-  if (ctx.story.summary) {
-    storyInfoParts.push(`\n## Story Summary\n${ctx.story.summary}`)
-  }
-  blocks.push({
-    id: 'story-info',
-    role: 'user',
-    content: storyInfoParts.join('\n'),
-    order: 100,
-    source: 'builtin',
-  })
+  blocks.push(storyInfoBlock(ctx))
 
-  // Prose summaries
-  if (ctx.proseFragments.length > 0) {
-    const proseParts: string[] = ['## Prose Fragments (use getFragment to read/edit)']
-    for (const p of ctx.proseFragments) {
-      if ((p.meta._librarian as { summary?: string })?.summary) {
-        proseParts.push(`- ${p.id}: ${(p.meta._librarian as { summary?: string }).summary ?? 'No summary available'}`)
-      } else if (p.content.length < 600) {
-        proseParts.push(`- ${p.id}: \n${p.content}`)
-      } else {
-        proseParts.push(`- ${p.id}: ${p.content.slice(0, 500).replace(/\n/g, ' ')}... [truncated]`)
-      }
-    }
-    blocks.push({
-      id: 'prose-summaries',
-      role: 'user',
-      content: proseParts.join('\n'),
-      order: 200,
-      source: 'builtin',
-    })
-  }
+  const prose = proseSummariesBlock(ctx, '## Prose Fragments (use getFragment to read/edit)')
+  if (prose) blocks.push(prose)
 
-  // Sticky fragments
-  const stickyAll = [
-    ...ctx.stickyGuidelines,
-    ...ctx.stickyKnowledge,
-    ...ctx.stickyCharacters,
-  ]
-  if (stickyAll.length > 0) {
-    blocks.push({
-      id: 'sticky-fragments',
-      role: 'user',
-      content: [
-        '## Active Context Fragments',
-        ...stickyAll.map(f => `- ${f.id}: ${f.name} — ${f.description}`),
-      ].join('\n'),
-      order: 300,
-      source: 'builtin',
-    })
-  }
+  const sticky = stickyFragmentsBlock(ctx)
+  if (sticky) blocks.push(sticky)
 
-  // Shortlists
-  const shortlistAll = [
-    ...ctx.guidelineShortlist,
-    ...ctx.knowledgeShortlist,
-    ...ctx.characterShortlist,
-  ]
-  if (shortlistAll.length > 0) {
-    blocks.push({
-      id: 'shortlist',
-      role: 'user',
-      content: [
-        '## Other Available Fragments',
-        ...shortlistAll.map(f => `- ${f.id}: ${f.name} — ${f.description}`),
-      ].join('\n'),
-      order: 400,
-      source: 'builtin',
-    })
-  }
+  const shortlist = shortlistBlock(ctx)
+  if (shortlist) blocks.push(shortlist)
 
   return blocks
 }
 
 export async function buildChatPreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
-  const ctxState = await buildContextState(dataDir, storyId, '')
-
-  const sysFragIds = await getFragmentsByTag(dataDir, storyId, 'pass-to-librarian-system-prompt')
-  const systemPromptFragments = []
-  for (const id of sysFragIds) {
-    const frag = await getFragment(dataDir, storyId, id)
-    if (frag) systemPromptFragments.push(frag)
-  }
-
-  return {
-    story: ctxState.story,
-    proseFragments: ctxState.proseFragments,
-    stickyGuidelines: ctxState.stickyGuidelines,
-    stickyKnowledge: ctxState.stickyKnowledge,
-    stickyCharacters: ctxState.stickyCharacters,
-    guidelineShortlist: ctxState.guidelineShortlist,
-    knowledgeShortlist: ctxState.knowledgeShortlist,
-    characterShortlist: ctxState.characterShortlist,
-    systemPromptFragments,
-  }
+  const base = await buildBasePreviewContext(dataDir, storyId)
+  const systemPromptFragments = await loadSystemPromptFragments(dataDir, storyId, getFragmentsByTag, getFragment)
+  return { ...base, systemPromptFragments }
 }
 
 // ─── Librarian Refine ───
@@ -317,98 +231,22 @@ Guidelines for refinement:
 - Do NOT modify prose fragments — only characters, guidelines, and knowledge.`
 
 export function createLibrarianRefineBlocks(ctx: AgentBlockContext): ContextBlock[] {
-  const blocks: ContextBlock[] = []
-
-  blocks.push({
-    id: 'instructions',
-    role: 'system',
-    content: instructionRegistry.resolve('librarian.refine.system', ctx.modelId),
-    order: 100,
-    source: 'builtin',
-  })
-
-  // Story info
-  const storyInfoParts: string[] = []
-  storyInfoParts.push(`## Story: ${ctx.story.name}`)
-  storyInfoParts.push(ctx.story.description)
-  if (ctx.story.summary) {
-    storyInfoParts.push(`\n## Story Summary\n${ctx.story.summary}`)
-  }
-  blocks.push({
-    id: 'story-info',
-    role: 'user',
-    content: storyInfoParts.join('\n'),
-    order: 100,
-    source: 'builtin',
-  })
-
-  // Recent prose
-  if (ctx.proseFragments.length > 0) {
-    blocks.push({
-      id: 'prose',
-      role: 'user',
-      content: [
-        '## Recent Prose',
-        ...ctx.proseFragments.map(p => `### ${p.name} (${p.id})\n${p.content}`),
-      ].join('\n'),
-      order: 200,
-      source: 'builtin',
-    })
-  }
-
-  // Sticky fragments
-  const stickyAll = [
-    ...ctx.stickyGuidelines,
-    ...ctx.stickyKnowledge,
-    ...ctx.stickyCharacters,
-  ]
-  if (stickyAll.length > 0) {
-    blocks.push({
-      id: 'sticky-fragments',
-      role: 'user',
-      content: [
-        '## Active Context Fragments',
-        ...stickyAll.map(f => `- ${f.id}: ${f.name} — ${f.description}`),
-      ].join('\n'),
-      order: 300,
-      source: 'builtin',
-    })
-  }
-
-  // Target fragment + instructions
-  if (ctx.targetFragment) {
-    const targetParts: string[] = []
-    targetParts.push(`Target fragment to refine: ${ctx.targetFragment.id} (type: ${ctx.targetFragment.type}, name: "${ctx.targetFragment.name}")`)
-    if (ctx.instructions) {
-      targetParts.push(`\nUser instructions: ${ctx.instructions}`)
-    } else {
-      targetParts.push('\nNo specific instructions provided. Improve this fragment based on recent story events for consistency, clarity, and depth.')
-    }
-    blocks.push({
-      id: 'target',
-      role: 'user',
-      content: targetParts.join('\n'),
-      order: 400,
-      source: 'builtin',
-    })
-  }
-
-  return blocks
+  return compactBlocks([
+    instructionsBlock('librarian.refine.system', ctx),
+    storyInfoBlock(ctx),
+    recentProseBlock(ctx),
+    stickyFragmentsBlock(ctx),
+    targetFragmentBlock(ctx,
+      'fragment to refine',
+      'No specific instructions provided. Improve this fragment based on recent story events for consistency, clarity, and depth.',
+    ),
+  ])
 }
 
 export async function buildRefinePreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
-  const ctxState = await buildContextState(dataDir, storyId, '')
-
+  const base = await buildBasePreviewContext(dataDir, storyId)
   return {
-    story: ctxState.story,
-    proseFragments: ctxState.proseFragments,
-    stickyGuidelines: ctxState.stickyGuidelines,
-    stickyKnowledge: ctxState.stickyKnowledge,
-    stickyCharacters: ctxState.stickyCharacters,
-    guidelineShortlist: ctxState.guidelineShortlist,
-    knowledgeShortlist: ctxState.knowledgeShortlist,
-    characterShortlist: ctxState.characterShortlist,
-    systemPromptFragments: [],
+    ...base,
     targetFragment: undefined,
     instructions: '(Preview — actual instructions will appear during refinement)',
   }
@@ -427,13 +265,7 @@ Rules:
 export function createProseTransformBlocks(ctx: AgentBlockContext): ContextBlock[] {
   const blocks: ContextBlock[] = []
 
-  blocks.push({
-    id: 'instructions',
-    role: 'system',
-    content: instructionRegistry.resolve('librarian.prose-transform.system', ctx.modelId),
-    order: 100,
-    source: 'builtin',
-  })
+  blocks.push(instructionsBlock('librarian.prose-transform.system', ctx))
 
   if (ctx.operation) {
     blocks.push({
@@ -514,5 +346,64 @@ export async function buildProseTransformPreviewContext(dataDir: string, storyId
     sourceContent: '(Preview — actual fragment content will appear during transform)',
     contextBefore: '',
     contextAfter: '',
+  }
+}
+
+// ─── Optimize Character ───
+
+export const OPTIMIZE_CHARACTER_SYSTEM_PROMPT = `You are a character optimization agent for a collaborative writing app. Your job is to rewrite a character sheet so it has genuine depth, causality, and texture — following a specific creative writing methodology.
+
+## Methodology
+
+**Causality over traits.** Every trait must have a WHY — upbringing, trauma, formative events. "Brave" becomes "reckless courage born from watching her mother die doing nothing." Traits without cause are lumber on the ground; traits with cause are architecture.
+
+**Egri's three dimensions.** A complete character lives across three layers:
+- Physiological: Body, appearance, health, mannerisms shaped by physicality. "Because he is tall, he's used to ducking through doors and looking down at people, which makes him feel subconsciously dominant."
+- Sociological: Class, education, culture, family, profession — the soil the person grew in. Being a nerd from Detroit dictates taste in cars and music. The environment shapes vocabulary, values, and blind spots.
+- Psychological: Drives, fears, moral code, coping mechanisms — the engine that makes choices. A character who is "kind" but grew up "poor and bullied" will be kind in a very specific, perhaps defensive or over-compensatory way.
+
+**Friction and tension.** Internal contradictions make characters feel alive. A pacifist with a violent temper. A healer who enjoys others' pain. Someone who forces a bubbly personality to hide deep discomfort with emotional closeness. The mask versus the truth creates ongoing dramatic potential.
+
+**Vectors, not adjectives.** Express traits as trajectories with momentum — "becoming disillusioned with authority" rather than "rebellious." Characters are in motion, not frozen snapshots. Write the launch pad the story builds from.
+
+**Irrational choices.** Real people make decisions rooted in emotion, trauma, pride — not optimal strategy. Document the emotional logic behind bad decisions. A man who hates a specific band because one album reminds him of a terrible restaurant job — people are irrational like that, and those reasons create texture.
+
+**Contrast.** Unexpected combinations that create texture — gentle giant, eloquent thug, cowardly genius. The gap between expectation and reality is where interesting writing lives. Multiple dimensions make a character more stable, not less.
+
+**References as sprinkles.** Archetypes, real-world references, and cultural touchstones are starting points, never destinations. "Columbo-like disarming manner" is a seed that orients the reader, not a character sheet. Use musicians instead of specific songs, directors instead of every movie — unless a specific reference carries causal weight.
+
+## Instructions
+
+1. Read the target character fragment using the appropriate get tool (e.g. getCharacter, getFragment).
+2. Read relevant prose fragments using getFragment to understand how the character actually behaves in the story — not just how they're described on paper.
+3. Analyze gaps between the current sheet and the methodology above. Where are there bare adjectives without cause? Where is friction missing? Which of Egri's dimensions are underdeveloped?
+4. Rewrite the character sheet with depth and causality. Build the ramp of how this person grew up and why they think the way they do. Preserve existing voice and any details that already have depth — improve, don't replace what works.
+5. Use updateFragment to save the improved version. Keep descriptions within the 250 character limit.
+6. Explain what you changed and why — which dimensions you developed, what friction you introduced, what causal chains you built.
+
+Do NOT delete the fragment. Do NOT modify prose fragments. Focus entirely on deepening the character sheet.`
+
+export function createOptimizeCharacterBlocks(ctx: AgentBlockContext): ContextBlock[] {
+  return compactBlocks([
+    instructionsBlock('librarian.optimize-character.system', ctx),
+    storyInfoBlock(ctx),
+    recentProseBlock(ctx),
+    stickyFragmentsBlock(ctx),
+    allCharactersBlock(ctx),
+    targetFragmentBlock(ctx,
+      'character to optimize',
+      'No specific instructions provided. Optimize this character for depth, causality, and friction using the methodology.',
+    ),
+  ])
+}
+
+export async function buildOptimizeCharacterPreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
+  const base = await buildBasePreviewContext(dataDir, storyId)
+  const allCharacters = await listFragments(dataDir, storyId, 'character')
+  return {
+    ...base,
+    allCharacters,
+    targetFragment: undefined,
+    instructions: '(Preview — actual instructions will appear during optimization)',
   }
 }

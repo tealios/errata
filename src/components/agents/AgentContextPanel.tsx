@@ -91,6 +91,60 @@ const CONTENT_MODES = [
   { value: 'override' as const, label: 'Replace' },
 ]
 
+/** Hierarchical agent groups in display order */
+const AGENT_GROUPS: { label: string; prefix: string }[] = [
+  { label: 'Generation', prefix: 'generation.' },
+  { label: 'Directions', prefix: 'directions.' },
+  { label: 'Librarian', prefix: 'librarian.' },
+  { label: 'Character', prefix: 'character-chat.' },
+]
+
+/** Order within each group — agents not listed here sort to the end */
+const AGENT_ORDER: string[] = [
+  // Generation
+  'generation.writer',
+  'generation.prewriter',
+  // Directions
+  'directions.suggest',
+  // Librarian
+  'librarian.analyze',
+  'librarian.chat',
+  'librarian.refine',
+  'librarian.optimize-character',
+  'librarian.prose-transform',
+  // Character
+  'character-chat.chat',
+]
+
+function groupAgents(agents: AgentBlockInfo[]): { label: string; agents: AgentBlockInfo[] }[] {
+  const agentMap = new Map(agents.map(a => [a.agentName, a]))
+  const placed = new Set<string>()
+  const groups: { label: string; agents: AgentBlockInfo[] }[] = []
+
+  for (const group of AGENT_GROUPS) {
+    // Get agents for this group in the defined order, then append any unordered ones
+    const ordered = AGENT_ORDER
+      .filter(name => name.startsWith(group.prefix) && agentMap.has(name))
+      .map(name => agentMap.get(name)!)
+
+    const unordered = agents
+      .filter(a => a.agentName.startsWith(group.prefix) && !AGENT_ORDER.includes(a.agentName))
+
+    const all = [...ordered, ...unordered]
+    if (all.length === 0) continue
+    for (const a of all) placed.add(a.agentName)
+    groups.push({ label: group.label, agents: all })
+  }
+
+  // Catch-all for agents that don't match any group
+  const remaining = agents.filter(a => !placed.has(a.agentName))
+  if (remaining.length > 0) {
+    groups.push({ label: 'Other', agents: remaining })
+  }
+
+  return groups
+}
+
 export function AgentContextPanel({ storyId }: AgentContextPanelProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
 
@@ -127,33 +181,48 @@ export function AgentContextPanel({ storyId }: AgentContextPanelProps) {
     )
   }
 
+  const groups = groupAgents(agents)
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="px-4 py-3 border-b border-border/30">
         <p className="text-[11px] text-muted-foreground leading-snug">
-          Customize the context blocks and tools for each agent.
+          Customize the context blocks, tools, and model for each agent.
         </p>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-2 py-3 space-y-1">
-          {agents.map((agent) => (
-            <button
-              key={agent.agentName}
-              className="w-full rounded-lg border border-border/30 hover:border-border/50 hover:bg-accent/10 transition-all duration-150 px-3 py-2.5 text-left group"
-              onClick={() => setSelectedAgent(agent.agentName)}
-            >
-              <div className="flex items-center gap-2.5">
-                <Bot className="size-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-medium truncate leading-tight">{agent.displayName}</p>
-                  <p className="text-[10px] text-muted-foreground truncate mt-0.5 leading-snug">
-                    {agent.description}
-                  </p>
-                </div>
-                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 -rotate-90 group-hover:translate-x-0.5 transition-transform" />
+        <div className="px-2 py-3 space-y-4">
+          {groups.map((group) => (
+            <div key={group.label}>
+              <div className="flex items-center gap-2 px-1 mb-1.5">
+                <div className="size-1 rounded-full bg-muted-foreground/50" />
+                <span className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] font-medium">
+                  {group.label}
+                </span>
+                <div className="flex-1 h-px bg-border/20" />
               </div>
-            </button>
+              <div className="space-y-1">
+                {group.agents.map((agent) => (
+                  <button
+                    key={agent.agentName}
+                    className="w-full rounded-lg border border-border/30 hover:border-border/50 hover:bg-accent/10 transition-all duration-150 px-3 py-2.5 text-left group"
+                    onClick={() => setSelectedAgent(agent.agentName)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Bot className="size-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-medium truncate leading-tight">{agent.displayName}</p>
+                        <p className="text-[10px] text-muted-foreground truncate mt-0.5 leading-snug">
+                          {agent.description}
+                        </p>
+                      </div>
+                      <ChevronDown className="size-3.5 text-muted-foreground shrink-0 -rotate-90 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </ScrollArea>

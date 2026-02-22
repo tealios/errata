@@ -12,6 +12,7 @@ import { createEventStream } from '../agents/create-event-stream'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { getFragmentsByTag } from '../fragments/associations'
 import { runLibrarian } from './agent'
+import { optimizeCharacter } from './optimize-character'
 import { withBranch } from '../fragments/branches'
 import type { ChatStreamEvent, ChatResult } from '../agents/stream-types'
 import type { AgentBlockContext } from '../agents/agent-block-context'
@@ -101,7 +102,25 @@ async function librarianChatInner(
     },
   })
 
-  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool }
+  const optimizeCharacterTool = tool({
+    description: 'Optimize a character sheet using depth-focused writing methodology. Rewrites the character with causality, Egri dimensions, friction, and contrast.',
+    inputSchema: z.object({
+      fragmentId: z.string().describe('The character fragment ID to optimize (e.g. ch-bakumo)'),
+      instructions: z.string().optional().describe('Optional specific instructions for the optimization'),
+    }),
+    execute: async ({ fragmentId, instructions }: { fragmentId: string; instructions?: string }) => {
+      requestLogger.info('Optimizing character via chat tool', { fragmentId })
+      try {
+        const result = await optimizeCharacter(dataDir, storyId, { fragmentId, instructions })
+        await result.completion
+        return { ok: true, fragmentId }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  })
+
+  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool }
 
   // Build plugin tool descriptions for the block context
   const pluginToolDescriptions = Object.entries(pluginTools).map(([name, def]) => ({

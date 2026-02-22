@@ -7,12 +7,14 @@ import type { AgentDefinition } from '../agents/types'
 import { runLibrarian } from './agent'
 import { librarianChat } from './chat'
 import { refineFragment } from './refine'
+import { optimizeCharacter } from './optimize-character'
 import { transformProseSelection } from './prose-transform'
 import {
   ANALYZE_SYSTEM_PROMPT,
   CHAT_SYSTEM_PROMPT,
   REFINE_SYSTEM_PROMPT,
   PROSE_TRANSFORM_SYSTEM_PROMPT,
+  OPTIMIZE_CHARACTER_SYSTEM_PROMPT,
   createLibrarianAnalyzeBlocks,
   buildAnalyzePreviewContext,
   createLibrarianChatBlocks,
@@ -21,6 +23,8 @@ import {
   buildRefinePreviewContext,
   createProseTransformBlocks,
   buildProseTransformPreviewContext,
+  createOptimizeCharacterBlocks,
+  buildOptimizeCharacterPreviewContext,
 } from './blocks'
 import { SUMMARY_COMPACTION_PROMPT } from './agent'
 
@@ -39,6 +43,12 @@ const ChatInputSchema = z.object({
     role: z.union([z.literal('user'), z.literal('assistant')]),
     content: z.string(),
   })),
+  maxSteps: z.int().positive().optional(),
+})
+
+const OptimizeCharacterInputSchema = z.object({
+  fragmentId: z.string(),
+  instructions: z.string().optional(),
   maxSteps: z.int().positive().optional(),
 })
 
@@ -71,11 +81,20 @@ const refineDefinition: AgentDefinition<typeof RefineInputSchema> = {
   },
 }
 
+const optimizeCharacterDefinition: AgentDefinition<typeof OptimizeCharacterInputSchema> = {
+  name: 'librarian.optimize-character',
+  description: 'Optimize a character sheet using depth-focused writing methodology.',
+  inputSchema: OptimizeCharacterInputSchema,
+  run: async (ctx, input) => {
+    return optimizeCharacter(ctx.dataDir, ctx.storyId, input)
+  },
+}
+
 const chatDefinition: AgentDefinition<typeof ChatInputSchema> = {
   name: 'librarian.chat',
   description: 'Run conversational librarian assistant with write-enabled tools.',
   inputSchema: ChatInputSchema,
-  allowedCalls: ['librarian.refine', 'librarian.analyze'],
+  allowedCalls: ['librarian.refine', 'librarian.analyze', 'librarian.optimize-character'],
   run: async (ctx, input) => {
     return librarianChat(ctx.dataDir, ctx.storyId, input)
   },
@@ -99,12 +118,14 @@ export function registerLibrarianAgents(): void {
   instructionRegistry.registerDefault('librarian.analyze.system', ANALYZE_SYSTEM_PROMPT.trim())
   instructionRegistry.registerDefault('librarian.chat.system', CHAT_SYSTEM_PROMPT.trim())
   instructionRegistry.registerDefault('librarian.refine.system', REFINE_SYSTEM_PROMPT)
+  instructionRegistry.registerDefault('librarian.optimize-character.system', OPTIMIZE_CHARACTER_SYSTEM_PROMPT)
   instructionRegistry.registerDefault('librarian.prose-transform.system', PROSE_TRANSFORM_SYSTEM_PROMPT)
   instructionRegistry.registerDefault('librarian.summary-compaction', SUMMARY_COMPACTION_PROMPT)
 
   // Agent definitions
   agentRegistry.register(analyzeDefinition)
   agentRegistry.register(refineDefinition)
+  agentRegistry.register(optimizeCharacterDefinition)
   agentRegistry.register(chatDefinition)
   agentRegistry.register(proseTransformDefinition)
 
@@ -129,7 +150,7 @@ export function registerLibrarianAgents(): void {
     availableTools: [
       'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
       'createFragment', 'updateFragment', 'editFragment', 'deleteFragment',
-      'editProse', 'getStorySummary', 'updateStorySummary', 'reanalyzeFragment',
+      'editProse', 'getStorySummary', 'updateStorySummary', 'reanalyzeFragment', 'optimizeCharacter',
     ],
     buildPreviewContext: buildChatPreviewContext,
   })
@@ -145,6 +166,19 @@ export function registerLibrarianAgents(): void {
       'editProse', 'getStorySummary', 'updateStorySummary',
     ],
     buildPreviewContext: buildRefinePreviewContext,
+  })
+
+  agentBlockRegistry.register({
+    agentName: 'librarian.optimize-character',
+    displayName: 'Librarian Optimize Character',
+    description: 'Optimizes character sheets using depth-focused writing methodology (causality, Egri dimensions, friction, contrast).',
+    createDefaultBlocks: createOptimizeCharacterBlocks,
+    availableTools: [
+      'getFragment', 'listFragments', 'searchFragments', 'listFragmentTypes',
+      'createFragment', 'updateFragment', 'editFragment', 'deleteFragment',
+      'editProse', 'getStorySummary', 'updateStorySummary',
+    ],
+    buildPreviewContext: buildOptimizeCharacterPreviewContext,
   })
 
   agentBlockRegistry.register({

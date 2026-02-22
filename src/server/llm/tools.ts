@@ -211,6 +211,8 @@ export function createFragmentTools(
       const matches: Array<{ id: string; type: string; name: string; excerpt: string }> = []
       for (const f of fragments) {
         if (f.archived) continue
+        // Image/icon fragments contain binary data or URLs, not searchable text
+        if (!type && (f.type === 'image' || f.type === 'icon')) continue
         const idx = f.content.toLowerCase().indexOf(lowerQuery)
         if (idx !== -1) {
           const start = Math.max(0, idx - 40)

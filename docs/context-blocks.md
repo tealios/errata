@@ -663,6 +663,7 @@ The Settings panel exposes **four namespace-level roles** for model selection. T
 | `librarian.analyze` | Librarian Analyze | Analyzes prose fragments for continuity signals |
 | `librarian.chat` | Librarian Chat | Conversational assistant with write-enabled tools |
 | `librarian.refine` | Librarian Refine | Refines non-prose fragments using story context |
+| `librarian.optimize-character` | Librarian Optimize Character | Optimizes character sheets using depth-focused writing methodology |
 | `librarian.prose-transform` | Prose Transform | Transforms selected prose spans |
 | `character-chat.chat` | Character Chat | In-character conversation |
 | `directions.suggest` | Directions | Suggests possible story directions based on current context |

@@ -1,5 +1,6 @@
 import { type ReactNode, createElement, Children, isValidElement, cloneElement } from 'react'
 import { hashString, CHARACTER_MENTION_COLORS } from './fragment-visuals'
+import { CharacterMentionSpan } from '@/components/prose/CharacterMentionSpan'
 
 export interface Annotation {
   type: string
@@ -67,9 +68,10 @@ export function buildAnnotationHighlighter(
       const color = colorOverrides?.get(annotation.fragmentId) ?? colorForId(annotation.fragmentId)
       parts.push(
         createElement(
-          'span',
+          CharacterMentionSpan,
           {
             key: `${match.index}-${matchedText}`,
+            fragmentId: annotation.fragmentId,
             className: 'mention-highlight',
             style: { color },
             onClick: (e: React.MouseEvent) => {
@@ -105,6 +107,20 @@ export function buildAnnotationHighlighter(
   }
 }
 
+/**
+ * Strip markdown emphasis markers (* and _) from inside dialogue quotes
+ * so that markdown parsing doesn't split dialogue across element boundaries.
+ * e.g. `"I don't *really* know"` → `"I don't really know"`
+ *
+ * Since the entire dialogue is wrapped in `<em>` by `formatDialogue`,
+ * inner emphasis is redundant and can be safely removed.
+ */
+export function stripEmphasisInDialogue(content: string): string {
+  return content.replace(/[""\u201c](?:[^""\u201c\u201d])*?[""\u201d]/g, (dialogue) =>
+    dialogue.replace(/(\*{1,3}|_{1,3})(.+?)\1/g, '$2'),
+  )
+}
+
 /** Italicize dialogue enclosed in double quotes (ASCII " or curly \u201c\u201d) */
 export function formatDialogue(text: string): ReactNode {
   const regex = /[""\u201c](?:[^""\u201c\u201d])*?[""\u201d]/g
@@ -115,7 +131,7 @@ export function formatDialogue(text: string): ReactNode {
   for (const match of text.matchAll(regex)) {
     const start = match.index!
     if (start > lastIndex) parts.push(text.slice(lastIndex, start))
-    parts.push(createElement('em', { key: key++ }, match[0]))
+    parts.push(createElement('em', { key: key++, className: 'prose-dialogue' }, match[0]))
     lastIndex = start + match[0].length
   }
 

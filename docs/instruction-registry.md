@@ -21,7 +21,7 @@ The singleton `instructionRegistry` is exported from `src/server/instructions/in
 
 ## Registered Instruction Keys
 
-All 18 keys grouped by module:
+All 19 keys grouped by module:
 
 ### Generation (5)
 
@@ -33,13 +33,14 @@ All 18 keys grouped by module:
 | `generation.writer-brief.tools-suffix` | `src/server/llm/agents.ts` | Tool suffix for brief-mode writer |
 | `generation.prewriter.system` | `src/server/llm/agents.ts` | Prewriter agent system prompt |
 
-### Librarian (5)
+### Librarian (6)
 
 | Key | Registered in | Description |
 |---|---|---|
 | `librarian.analyze.system` | `src/server/librarian/agents.ts` | Background analysis system prompt |
 | `librarian.chat.system` | `src/server/librarian/agents.ts` | Interactive librarian chat system prompt |
 | `librarian.refine.system` | `src/server/librarian/agents.ts` | Fragment refinement system prompt |
+| `librarian.optimize-character.system` | `src/server/librarian/agents.ts` | Character optimization system prompt (depth methodology) |
 | `librarian.prose-transform.system` | `src/server/librarian/agents.ts` | Prose selection transform system prompt |
 | `librarian.summary-compaction` | `src/server/librarian/agents.ts` | Summary compaction prompt template |
 

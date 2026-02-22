@@ -1,8 +1,7 @@
 import type { ContextBlock } from '../llm/context-builder'
 import type { AgentBlockContext } from '../agents/agent-block-context'
-import { getStory } from '../fragments/storage'
-import { buildContextState } from '../llm/context-builder'
 import { instructionRegistry } from '../instructions'
+import { buildBasePreviewContext } from '../agents/block-helpers'
 
 export function createCharacterChatBlocks(ctx: AgentBlockContext): ContextBlock[] {
   const blocks: ContextBlock[] = []
@@ -47,7 +46,7 @@ export function createCharacterChatBlocks(ctx: AgentBlockContext): ContextBlock[
     storyContextParts.push(`\n## Story Summary\n${ctx.story.summary}`)
   }
 
-  // Prose summaries
+  // Prose summaries (inline — character chat bundles everything into one block)
   if (ctx.proseFragments.length > 0) {
     storyContextParts.push('\n## Story Events (use getFragment to read full prose)')
     for (const p of ctx.proseFragments) {
@@ -95,21 +94,9 @@ export function createCharacterChatBlocks(ctx: AgentBlockContext): ContextBlock[
 }
 
 export async function buildCharacterChatPreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
-  const story = await getStory(dataDir, storyId)
-  if (!story) throw new Error(`Story ${storyId} not found`)
-
-  const ctxState = await buildContextState(dataDir, storyId, '')
-
+  const base = await buildBasePreviewContext(dataDir, storyId)
   return {
-    story: ctxState.story,
-    proseFragments: ctxState.proseFragments,
-    stickyGuidelines: ctxState.stickyGuidelines,
-    stickyKnowledge: ctxState.stickyKnowledge,
-    stickyCharacters: ctxState.stickyCharacters,
-    guidelineShortlist: ctxState.guidelineShortlist,
-    knowledgeShortlist: ctxState.knowledgeShortlist,
-    characterShortlist: ctxState.characterShortlist,
-    systemPromptFragments: [],
+    ...base,
     character: undefined,
     personaDescription: 'You are speaking with a stranger you have just met. You do not know who they are.',
   }

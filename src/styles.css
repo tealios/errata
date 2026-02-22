@@ -438,6 +438,19 @@ code {
   animation: wisp-gradient 4s ease infinite;
 }
 
+/* ── Character mention preview ───────────────────────── */
+
+.mention-preview-fade {
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+/* ── Prose dialogue ──────────────────────────────────── */
+
+.prose-dialogue {
+  color: var(--prose-dialogue, oklch(0.65 0.05 250));
+}
+
 /* ── Character mention highlights ────────────────────── */
 
 .mention-highlight {

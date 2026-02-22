@@ -6,7 +6,7 @@ import { StreamMarkdown } from '@/components/ui/stream-markdown'
 import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
-import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, type Annotation } from '@/lib/character-mentions'
+import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
 import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare } from 'lucide-react'
 
 interface ProseBlockProps {
@@ -358,6 +358,10 @@ export function ProseBlock({
     }
   }
 
+  // Pre-strip markdown emphasis from inside dialogue so markdown parsing
+  // doesn't split quoted text across element boundaries.
+  const processedContent = useMemo(() => stripEmphasisInDialogue(fragment.content), [fragment.content])
+
   // Build text transform: dialogue italics + optional mention highlighting
   const annotations = fragment.meta?.annotations as Annotation[] | undefined
   const textTransform = useMemo(() => {
@@ -527,7 +531,7 @@ export function ProseBlock({
         <StreamMarkdown
           content={(isStreamingAction || streamedActionText)
             ? streamedActionText || ''
-            : fragment.content
+            : processedContent
           }
           streaming={isStreamingAction}
           variant="prose"

@@ -55,6 +55,8 @@ function createGenerationBlocks(ctx: AgentBlockContext): ContextBlock[] {
 }
 
 async function buildGenerationPreviewContext(dataDir: string, storyId: string): Promise<AgentBlockContext> {
+  // Note: generation uses '(preview)' as authorInput, so we call buildContextState directly
+  // rather than using buildBasePreviewContext (which passes empty string)
   const state = await buildContextState(dataDir, storyId, '(preview)')
   return {
     story: state.story,

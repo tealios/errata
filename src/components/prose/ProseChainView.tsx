@@ -10,6 +10,7 @@ import { ChapterMarker } from './ChapterMarker'
 import { InlineGenerationInput, type ThoughtStep } from './InlineGenerationInput'
 import { GenerationThoughts } from './GenerationThoughts'
 import { ProseOutlinePanel } from './ProseOutlinePanel'
+import { CharacterMentionProvider } from './CharacterMentionContext'
 
 interface ProseChainViewProps {
   storyId: string
@@ -108,6 +109,26 @@ export function ProseChainView({
     queryFn: () => api.fragments.list(storyId, 'character'),
     enabled: mentionsEnabled,
   })
+
+  const { data: imageFragments = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'image'],
+    queryFn: () => api.fragments.list(storyId, 'image'),
+    enabled: mentionsEnabled,
+  })
+
+  const { data: iconFragments = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'icon'],
+    queryFn: () => api.fragments.list(storyId, 'icon'),
+    enabled: mentionsEnabled,
+  })
+
+  // Build media lookup for character portraits in hover cards
+  const mediaById = useMemo(() => {
+    const map = new Map<string, Fragment>()
+    for (const f of imageFragments) map.set(f.id, f)
+    for (const f of iconFragments) map.set(f.id, f)
+    return map
+  }, [imageFragments, iconFragments])
 
   // Build color overrides from character `color=` tags
   const mentionColors = useMemo(() => {
@@ -345,6 +366,7 @@ export function ProseChainView({
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
           </div>
         )}
+        <CharacterMentionProvider characters={characterFragments} mediaById={mediaById}>
         <div className="mx-auto py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
           {orderedItems.length > 0 ? (
             orderedItems.map((fragment, idx) => (
@@ -452,6 +474,7 @@ export function ProseChainView({
             onToggleFollowGeneration={() => setFollowGeneration((value) => !value)}
           />
         </div>
+        </CharacterMentionProvider>
       </ScrollArea>
 
       {/* Outline toggle + panel — hidden on mobile */}

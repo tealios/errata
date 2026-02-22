@@ -53,7 +53,7 @@ const SECTION_TITLES: Record<string, string> = {
   archive: 'Archive',
   branches: 'Timelines',
   'context-order': 'Fragment Order',
-  'agent-context': 'Block Editor',
+  'agent-context': 'Agents',
   settings: 'Settings',
   'agent-activity': 'Librarian',
 }
