@@ -3,7 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { PenLine, ChevronsDown, ArrowRight, Pause, Compass, RefreshCw, Loader2 } from 'lucide-react'
+import { PenLine, ChevronsDown, ArrowRight, Pause, Compass, RefreshCw, Loader2, PenSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SuggestionDirection } from '@/lib/api/types'
 
@@ -82,7 +82,6 @@ export function InlineGenerationInput({
     // When analysis transitions from running → idle/error, refresh analyses and prose fragments
     // (librarian writes annotations to fragment.meta, so prose fragments must be re-fetched)
     if (prev === 'running' && (curr === 'idle' || curr === 'error')) {
-      setManualSuggestions(null)
       queryClient.invalidateQueries({ queryKey: ['librarian-analyses', storyId] })
       queryClient.invalidateQueries({ queryKey: ['fragments', storyId, 'prose'] })
     }
@@ -108,12 +107,14 @@ export function InlineGenerationInput({
     [latestAnalysis?.directions],
   )
 
-  // Merge: manual suggestions take priority, fall back to analysis directions
+  // Merge: prewriter/manual directions first, then append analysis directions (deduplicated by title)
   useEffect(() => {
-    if (manualSuggestions) {
-      setSuggestions(manualSuggestions)
-    } else if (analysisDirections.length > 0) {
-      setSuggestions(analysisDirections)
+    const base = manualSuggestions ?? []
+    const baseTitles = new Set(base.map(s => s.title))
+    const extra = analysisDirections.filter(s => !baseTitles.has(s.title))
+    const merged = [...base, ...extra]
+    if (merged.length > 0) {
+      setSuggestions(merged)
     }
   }, [manualSuggestions, analysisDirections])
 
@@ -151,11 +152,14 @@ export function InlineGenerationInput({
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }, [input])
 
+  const prewriterDirectionsRef = useRef<SuggestionDirection[] | null>(null)
+
   const handleGenerateWithInput = useCallback(async (generationInput: string) => {
     if (!generationInput.trim() || isGenerating) return
 
     onGenerationStart()
     setError(null)
+    prewriterDirectionsRef.current = null
 
     const ac = new AbortController()
     abortRef.current = ac
@@ -201,6 +205,8 @@ export function InlineGenerationInput({
             thoughtSteps.push({ type: 'prewriter-text', text: value.text })
           }
           thoughtsDirty = true
+        } else if (value.type === 'prewriter-directions') {
+          prewriterDirectionsRef.current = value.directions
         } else if (value.type === 'phase') {
           accumulatedReasoning = ''
           thoughtSteps.push({ type: 'phase', phase: value.phase })
@@ -226,6 +232,10 @@ export function InlineGenerationInput({
 
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+
+      if (prewriterDirectionsRef.current?.length) {
+        setManualSuggestions(prewriterDirectionsRef.current)
+      }
 
       setInput('')
       onGenerationComplete()
@@ -433,24 +443,45 @@ export function InlineGenerationInput({
                   </button>
                 </div>
                 {suggestions.map((s, i) => (
-                  <button
+                  <div
                     key={i}
-                    type="button"
-                    disabled={isGenerating}
-                    onClick={() => { setManualSuggestions(null); setSuggestions([]); handleGenerateWithInput(s.instruction) }}
                     className={cn(
-                      'group w-full text-left px-3.5 py-2.5 rounded-lg border transition-all duration-200',
+                      'group/card flex items-stretch rounded-lg border transition-all duration-200',
                       'border-border/25 hover:border-primary/25 bg-card/30 hover:bg-primary/[0.03]',
-                      'disabled:opacity-40 disabled:pointer-events-none',
+                      isGenerating && 'opacity-40 pointer-events-none',
                     )}
                   >
-                    <div className="text-[13px] font-medium text-foreground/80 font-sans leading-snug group-hover:text-foreground/90 transition-colors">
-                      {s.title}
-                    </div>
-                    <div className="text-[11.5px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
-                      {s.description}
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      disabled={isGenerating}
+                      onClick={() => { setManualSuggestions(null); setSuggestions([]); handleGenerateWithInput(s.instruction) }}
+                      className="flex-1 text-left px-3.5 py-2.5 min-w-0"
+                    >
+                      <div className="text-[13px] font-medium text-foreground/80 font-sans leading-snug group-hover/card:text-foreground/90 transition-colors">
+                        {s.title}
+                      </div>
+                      <div className="text-[11.5px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
+                        {s.description}
+                      </div>
+                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          disabled={isGenerating}
+                          onClick={() => {
+                            setInput(s.instruction)
+                            handleModeChange('freeform')
+                            requestAnimationFrame(() => textareaRef.current?.focus())
+                          }}
+                          className="shrink-0 flex items-center justify-center w-9 border-l border-border/20 text-muted-foreground/40 hover:text-foreground/60 hover:bg-muted/30 transition-colors rounded-r-lg"
+                        >
+                          <PenSquare className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Edit before sending</TooltipContent>
+                    </Tooltip>
+                  </div>
                 ))}
               </div>
             )}

@@ -37,6 +37,7 @@ import { triggerLibrarian } from '../librarian/scheduler'
 import { getAgentBlockConfig } from '../agents/agent-block-storage'
 import { invokeAgent } from '../agents/runner'
 import { registerActiveAgent, unregisterActiveAgent } from '../agents/active-registry'
+import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 import type { SuggestDirectionsResult } from '../directions/suggest'
@@ -195,6 +196,7 @@ export function generationRoutes(dataDir: string) {
       let prewriterModel: string | undefined
       let prewriterUsage: { inputTokens: number; outputTokens: number } | undefined
       let prewriterLogMessages: Array<{ role: string; content: string }> | undefined
+      let prewriterDirections: Array<{ pacing: string; title: string; description: string; instruction: string }> | undefined
       let logMessages = messages // messages saved to generation log — updated to writer context in prewriter mode
       const isPrewriterMode = story.settings.generationMode === 'prewriter'
 
@@ -277,7 +279,11 @@ export function generationRoutes(dataDir: string) {
                 prewriterUsage = prewriterResult.usage
                 prewriterLogMessages = prewriterResult.messages
                 prewriterStepCount = prewriterResult.stepCount
-                requestLogger.info('Prewriter completed', { briefLength: prewriterBrief.length, durationMs: prewriterDurationMs, stepCount: prewriterStepCount })
+                if (prewriterResult.directions.length > 0) {
+                  prewriterDirections = prewriterResult.directions
+                  emit({ type: 'prewriter-directions', directions: prewriterDirections })
+                }
+                requestLogger.info('Prewriter completed', { briefLength: prewriterBrief.length, durationMs: prewriterDurationMs, stepCount: prewriterStepCount, directionsCount: prewriterDirections?.length ?? 0 })
 
                 // Build stripped writer context with only prose + brief + custom blocks
                 const writerBlocks = createWriterBriefBlocks(ctxState.proseFragments, prewriterResult.brief, toolLinesList, resolvedModelId)
@@ -510,6 +516,7 @@ export function generationRoutes(dataDir: string) {
                 const rawUsage = await totalUsagePromise
                 if (rawUsage && typeof rawUsage.inputTokens === 'number') {
                   totalUsage = { inputTokens: rawUsage.inputTokens, outputTokens: rawUsage.outputTokens ? rawUsage.outputTokens : 0 }
+                  reportUsage(dataDir, params.storyId, 'generation.writer', totalUsage, resolvedModelId)
                 }
               } catch {
                 // Some providers may not report usage
@@ -541,6 +548,7 @@ export function generationRoutes(dataDir: string) {
                 ...(prewriterDurationMs ? { prewriterDurationMs } : {}),
                 ...(prewriterModel ? { prewriterModel } : {}),
                 ...(prewriterUsage ? { prewriterUsage } : {}),
+                ...(prewriterDirections?.length ? { prewriterDirections } : {}),
               }
               await saveGenerationLog(dataDir, params.storyId, log)
               requestLogger.info('Generation log saved', { logId, stepCount, finishReason, stepsExceeded })

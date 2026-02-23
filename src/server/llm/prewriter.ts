@@ -1,4 +1,5 @@
-import { ToolLoopAgent, stepCountIs, type ToolSet } from 'ai'
+import { tool, ToolLoopAgent, stepCountIs, type ToolSet } from 'ai'
+import { z } from 'zod/v4'
 import { getModel } from './client'
 import { compileBlocks, type ContextBlock, type ContextMessage } from './context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
@@ -8,6 +9,7 @@ import { buildContextState } from './context-builder'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 import type { Fragment } from '../fragments/schema'
 import type { TokenUsage } from './generation-logs'
+import { reportUsage } from './token-tracker'
 import { createLogger } from '../logging'
 
 const logger = createLogger('prewriter')
@@ -42,13 +44,36 @@ Your brief MUST include:
 
 Keep the brief under 1000 words. Be direct and specific.
 Spend the most space on CHARACTER VOICES — the writer depends entirely on your
-character direction to capture each character faithfully.`
+character direction to capture each character faithfully.
+
+After writing the brief, you MUST call the suggestDirections tool to provide
+exactly 3 pacing options for the NEXT passage:
+
+1. LINGER — A direction that stays in the current moment. Deepen the atmosphere,
+   explore character interiority, or develop the emotional texture of the scene
+   without advancing the plot.
+2. CONTINUE — A direction that advances the scene meaningfully but leaves the
+   current plot thread unresolved. Move toward the next beat but don't close it.
+3. END — A direction that brings the current scene or plot section to a natural
+   conclusion. Resolve the active tension and transition to what comes next.
+
+Each direction should be specific to THIS story moment — not generic advice.
+The title should be evocative (3-6 words), the description should preview what
+happens (1-2 sentences), and the instruction should be a concrete writing prompt.`
+
+export interface PrewriterDirection {
+  pacing: 'linger' | 'continue' | 'end'
+  title: string
+  description: string
+  instruction: string
+}
 
 export type PrewriterEvent =
   | { type: 'reasoning'; text: string }
   | { type: 'text'; text: string }
   | { type: 'tool-call'; id: string; toolName: string; args: Record<string, unknown> }
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
+  | { type: 'directions'; directions: PrewriterDirection[] }
 
 export interface RunPrewriterArgs {
   dataDir: string
@@ -67,6 +92,7 @@ export interface PrewriterResult {
   reasoning: string
   messages: Array<{ role: string; content: string }>
   customBlocks: ContextBlock[]
+  directions: PrewriterDirection[]
   stepCount: number
   durationMs: number
   model: string
@@ -135,11 +161,31 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
 
   const prewriterMessages = compileBlocks(prewriterBlocks)
 
-  const hasTools = tools && Object.keys(tools).length > 0
+  // Directions collector — captured via closure in the suggestDirections tool
+  let capturedDirections: PrewriterDirection[] = []
+
+  const directionsTool = tool({
+    description: 'Suggest 3 pacing-aware directions for the next passage.',
+    inputSchema: z.object({
+      directions: z.array(z.object({
+        pacing: z.enum(['linger', 'continue', 'end']),
+        title: z.string().describe('Short evocative title (3-6 words)'),
+        description: z.string().describe('1-2 sentences previewing what happens'),
+        instruction: z.string().describe('Concrete writing prompt for the writer'),
+      })).length(3),
+    }),
+    execute: async ({ directions }) => {
+      capturedDirections = directions
+      onEvent?.({ type: 'directions', directions })
+      return { ok: true }
+    },
+  })
+
+  const mergedTools: ToolSet = { ...(tools ?? {}), suggestDirections: directionsTool }
   const agent = new ToolLoopAgent({
     model,
-    tools: hasTools ? tools : {},
-    toolChoice: hasTools ? 'auto' : 'none' as const,
+    tools: mergedTools,
+    toolChoice: 'auto',
     stopWhen: stepCountIs(maxSteps),
   })
 
@@ -195,6 +241,10 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
     // Some providers may not report usage
   }
 
+  if (usage) {
+    reportUsage(dataDir, storyId, 'generation.prewriter', usage, modelId)
+  }
+
   requestLogger.info('Prewriter completed', { durationMs, briefLength: fullText.length })
 
   const serializedMessages = prewriterMessages.map(m => ({
@@ -207,7 +257,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
 
   requestLogger.info('Prewriter steps used', { stepCount })
 
-  return { brief: fullText, reasoning: fullReasoning, messages: serializedMessages, customBlocks, stepCount, durationMs, model: modelId, usage }
+  return { brief: fullText, reasoning: fullReasoning, messages: serializedMessages, customBlocks, directions: capturedDirections, stepCount, durationMs, model: modelId, usage }
 }
 
 /**
