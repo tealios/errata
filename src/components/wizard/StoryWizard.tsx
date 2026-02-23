@@ -1203,7 +1203,7 @@ function PreferencesStep({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: { autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced' }) =>
+    mutationFn: (data: { autoApplyLibrarianSuggestions?: boolean; contextOrderMode?: 'simple' | 'advanced'; generationMode?: 'standard' | 'prewriter'; enableHierarchicalSummary?: boolean }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -1212,6 +1212,8 @@ function PreferencesStep({
 
   const autoApply = story?.settings.autoApplyLibrarianSuggestions ?? false
   const contextMode = story?.settings.contextOrderMode ?? 'simple'
+  const generationMode = story?.settings.generationMode ?? 'prewriter'
+  const hierarchicalSummary = story?.settings.enableHierarchicalSummary ?? true
 
   return (
     <WizardShell step="preferences" onSkip={onSkip}>
@@ -1312,8 +1314,102 @@ function PreferencesStep({
           </div>
         </div>
 
+        {/* ── Generation mode ── */}
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <PenLine className="size-4 text-primary/50" />
+              <h3 className="text-sm font-medium text-foreground/80">Generation mode</h3>
+            </div>
+            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+              The prewriter analyzes your full context first and creates a focused
+              brief for the writer &mdash; better character voices, pacing, and continuity.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => updateMutation.mutate({ generationMode: 'prewriter' })}
+              disabled={updateMutation.isPending}
+              className={`group text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                generationMode === 'prewriter'
+                  ? 'border-primary/30 bg-primary/[0.04]'
+                  : 'border-border/30 bg-card/10 hover:border-border/50'
+              }`}
+            >
+              <div className="font-display text-[13px] italic leading-snug">Prewriter</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                Two-phase generation: a planner creates a writing brief, then a writer
+                follows it. Better quality, slightly slower.
+              </p>
+            </button>
+            <button
+              onClick={() => updateMutation.mutate({ generationMode: 'standard' })}
+              disabled={updateMutation.isPending}
+              className={`group text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                generationMode === 'standard'
+                  ? 'border-primary/30 bg-primary/[0.04]'
+                  : 'border-border/30 bg-card/10 hover:border-border/50'
+              }`}
+            >
+              <div className="font-display text-[13px] italic leading-snug">Standard</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                Single-pass generation using the full context directly.
+                Faster, but the writer sees everything at once.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* ── Hierarchical summaries ── */}
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Layers className="size-4 text-primary/50" />
+              <h3 className="text-sm font-medium text-foreground/80">Hierarchical summaries</h3>
+            </div>
+            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+              Older prose is progressively summarized so the AI can remember more of
+              your story without running out of context space.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => updateMutation.mutate({ enableHierarchicalSummary: true })}
+              disabled={updateMutation.isPending}
+              className={`group text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                hierarchicalSummary
+                  ? 'border-primary/30 bg-primary/[0.04]'
+                  : 'border-border/30 bg-card/10 hover:border-border/50'
+              }`}
+            >
+              <div className="font-display text-[13px] italic leading-snug">Enabled</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                Early prose is condensed into summaries, keeping the full context
+                within the model&rsquo;s window. Best for longer stories.
+              </p>
+            </button>
+            <button
+              onClick={() => updateMutation.mutate({ enableHierarchicalSummary: false })}
+              disabled={updateMutation.isPending}
+              className={`group text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                !hierarchicalSummary
+                  ? 'border-primary/30 bg-primary/[0.04]'
+                  : 'border-border/30 bg-card/10 hover:border-border/50'
+              }`}
+            >
+              <div className="font-display text-[13px] italic leading-snug">Disabled</div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                All prose is sent verbatim. Works well for short stories or models
+                with very large context windows.
+              </p>
+            </button>
+          </div>
+        </div>
+
         <p className="text-[10px] text-muted-foreground leading-relaxed font-prose">
-          Both settings can be changed anytime in Settings.
+          All settings can be changed anytime in Settings.
         </p>
       </div>
 

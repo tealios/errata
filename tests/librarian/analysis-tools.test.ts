@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createEmptyCollector, createAnalysisTools, updateSummaryInputSchema } from '@/server/librarian/analysis-tools'
+
+vi.mock('@/server/fragments/storage', () => ({
+  getFragment: vi.fn().mockResolvedValue(null),
+  updateFragmentVersioned: vi.fn().mockResolvedValue(null),
+}))
 
 describe('analysis-tools', () => {
   describe('createEmptyCollector', () => {
@@ -172,6 +177,121 @@ describe('analysis-tools', () => {
       expect(collector.directions).toHaveLength(3)
       expect(collector.directions[0].title).toBe('Into the forest')
       expect(collector.directions[2].instruction).toContain('introspective')
+    })
+
+    it('suggestFragment skips suggestions targeting a locked fragment', async () => {
+      const { getFragment } = await import('@/server/fragments/storage')
+      vi.mocked(getFragment).mockResolvedValueOnce({
+        id: 'ch-locked',
+        type: 'character',
+        name: 'Locked Char',
+        description: '',
+        content: 'Original content',
+        tags: [],
+        refs: [],
+        sticky: false,
+        placement: 'user',
+        createdAt: '',
+        updatedAt: '',
+        order: 0,
+        meta: { locked: true },
+        version: 1,
+        versions: [],
+      })
+
+      const collector = createEmptyCollector()
+      const tools = createAnalysisTools(collector, { dataDir: '/tmp', storyId: 'test-story' })
+      const result = await tools.suggestFragment.execute!({
+        suggestions: [{
+          type: 'character',
+          targetFragmentId: 'ch-locked',
+          name: 'Locked Char',
+          description: 'Updated',
+          content: 'New content',
+        }],
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+
+      expect(collector.fragmentSuggestions).toHaveLength(0)
+      expect(result).toHaveProperty('skipped')
+      expect((result as any).skipped).toHaveLength(1)
+      expect((result as any).skipped[0].name).toBe('Locked Char')
+    })
+
+    it('suggestFragment skips suggestions that violate frozen sections', async () => {
+      const { getFragment } = await import('@/server/fragments/storage')
+      vi.mocked(getFragment).mockResolvedValueOnce({
+        id: 'kn-frozen',
+        type: 'knowledge',
+        name: 'Frozen Entry',
+        description: '',
+        content: 'The ancient city of Valdris stands eternal.',
+        tags: [],
+        refs: [],
+        sticky: false,
+        placement: 'user',
+        createdAt: '',
+        updatedAt: '',
+        order: 0,
+        meta: {
+          frozenSections: [{ id: 'fs-1', text: 'The ancient city of Valdris stands eternal.' }],
+        },
+        version: 1,
+        versions: [],
+      })
+
+      const collector = createEmptyCollector()
+      const tools = createAnalysisTools(collector, { dataDir: '/tmp', storyId: 'test-story' })
+      const result = await tools.suggestFragment.execute!({
+        suggestions: [{
+          type: 'knowledge',
+          targetFragmentId: 'kn-frozen',
+          name: 'Frozen Entry',
+          description: 'Updated',
+          content: 'Valdris was destroyed long ago.',
+        }],
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+
+      expect(collector.fragmentSuggestions).toHaveLength(0)
+      expect((result as any).skipped).toHaveLength(1)
+      expect((result as any).skipped[0].reason).toContain('Frozen section')
+    })
+
+    it('suggestFragment allows suggestions that preserve frozen sections', async () => {
+      const { getFragment } = await import('@/server/fragments/storage')
+      vi.mocked(getFragment).mockResolvedValueOnce({
+        id: 'kn-frozen',
+        type: 'knowledge',
+        name: 'Frozen Entry',
+        description: '',
+        content: 'The ancient city of Valdris stands eternal.',
+        tags: [],
+        refs: [],
+        sticky: false,
+        placement: 'user',
+        createdAt: '',
+        updatedAt: '',
+        order: 0,
+        meta: {
+          frozenSections: [{ id: 'fs-1', text: 'The ancient city of Valdris stands eternal.' }],
+        },
+        version: 1,
+        versions: [],
+      })
+
+      const collector = createEmptyCollector()
+      const tools = createAnalysisTools(collector, { dataDir: '/tmp', storyId: 'test-story' })
+      const result = await tools.suggestFragment.execute!({
+        suggestions: [{
+          type: 'knowledge',
+          targetFragmentId: 'kn-frozen',
+          name: 'Frozen Entry',
+          description: 'Updated with more detail',
+          content: 'The ancient city of Valdris stands eternal. It was founded in the First Age.',
+        }],
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+
+      expect(collector.fragmentSuggestions).toHaveLength(1)
+      expect(result).toEqual({ ok: true })
     })
   })
 })

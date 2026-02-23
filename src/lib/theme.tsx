@@ -145,6 +145,64 @@ export function useProseWidth(): [ProseWidth, (v: ProseWidth) => void] {
   return [value, set]
 }
 
+// --- UI font size preference (root scaling) ---
+
+export type UiFontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+
+export const UI_FONT_SIZE_VALUES: Record<UiFontSize, number> = {
+  xs: 12,
+  sm: 14,
+  md: 16,   // browser default — no override
+  lg: 18,
+  xl: 20,
+}
+
+export const UI_FONT_SIZE_LABELS: Record<UiFontSize, string> = {
+  xs: 'XS',
+  sm: 'S',
+  md: 'M',
+  lg: 'L',
+  xl: 'XL',
+}
+
+const UI_FONT_SIZE_KEY = 'errata-ui-font-size'
+const UI_FONT_SIZE_EVENT = 'errata-ui-font-size-change'
+
+function applyUiFontSize(size: UiFontSize) {
+  if (size === 'md') {
+    document.documentElement.style.removeProperty('font-size')
+  } else {
+    document.documentElement.style.setProperty('font-size', `${UI_FONT_SIZE_VALUES[size]}px`)
+  }
+}
+
+export function useUiFontSize(): [UiFontSize, (v: UiFontSize) => void] {
+  const [value, setValue] = useState<UiFontSize>(() => {
+    if (typeof window === 'undefined') return 'md'
+    const stored = localStorage.getItem(UI_FONT_SIZE_KEY)
+    if (stored && stored in UI_FONT_SIZE_VALUES) return stored as UiFontSize
+    return 'md'
+  })
+
+  useEffect(() => {
+    applyUiFontSize(value)
+  }, [value])
+
+  useEffect(() => {
+    const handler = (e: Event) => setValue((e as CustomEvent<UiFontSize>).detail)
+    window.addEventListener(UI_FONT_SIZE_EVENT, handler)
+    return () => window.removeEventListener(UI_FONT_SIZE_EVENT, handler)
+  }, [])
+
+  const set = useCallback((v: UiFontSize) => {
+    setValue(v)
+    localStorage.setItem(UI_FONT_SIZE_KEY, v)
+    window.dispatchEvent(new CustomEvent(UI_FONT_SIZE_EVENT, { detail: v }))
+  }, [])
+
+  return [value, set]
+}
+
 // --- Prose font size preference ---
 
 export type ProseFontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
@@ -210,6 +268,7 @@ export type FontRole = 'display' | 'prose' | 'sans' | 'mono'
 export interface FontOption {
   name: string
   fallback: string
+  tag?: string
 }
 
 export const FONT_CATALOGUE: Record<FontRole, FontOption[]> = {
@@ -217,22 +276,29 @@ export const FONT_CATALOGUE: Record<FontRole, FontOption[]> = {
     { name: 'Instrument Serif', fallback: 'Georgia, serif' },
     { name: 'Playfair Display', fallback: 'Georgia, serif' },
     { name: 'Cormorant Garamond', fallback: 'Georgia, serif' },
+    { name: 'Lexend', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
+    { name: 'Atkinson Hyperlegible Next', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
   ],
   prose: [
     { name: 'Newsreader', fallback: 'Georgia, serif' },
     { name: 'Literata', fallback: 'Georgia, serif' },
     { name: 'Lora', fallback: 'Georgia, serif' },
     { name: 'EB Garamond', fallback: 'Georgia, serif' },
+    { name: 'Lexend', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
+    { name: 'Atkinson Hyperlegible Next', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
   ],
   sans: [
     { name: 'Outfit', fallback: '-apple-system, BlinkMacSystemFont, sans-serif' },
     { name: 'DM Sans', fallback: '-apple-system, BlinkMacSystemFont, sans-serif' },
     { name: 'Plus Jakarta Sans', fallback: '-apple-system, BlinkMacSystemFont, sans-serif' },
+    { name: 'Lexend', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
+    { name: 'Atkinson Hyperlegible Next', fallback: '-apple-system, BlinkMacSystemFont, sans-serif', tag: 'high-visibility' },
   ],
   mono: [
     { name: 'JetBrains Mono', fallback: '"Fira Code", Menlo, monospace' },
     { name: 'Fira Code', fallback: '"JetBrains Mono", Menlo, monospace' },
     { name: 'Source Code Pro', fallback: 'Menlo, monospace' },
+    { name: 'Atkinson Hyperlegible Mono', fallback: 'Menlo, monospace', tag: 'high-visibility' },
   ],
 }
 

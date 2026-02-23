@@ -1,7 +1,7 @@
 import { tool } from 'ai'
 import { z } from 'zod/v4'
 import { getFragment, updateFragmentVersioned } from '../fragments/storage'
-import { checkFragmentWrite } from '../fragments/protection'
+import { checkFragmentWrite, isFragmentLocked } from '../fragments/protection'
 
 // --- Collector ---
 
@@ -156,7 +156,7 @@ export function createAnalysisTools(collector: AnalysisCollector, opts?: { dataD
     }),
 
     suggestFragment: tool({
-      description: 'Suggest creating or updating character/knowledge fragments based on new information in the prose. Each character or knowledge entry should appear only once.',
+      description: 'Suggest creating or updating character/knowledge fragments based on new information in the prose. Each character or knowledge entry should appear only once. If updating an existing fragment, respect locked/frozen protections — locked fragments cannot be modified, and frozen sections must be preserved verbatim in the new content.',
       inputSchema: z.object({
         suggestions: z.array(z.object({
           type: z.union([z.literal('character'), z.literal('knowledge')]).describe('"character" for characters, "knowledge" for world-building, locations, items, facts'),
@@ -171,11 +171,32 @@ export function createAnalysisTools(collector: AnalysisCollector, opts?: { dataD
         const seen = new Set(
           collector.fragmentSuggestions.map(s => `${s.type}:${s.name.trim().toLowerCase()}`),
         )
+        const skipped: Array<{ name: string; reason: string }> = []
         for (const s of suggestions) {
           const key = `${s.type}:${s.name.trim().toLowerCase()}`
           if (seen.has(key)) continue
+
+          // Check protection if targeting an existing fragment
+          if (s.targetFragmentId && opts) {
+            const existing = await getFragment(opts.dataDir, opts.storyId, s.targetFragmentId)
+            if (existing) {
+              const protection = checkFragmentWrite(existing, { content: s.content })
+              if (!protection.allowed) {
+                skipped.push({ name: s.name, reason: protection.reason! })
+                continue
+              }
+            }
+          }
+
           seen.add(key)
           collector.fragmentSuggestions.push(s)
+        }
+        if (skipped.length > 0) {
+          return {
+            ok: true,
+            skipped,
+            message: `${skipped.length} suggestion(s) skipped due to fragment protection. Locked fragments cannot be modified and frozen sections must be preserved verbatim.`,
+          }
         }
         return { ok: true }
       },

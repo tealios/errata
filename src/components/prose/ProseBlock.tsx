@@ -523,7 +523,7 @@ export const ProseBlock = memo(function ProseBlock({
             if (!isStreamingAction) setShowActions(v => !v)
           }
         }}
-        className={`text-left w-full rounded-lg p-4 -mx-4 transition-all duration-150 cursor-pointer ${
+        className={`text-left w-full rounded-lg p-4 -mx-4 transition-all duration-150 cursor-default ${
           showActions ? 'bg-card/50 ring-1 ring-primary/10' : 'hover:bg-card/40'
         }`}
         data-component-id={`prose-${fragment.id}-select`}

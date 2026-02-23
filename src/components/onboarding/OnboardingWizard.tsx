@@ -357,7 +357,14 @@ function TypographyStep({
                 }`}
                 style={{ animationDelay: `${150 + i * 80}ms` }}
               >
-                <p className="text-[11px] font-medium text-muted-foreground mb-2">{opt.name}</p>
+                <p className="text-[11px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  {opt.name}
+                  {opt.tag && (
+                    <span className="text-[8px] font-medium uppercase tracking-wider text-primary/60 bg-primary/8 px-1.5 py-px rounded-full leading-tight">
+                      {opt.tag}
+                    </span>
+                  )}
+                </p>
                 <p
                   className="text-[15px] leading-relaxed text-foreground/80"
                   style={{ fontFamily: `"${opt.name}", ${opt.fallback}` }}
@@ -384,7 +391,7 @@ function TypographyStep({
           Headings
         </p>
         <div
-          className="flex gap-3 animate-onboarding-fade-up"
+          className="grid grid-cols-3 gap-3 animate-onboarding-fade-up"
           style={{ animationDelay: '550ms' }}
         >
           {FONT_CATALOGUE.display.map((opt) => {
@@ -393,7 +400,7 @@ function TypographyStep({
               <button
                 key={opt.name}
                 onClick={() => setFont('display', opt.name)}
-                className={`relative flex-1 text-center p-4 rounded-xl border transition-all duration-200 cursor-pointer ${
+                className={`relative text-center p-4 rounded-xl border transition-all duration-200 cursor-pointer ${
                   isActive
                     ? 'border-primary/40 bg-primary/5 shadow-sm'
                     : 'border-border/30 hover:border-border/60 hover:bg-card/50'
@@ -405,7 +412,14 @@ function TypographyStep({
                 >
                   Chapter One
                 </p>
-                <p className="text-[10px] text-muted-foreground">{opt.name}</p>
+                <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+                  {opt.name}
+                  {opt.tag && (
+                    <span className="text-[7px] font-medium uppercase tracking-wider text-primary/60 bg-primary/8 px-1 py-px rounded-full leading-tight">
+                      {opt.tag}
+                    </span>
+                  )}
+                </p>
                 {isActive && (
                   <div className="absolute top-2 right-2 size-4 rounded-full bg-primary flex items-center justify-center animate-onboarding-scale-in">
                     <Check className="size-2.5 text-primary-foreground" />

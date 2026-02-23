@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
-import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type ProseFontSize } from '@/lib/theme'
+import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useUiFontSize, UI_FONT_SIZE_LABELS, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type UiFontSize, type ProseFontSize } from '@/lib/theme'
 import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, CircleHelp, Code, Wand2, Compass, ArrowLeft } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
@@ -129,12 +129,17 @@ function FontPicker({ role, label, description, activeFont, onSelect }: {
               key={opt.name}
               onClick={() => onSelect(opt.name)}
               style={{ fontFamily: `"${opt.name}", ${opt.fallback}` }}
-              className={`px-2.5 py-1 rounded-md text-[12px] border transition-all duration-150 ${isActive
+              className={`px-2.5 py-1 rounded-md text-[12px] border transition-all duration-150 inline-flex items-center gap-1.5 ${isActive
                   ? 'border-foreground/25 bg-foreground/5 text-foreground shadow-[0_0_0_1px_var(--foreground)/5]'
                   : 'border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-accent/30'
                 }`}
             >
               {opt.name}
+              {opt.tag && (
+                <span className="text-[8px] font-sans font-medium uppercase tracking-wider text-primary/60 bg-primary/8 px-1.5 py-px rounded-full leading-tight">
+                  {opt.tag}
+                </span>
+              )}
             </button>
           )
         })}
@@ -370,6 +375,7 @@ export function SettingsPanel({
   const [characterMentions, setCharacterMentions] = useCharacterMentions()
   const [timelineBar, setTimelineBar] = useTimelineBar()
   const [proseWidth, setProseWidth] = useProseWidth()
+  const [uiFontSize, setUiFontSize] = useUiFontSize()
   const [proseFontSize, setProseFontSize] = useProseFontSize()
   const [fontPrefs, setFont, resetFonts] = useFontPreferences()
   const hasCustomFonts = Object.keys(fontPrefs).length > 0
@@ -411,6 +417,19 @@ export function SettingsPanel({
                 { value: 'high-contrast', label: 'High' },
               ]}
               onChange={setTheme}
+            />
+          </SettingRow>
+          <SettingRow label="UI size" description="Scale the entire interface">
+            <SegmentedControl<UiFontSize>
+              value={uiFontSize}
+              options={[
+                { value: 'xs', label: UI_FONT_SIZE_LABELS.xs },
+                { value: 'sm', label: UI_FONT_SIZE_LABELS.sm },
+                { value: 'md', label: UI_FONT_SIZE_LABELS.md },
+                { value: 'lg', label: UI_FONT_SIZE_LABELS.lg },
+                { value: 'xl', label: UI_FONT_SIZE_LABELS.xl },
+              ]}
+              onChange={setUiFontSize}
             />
           </SettingRow>
           <SettingRow label="Quick switch" description="Show chevrons to swap between variations">
