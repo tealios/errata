@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
-import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useUiFontSize, UI_FONT_SIZE_LABELS, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type UiFontSize, type ProseFontSize } from '@/lib/theme'
+import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useUiFontSize, UI_FONT_SIZE_LABELS, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, loadFullFontCatalogue, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type UiFontSize, type ProseFontSize } from '@/lib/theme'
 import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, CircleHelp, Code, Wand2, Compass, ArrowLeft } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
@@ -116,6 +116,7 @@ function FontPicker({ role, label, description, activeFont, onSelect }: {
   activeFont: string
   onSelect: (name: string) => void
 }) {
+  useEffect(() => { loadFullFontCatalogue() }, [])
   const options = FONT_CATALOGUE[role]
   return (
     <div className="px-3 py-2.5">

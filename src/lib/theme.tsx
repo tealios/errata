@@ -320,6 +320,51 @@ export const DEFAULT_FONTS: Record<FontRole, string> = {
 
 export type FontPreferences = Partial<Record<FontRole, string>>
 
+const FONT_SPECS: Record<string, string> = {
+  'Instrument Serif': 'ital@0;1',
+  'Playfair Display': 'ital,wght@0,400..900;1,400..900',
+  'Cormorant Garamond': 'ital,wght@0,300..700;1,300..700',
+  'Newsreader': 'ital,opsz,wght@0,6..72,200..800;1,6..72,200..800',
+  'Literata': 'ital,opsz,wght@0,7..72,200..900;1,7..72,200..900',
+  'Lora': 'ital,wght@0,400..700;1,400..700',
+  'EB Garamond': 'ital,wght@0,400..800;1,400..800',
+  'Outfit': 'wght@300..700',
+  'DM Sans': 'wght@300..700',
+  'Plus Jakarta Sans': 'wght@300..700',
+  'Lexend': 'wght@300..700',
+  'Atkinson Hyperlegible Next': 'ital,wght@0,400..700;1,400..700',
+  'Atkinson Hyperlegible Mono': 'ital,wght@0,400..700;1,400..700',
+  'JetBrains Mono': 'wght@400;500',
+  'Fira Code': 'wght@400;500',
+  'Source Code Pro': 'wght@400;500',
+}
+
+let fullCatalogueLoaded = false
+
+/**
+ * Load the full Google Fonts catalogue (all 13 families).
+ * Skips fonts already loaded at startup. Safe to call multiple times.
+ */
+export function loadFullFontCatalogue() {
+  if (fullCatalogueLoaded) return
+  fullCatalogueLoaded = true
+
+  const alreadyLoaded: Set<string> =
+    (window as unknown as { __errata_loaded_fonts?: Set<string> }).__errata_loaded_fonts ?? new Set()
+
+  const missing = Object.keys(FONT_SPECS).filter(name => !alreadyLoaded.has(name))
+  if (missing.length === 0) return
+
+  const families = missing.map(
+    name => `family=${name.replace(/ /g, '+')}:${FONT_SPECS[name]}`
+  )
+  const url = `https://fonts.googleapis.com/css2?${families.join('&')}&display=swap`
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = url
+  document.head.appendChild(link)
+}
+
 const FONTS_KEY = 'errata-fonts'
 
 function getFontCssValue(role: FontRole, name: string): string {

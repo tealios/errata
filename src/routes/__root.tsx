@@ -32,10 +32,6 @@ export const Route = createRootRoute({
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,400..700;1,400..700&family=Atkinson+Hyperlegible+Next:ital,wght@0,400..700;1,400..700&family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=DM+Sans:wght@300..700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Fira+Code:wght@400;500&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Lexend:wght@300..700&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&family=Lora:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Outfit:wght@300..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:wght@300..700&family=Source+Code+Pro:wght@400;500&display=swap',
-      },
       { rel: 'stylesheet', href: appCss },
     ],
   }),
@@ -46,6 +42,43 @@ export const Route = createRootRoute({
 const themeScript = `(function(){var t=localStorage.getItem('errata-theme');var r=document.documentElement;r.classList.toggle('dark',t==='dark');r.classList.toggle('high-contrast',t==='high-contrast')})()`;
 const fontScript = `(function(){var f=localStorage.getItem('errata-fonts');if(!f)return;try{var p=JSON.parse(f),s=document.documentElement.style,fb={display:', Georgia, serif',prose:', Georgia, serif',sans:', -apple-system, BlinkMacSystemFont, sans-serif',mono:', "Fira Code", Menlo, monospace'};for(var k in p){if(p[k]&&fb[k])s.setProperty('--font-'+k,'"'+p[k]+'"'+fb[k])}}catch(e){}})()`;
 
+const fontLoaderScript = `(function(){
+var defaults={display:'Instrument Serif',prose:'Newsreader',sans:'Outfit',mono:'JetBrains Mono'};
+var specs={
+'Instrument Serif':'ital@0;1',
+'Playfair Display':'ital,wght@0,400..900;1,400..900',
+'Cormorant Garamond':'ital,wght@0,300..700;1,300..700',
+'Newsreader':'ital,opsz,wght@0,6..72,200..800;1,6..72,200..800',
+'Literata':'ital,opsz,wght@0,7..72,200..900;1,7..72,200..900',
+'Lora':'ital,wght@0,400..700;1,400..700',
+'EB Garamond':'ital,wght@0,400..800;1,400..800',
+'Outfit':'wght@300..700',
+'DM Sans':'wght@300..700',
+'Plus Jakarta Sans':'wght@300..700',
+'Lexend':'wght@300..700',
+'Atkinson Hyperlegible Next':'ital,wght@0,400..700;1,400..700',
+'Atkinson Hyperlegible Mono':'ital,wght@0,400..700;1,400..700',
+'JetBrains Mono':'wght@400;500',
+'Fira Code':'wght@400;500',
+'Source Code Pro':'wght@400;500'
+};
+var prefs={};
+try{var raw=localStorage.getItem('errata-fonts');if(raw)prefs=JSON.parse(raw)}catch(e){}
+var active=new Set();
+for(var k in defaults){active.add(prefs[k]||defaults[k])}
+var families=[];
+active.forEach(function(name){
+if(specs[name])families.push('family='+name.replace(/ /g,'+')+':'+specs[name])
+});
+if(!families.length)return;
+var url='https://fonts.googleapis.com/css2?'+families.join('&')+'&display=swap';
+var link=document.createElement('link');
+link.rel='stylesheet';
+link.href=url;
+document.head.appendChild(link);
+window.__errata_loaded_fonts=active;
+})()`;
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -53,6 +86,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
+        <script dangerouslySetInnerHTML={{ __html: fontLoaderScript }} />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         {children}

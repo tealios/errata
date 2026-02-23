@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { useTheme, useFontPreferences, getActiveFont, FONT_CATALOGUE } from '@/lib/theme'
+import { useTheme, useFontPreferences, getActiveFont, FONT_CATALOGUE, loadFullFontCatalogue } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
 import {
   Sun,
@@ -322,6 +322,7 @@ function TypographyStep({
   onNext: () => void
   onBack: () => void
 }) {
+  useEffect(() => { loadFullFontCatalogue() }, [])
   const [fontPrefs, setFont] = useFontPreferences()
   const activeProse = getActiveFont('prose', fontPrefs)
   const activeDisplay = getActiveFont('display', fontPrefs)
