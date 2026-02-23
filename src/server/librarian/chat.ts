@@ -160,7 +160,7 @@ async function librarianChatInner(
 
   const chatAgent = createToolAgent({
     model,
-    instructions: systemMessage?.content ?? '',
+    instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
     maxSteps: opts.maxSteps ?? 10,
   })

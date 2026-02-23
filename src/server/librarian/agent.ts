@@ -13,6 +13,7 @@ import {
   type LibrarianAnalysis,
 } from './storage'
 import { applyFragmentSuggestion } from './suggestions'
+import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
 import { createToolAgent } from '../agents/create-agent'
 import { compileAgentContext } from '../agents/compile-agent-context'
@@ -110,6 +111,19 @@ async function compactSummary(
         const p = part as Record<string, unknown>
         compacted += String(p.text ?? '')
       }
+    }
+
+    // Track token usage for summary compaction
+    try {
+      const rawUsage = await result.totalUsage
+      if (rawUsage && typeof rawUsage.inputTokens === 'number') {
+        reportUsage(dataDir, storyId, 'librarian.summary-compaction', {
+          inputTokens: rawUsage.inputTokens,
+          outputTokens: rawUsage.outputTokens ?? 0,
+        }, modelId)
+      }
+    } catch {
+      // Some providers may not report usage
     }
 
     const compactedText = compacted.trim()
@@ -241,7 +255,7 @@ async function runLibrarianInner(
 
   const agent = createToolAgent({
     model,
-    instructions: systemMessage?.content ?? '',
+    instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
     maxSteps: 3,
   })
@@ -295,6 +309,19 @@ async function runLibrarianInner(
           stepCount++
           break
       }
+    }
+
+    // Track token usage for librarian analysis
+    try {
+      const rawUsage = await result.totalUsage
+      if (rawUsage && typeof rawUsage.inputTokens === 'number') {
+        reportUsage(dataDir, storyId, 'librarian.analyze', {
+          inputTokens: rawUsage.inputTokens,
+          outputTokens: rawUsage.outputTokens ?? 0,
+        }, modelId)
+      }
+    } catch {
+      // Some providers may not report usage
     }
 
     // Emit final finish event

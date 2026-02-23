@@ -14,6 +14,7 @@ import { getModel } from '../llm/client'
 import { getStory } from '../fragments/storage'
 import { buildContextState } from '../llm/context-builder'
 import { createFragmentTools } from '../llm/tools'
+import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
 import { createToolAgent } from './create-agent'
 import { createEventStream } from './create-event-stream'
@@ -181,7 +182,7 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
       const maxSteps = (opts as Record<string, unknown>).maxSteps as number | undefined
       const agent = createToolAgent({
         model,
-        instructions: systemMessage?.content ?? '',
+        instructions: systemMessage?.content || 'You are a helpful assistant.',
         tools: compiled.tools,
         maxSteps: maxSteps ?? defaultMaxSteps,
         toolChoice: config.toolChoice,
@@ -196,7 +197,24 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
       const result = await agent.stream({ messages })
       const streamResult = createEventStream(result.fullStream)
 
-      // 12. Post-stream hook
+      // 12. Track token usage after stream completes
+      streamResult.completion.then(async () => {
+        try {
+          const rawUsage = await result.totalUsage
+          if (rawUsage && typeof rawUsage.inputTokens === 'number') {
+            reportUsage(dataDir, storyId, config.name, {
+              inputTokens: rawUsage.inputTokens,
+              outputTokens: rawUsage.outputTokens ?? 0,
+            }, modelId)
+          }
+        } catch {
+          // Some providers may not report usage
+        }
+      }).catch(() => {
+        // Stream errored — skip usage tracking
+      })
+
+      // 13. Post-stream hook
       if (config.afterStream) {
         config.afterStream(streamResult)
       }

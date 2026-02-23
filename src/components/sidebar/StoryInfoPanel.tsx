@@ -4,8 +4,9 @@ import { api, type StoryMeta } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Pencil, Download, Package, Wand2, FileText, ImagePlus, X } from 'lucide-react'
+import { Pencil, Download, Package, Wand2, FileText, ImagePlus, X, ChevronDown, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { UsageSnapshot, UsageEntry, SourceUsage } from '@/lib/api/token-usage'
 
 interface StoryInfoPanelProps {
   storyId: string
@@ -68,6 +69,12 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
   const genLogsQuery = useQuery({
     queryKey: ['generation-logs', storyId],
     queryFn: () => api.generation.listLogs(storyId),
+  })
+
+  const tokenUsageQuery = useQuery({
+    queryKey: ['token-usage', storyId],
+    queryFn: () => api.tokenUsage.get(storyId),
+    refetchInterval: 10_000,
   })
 
   // Compute stats
@@ -270,6 +277,11 @@ export function StoryInfoPanel({ storyId, story, onLaunchWizard, onExport, onDow
           <MiniStat label="variations" value={stats.totalVariations} />
           <MiniStat label="total" value={stats.totalFragments} />
         </div>
+
+        {/* Token usage */}
+        {tokenUsageQuery.data && (tokenUsageQuery.data.session.total.calls > 0 || tokenUsageQuery.data.project.total.calls > 0) && (
+          <TokenUsageSection session={tokenUsageQuery.data.session} project={tokenUsageQuery.data.project} />
+        )}
       </div>
 
       {/* Divider */}
@@ -371,6 +383,113 @@ function ActionTile({ icon: Icon, label, description, onClick, dataComponentId }
         <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{description}</p>
       </div>
     </button>
+  )
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  'generation.writer': 'Writer',
+  'generation.prewriter': 'Prewriter',
+  'librarian.analyze': 'Librarian',
+  'librarian.summary-compaction': 'Summary compaction',
+  'librarian.chat': 'Librarian chat',
+  'librarian.refine': 'Librarian refine',
+  'librarian.prose-transform': 'Prose transform',
+  'librarian.optimize-character': 'Character optimizer',
+  'directions.suggest': 'Directions',
+  'character-chat.chat': 'Character chat',
+}
+
+function formatSourceName(source: string): string {
+  return SOURCE_LABELS[source] ?? source
+}
+
+function shortModelName(modelId: string): string {
+  // Show just the model name portion after the last slash or colon
+  const parts = modelId.split(/[/:@]/)
+  return parts[parts.length - 1] || modelId
+}
+
+function UsageRow({ label, entry, indent }: { label: string; entry: UsageEntry; indent?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between ${indent ? 'pl-3' : ''}`}>
+      <span className={`text-[10px] text-muted-foreground ${indent ? '' : 'uppercase tracking-wider'} truncate mr-2`}>{label}</span>
+      <span className="text-[11px] font-mono text-foreground/60 whitespace-nowrap shrink-0">
+        {formatNumber(entry.inputTokens)} in &middot; {formatNumber(entry.outputTokens)} out
+      </span>
+    </div>
+  )
+}
+
+function UsageBreakdown({ label, snapshot }: { label: string; snapshot: UsageSnapshot }) {
+  const [expanded, setExpanded] = useState(false)
+  if (snapshot.total.calls === 0) return null
+
+  const sources = Object.entries(snapshot.sources)
+    .sort((a, b) => (b[1].inputTokens + b[1].outputTokens) - (a[1].inputTokens + a[1].outputTokens))
+  const models = Object.entries(snapshot.byModel)
+    .sort((a, b) => (b[1].inputTokens + b[1].outputTokens) - (a[1].inputTokens + a[1].outputTokens))
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1 w-full group"
+      >
+        {expanded
+          ? <ChevronDown className="size-3 text-muted-foreground/50" />
+          : <ChevronRight className="size-3 text-muted-foreground/50" />
+        }
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
+        <span className="text-[11px] font-mono text-foreground/60 ml-auto whitespace-nowrap">
+          {formatNumber(snapshot.total.inputTokens)} in &middot; {formatNumber(snapshot.total.outputTokens)} out
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-1 space-y-0.5 ml-1">
+          {sources.length > 0 && (
+            <>
+              <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider mt-1.5 mb-0.5">By agent</div>
+              {sources.map(([source, entry]) => (
+                <div key={source}>
+                  <UsageRow label={formatSourceName(source)} entry={entry} indent />
+                  {Object.keys(entry.byModel).length > 1 && Object.entries(entry.byModel)
+                    .sort((a, b) => (b[1].inputTokens + b[1].outputTokens) - (a[1].inputTokens + a[1].outputTokens))
+                    .map(([model, mEntry]) => (
+                      <div key={model} className="pl-6 flex items-baseline justify-between opacity-60">
+                        <span className="text-[9px] text-muted-foreground truncate mr-2">{shortModelName(model)}</span>
+                        <span className="text-[10px] font-mono text-foreground/50 whitespace-nowrap shrink-0">
+                          {formatNumber(mEntry.inputTokens)} in &middot; {formatNumber(mEntry.outputTokens)} out
+                        </span>
+                      </div>
+                    ))
+                  }
+                </div>
+              ))}
+            </>
+          )}
+          {models.length > 1 && (
+            <>
+              <div className="text-[9px] text-muted-foreground/50 uppercase tracking-wider mt-1.5 mb-0.5">By model</div>
+              {models.map(([model, entry]) => (
+                <UsageRow key={model} label={shortModelName(model)} entry={entry} indent />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TokenUsageSection({ session, project }: { session: UsageSnapshot; project: UsageSnapshot }) {
+  return (
+    <div className="mt-3 pt-3 border-t border-border/30">
+      <label className="text-[9px] text-muted-foreground uppercase tracking-[0.15em] font-medium">Token Usage</label>
+      <div className="mt-1.5 space-y-1">
+        <UsageBreakdown label="Session" snapshot={session} />
+        <UsageBreakdown label="Project" snapshot={project} />
+      </div>
+    </div>
   )
 }
 

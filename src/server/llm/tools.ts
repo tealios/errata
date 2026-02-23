@@ -56,7 +56,7 @@ function withToolLogging<TInput, TResult>(
     try {
       const result = await handler(input)
       const durationMs = Date.now() - startTime
-      logger.info(`Tool call: ${toolName} (output)`, {
+      logger.debug(`Tool call: ${toolName} (output)`, {
         storyId,
         durationMs,
         output: truncateForLog(result),

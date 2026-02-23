@@ -5,6 +5,7 @@ import { buildContextState, compileBlocks } from '../llm/context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { getFragmentsByTag } from '../fragments/associations'
 import { instructionRegistry } from '../instructions'
+import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
 import type { AgentBlockContext } from '../agents/agent-block-context'
 
@@ -76,13 +77,14 @@ export async function suggestDirections(
   }
 
   const compiled = await compileAgentContext(dataDir, storyId, 'directions.suggest', blockContext, {})
-  const messages = compiled.messages
+  const systemMsg = compiled.messages.find(m => m.role === 'system')
+  const userMessages = compiled.messages.filter(m => m.role !== 'system')
 
   requestLogger.info('Generating suggestions', { modelId, count })
 
   const agent = new ToolLoopAgent({
     model,
-    instructions: '',
+    instructions: systemMsg?.content || instructionRegistry.resolve('directions.system', modelId),
     tools: {},
     toolChoice: 'none' as const,
     stopWhen: stepCountIs(1),
@@ -93,7 +95,7 @@ export async function suggestDirections(
 
   const result = await agent.stream({
     messages: [
-      ...messages,
+      ...userMessages,
       { role: 'user' as const, content: prompt },
     ],
   })
@@ -102,6 +104,19 @@ export async function suggestDirections(
     if (part.type === 'text-delta') {
       fullText += (part as Record<string, unknown>).text ?? ''
     }
+  }
+
+  // Track token usage
+  try {
+    const rawUsage = await result.totalUsage
+    if (rawUsage && typeof rawUsage.inputTokens === 'number') {
+      reportUsage(dataDir, storyId, 'directions.suggest', {
+        inputTokens: rawUsage.inputTokens,
+        outputTokens: rawUsage.outputTokens ?? 0,
+      }, modelId)
+    }
+  } catch {
+    // Some providers may not report usage
   }
 
   const durationMs = Date.now() - startTime
