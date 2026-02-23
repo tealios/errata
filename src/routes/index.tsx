@@ -32,7 +32,8 @@ import {
   extractParsedCard,
   parseCardJson,
 } from '@/lib/importers/tavern-card'
-import { GuillochePattern } from '@/components/GuillochePattern'
+import { GeneratedCover } from '@/components/GeneratedCover'
+import { useTheme } from '@/lib/theme'
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
@@ -677,6 +678,7 @@ function StoryListPage() {
 function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void }) {
   const queryClient = useQueryClient()
   const coverInputRef = useRef<HTMLInputElement>(null)
+  const { theme } = useTheme()
 
   const { data: fragments } = useQuery({
     queryKey: ['fragments', story.id],
@@ -723,6 +725,8 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
 
   const hasStats = stats && (stats.prose + stats.characters + stats.knowledge + stats.guidelines) > 0
   const hasCover = !!story.coverImage
+  // Light-mode generated covers have light parchment backgrounds → need dark text
+  const isLightCover = !hasCover && theme === 'light'
 
   return (
     <div className="relative group">
@@ -744,7 +748,11 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
         }}
       >
         <div
-          className="relative rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:scale-[1.02] ring-1 ring-white/[0.06] hover:ring-white/[0.12]"
+          className={`relative rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ring-1 ${
+            isLightCover
+              ? 'ring-black/[0.08] hover:ring-black/[0.15] hover:shadow-black/10'
+              : 'ring-white/[0.06] hover:ring-white/[0.12] hover:shadow-black/20'
+          }`}
           style={{ aspectRatio: '3 / 4' }}
           data-component-id={`story-${story.id}-card`}
         >
@@ -756,26 +764,32 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            <GuillochePattern id={story.id} className="absolute inset-0" />
+            <GeneratedCover token={story.name} className="absolute inset-0" />
           )}
 
-          {/* Gradient overlay — always present for text legibility */}
+          {/* Gradient overlay — adapts to cover brightness */}
           <div
             className="absolute inset-0"
             style={{
               background: hasCover
                 ? 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)'
-                : 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 50%, transparent 100%)',
+                : isLightCover
+                  ? 'linear-gradient(to top, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.3) 45%, transparent 100%)'
+                  : 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 50%, transparent 100%)',
             }}
           />
 
           {/* Text content — pinned to bottom */}
           <div className="absolute inset-x-0 bottom-0 p-4 flex flex-col justify-end">
-            <h2 className="font-display text-base leading-snug text-white drop-shadow-sm line-clamp-2 group-hover:text-primary transition-colors">
+            <h2 className={`font-display text-base leading-snug drop-shadow-sm line-clamp-2 group-hover:text-primary transition-colors ${
+              isLightCover ? 'text-stone-800' : 'text-white'
+            }`}>
               {story.name}
             </h2>
             {story.description && (
-              <p className="text-[13px] leading-relaxed text-white/70 mt-1 line-clamp-2">
+              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${
+                isLightCover ? 'text-stone-600' : 'text-white/70'
+              }`}>
                 {story.description}
               </p>
             )}
@@ -785,32 +799,32 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
               {hasStats ? (
                 <>
                   {stats.prose > 0 && (
-                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
+                    <span className={`flex items-center gap-1 text-[11px] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
                       <BookOpen className="size-3" />
                       {stats.prose}
                     </span>
                   )}
                   {stats.characters > 0 && (
-                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
+                    <span className={`flex items-center gap-1 text-[11px] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
                       <Users className="size-3" />
                       {stats.characters}
                     </span>
                   )}
                   {stats.knowledge > 0 && (
-                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.knowledge} knowledge`}>
+                    <span className={`flex items-center gap-1 text-[11px] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.knowledge} knowledge`}>
                       <Globe className="size-3" />
                       {stats.knowledge}
                     </span>
                   )}
                   {stats.guidelines > 0 && (
-                    <span className="flex items-center gap-1 text-[11px] text-white/50" title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
+                    <span className={`flex items-center gap-1 text-[11px] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
                       <Scroll className="size-3" />
                       {stats.guidelines}
                     </span>
                   )}
                 </>
               ) : null}
-              <span className="text-[11px] text-white/40 ml-auto">
+              <span className={`text-[11px] ml-auto ${isLightCover ? 'text-stone-400' : 'text-white/40'}`}>
                 {new Date(story.updatedAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -824,7 +838,11 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
       {/* Hover action buttons — outside Link to prevent navigation */}
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
         <button
-          className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-black/70 hover:text-white transition-colors"
+          className={`size-7 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${
+            isLightCover
+              ? 'bg-white/60 text-stone-600 hover:bg-white/80 hover:text-stone-800'
+              : 'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white'
+          }`}
           title="Set cover image"
           onClick={() => coverInputRef.current?.click()}
         >
@@ -840,7 +858,11 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
           </button>
         )}
         <button
-          className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-red-600/80 hover:text-white transition-colors"
+          className={`size-7 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${
+            isLightCover
+              ? 'bg-white/60 text-stone-600 hover:bg-red-500/80 hover:text-white'
+              : 'bg-black/50 text-white/80 hover:bg-red-600/80 hover:text-white'
+          }`}
           title={`Delete "${story.name}"`}
           data-component-id={`story-${story.id}-delete-button`}
           onClick={onDelete}
