@@ -15,6 +15,8 @@ import { generationRoutes } from './routes/generation'
 import { proseChainRoutes } from './routes/prose-chain'
 import { configRoutes } from './routes/config'
 import { agentBlockRoutes } from './routes/agent-blocks'
+import { tokenUsageRoutes } from './routes/token-usage'
+import { folderRoutes } from './routes/folders'
 
 const DATA_DIR = process.env.DATA_DIR ?? './data'
 
@@ -102,6 +104,8 @@ export function createApp(dataDir: string = DATA_DIR) {
     .use(proseChainRoutes(dataDir))
     .use(configRoutes(dataDir))
     .use(agentBlockRoutes(dataDir))
+    .use(tokenUsageRoutes(dataDir))
+    .use(folderRoutes(dataDir))
 
   // Load instruction overrides after agents are registered (route imports trigger agent registration)
   instructionRegistry.loadOverridesSync(dataDir)

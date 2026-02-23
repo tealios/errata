@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useCallback, memo } from 'react'
+import { useState, useMemo, useRef, useCallback, memo, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { api, type Fragment } from '@/lib/api'
+import { api, type Fragment, type Folder, type FolderAssignments } from '@/lib/api'
 import { componentId, fragmentComponentId } from '@/lib/dom-ids'
 import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, type Bubble } from '@/lib/fragment-visuals'
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Plus, Pin, GripVertical, FileDown, UserPlus, Archive } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Plus, Pin, GripVertical, FileDown, UserPlus, Archive, FolderPlus, ChevronRight, MoreHorizontal, Pencil, Trash2, FolderOpen } from 'lucide-react'
 
 interface FragmentListProps {
   storyId: string
@@ -184,6 +190,231 @@ const FragmentRow = memo(function FragmentRow({
   )
 })
 
+// --- Folder header ---
+
+interface FolderHeaderProps {
+  folder: Folder
+  count: number
+  collapsed: boolean
+  isDropTarget: boolean
+  isDraggingFolder: boolean
+  isFolderDragOver: boolean
+  renamingId: string | null
+  renameValue: string
+  onToggle: () => void
+  onRename: (folderId: string) => void
+  onRenameChange: (value: string) => void
+  onRenameCommit: () => void
+  onRenameCancel: () => void
+  onDelete: (folderId: string) => void
+  onFolderDragStart: (folderId: string, e: React.DragEvent) => void
+  onFolderDragEnter: (folderId: string) => void
+  onFolderDragEnd: () => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragEnter: (e: React.DragEvent) => void
+  onDragLeave: (e: React.DragEvent) => void
+  onDrop: (e: React.DragEvent) => void
+}
+
+const FolderHeader = memo(function FolderHeader({
+  folder,
+  count,
+  collapsed,
+  isDropTarget,
+  isDraggingFolder,
+  isFolderDragOver,
+  renamingId,
+  renameValue,
+  onToggle,
+  onRename,
+  onRenameChange,
+  onRenameCommit,
+  onRenameCancel,
+  onDelete,
+  onFolderDragStart,
+  onFolderDragEnter,
+  onFolderDragEnd,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
+}: FolderHeaderProps) {
+  const isRenaming = renamingId === folder.id
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isRenaming])
+
+  return (
+    <div
+      draggable={!isRenaming}
+      onDragStart={(e) => onFolderDragStart(folder.id, e)}
+      onDragEnd={onFolderDragEnd}
+      onDragOver={(e) => {
+        onDragOver(e)
+        // Also handle folder reorder drag-over
+        e.preventDefault()
+      }}
+      onDragEnter={(e) => {
+        onDragEnter(e)
+        onFolderDragEnter(folder.id)
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`group/folder flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors select-none ${
+        isDropTarget
+          ? 'bg-primary/15 ring-1 ring-primary/30'
+          : isFolderDragOver
+            ? 'bg-accent/40 ring-1 ring-accent/50'
+            : 'hover:bg-accent/30'
+      } ${isDraggingFolder ? 'opacity-40 scale-[0.97]' : ''}`}
+    >
+      {/* Drag handle + Collapse chevron */}
+      <div className="shrink-0 flex items-center">
+        <div className="cursor-grab opacity-0 group-hover/folder:opacity-40 transition-opacity -mr-0.5">
+          <GripVertical className="size-2.5 text-muted-foreground" />
+        </div>
+        <button
+          onClick={onToggle}
+          className="p-0.5 rounded hover:bg-accent/50 transition-colors"
+        >
+          <ChevronRight
+            className={`size-3 text-muted-foreground transition-transform duration-150 ${
+              !collapsed ? 'rotate-90' : ''
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Folder icon with optional color accent */}
+      <FolderOpen
+        className="size-3.5 shrink-0"
+        style={folder.color ? { color: folder.color } : undefined}
+      />
+
+      {/* Name — inline editable */}
+      {isRenaming ? (
+        <input
+          ref={inputRef}
+          value={renameValue}
+          onChange={(e) => onRenameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onRenameCommit()
+            if (e.key === 'Escape') onRenameCancel()
+          }}
+          onBlur={onRenameCommit}
+          className="flex-1 min-w-0 text-xs font-medium bg-transparent border-b border-primary/40 outline-none px-0.5 py-0"
+          maxLength={50}
+        />
+      ) : (
+        <button
+          onClick={onToggle}
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            onRename(folder.id)
+          }}
+          className="flex-1 min-w-0 text-left"
+        >
+          <span className="text-xs font-medium truncate block">{folder.name}</span>
+        </button>
+      )}
+
+      {/* Count badge */}
+      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+        {count}
+      </span>
+
+      {/* Context menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="shrink-0 p-0.5 rounded opacity-0 group-hover/folder:opacity-60 hover:!opacity-100 transition-opacity">
+            <MoreHorizontal className="size-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[120px]">
+          <DropdownMenuItem onClick={() => onRename(folder.id)}>
+            <Pencil className="size-3 mr-2" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => onDelete(folder.id)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="size-3 mr-2" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+})
+
+// --- Uncategorized header (drop target to remove folder assignment) ---
+
+interface UncategorizedHeaderProps {
+  count: number
+  collapsed: boolean
+  isDropTarget: boolean
+  onToggle: () => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragEnter: (e: React.DragEvent) => void
+  onDragLeave: (e: React.DragEvent) => void
+  onDrop: (e: React.DragEvent) => void
+}
+
+function UncategorizedHeader({
+  count,
+  collapsed,
+  isDropTarget,
+  onToggle,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
+}: UncategorizedHeaderProps) {
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors select-none ${
+        isDropTarget
+          ? 'bg-primary/15 ring-1 ring-primary/30'
+          : 'hover:bg-accent/30'
+      }`}
+    >
+      <button
+        onClick={onToggle}
+        className="shrink-0 p-0.5 rounded hover:bg-accent/50 transition-colors"
+      >
+        <ChevronRight
+          className={`size-3 text-muted-foreground transition-transform duration-150 ${
+            !collapsed ? 'rotate-90' : ''
+          }`}
+        />
+      </button>
+      <button onClick={onToggle} className="flex-1 min-w-0 text-left">
+        <span className="text-xs text-muted-foreground italic truncate block">Uncategorized</span>
+      </button>
+      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+        {count}
+      </span>
+    </div>
+  )
+}
+
+// --- Folder group types ---
+
+interface FolderGroup {
+  folder: Folder | null // null = uncategorized
+  fragments: Fragment[]
+}
+
 type SortMode = 'name' | 'newest' | 'oldest' | 'order'
 
 export function FragmentList({
@@ -204,12 +435,27 @@ export function FragmentList({
   const [dragFragmentId, setDragFragmentId] = useState<string | null>(null)
   const [dragDisplayOrder, setDragDisplayOrder] = useState<Fragment[] | null>(null)
   const [isDragOverArchive, setIsDragOverArchive] = useState(false)
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
+  const [folderDragOverId, setFolderDragOverId] = useState<string | null>(null)
+  const [folderDisplayOrder, setFolderDisplayOrder] = useState<Folder[] | null>(null)
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all'],
     queryFn: () => api.fragments.list(storyId, type),
     staleTime: 2_000,
   })
+
+  const { data: foldersData } = useQuery({
+    queryKey: ['folders', storyId],
+    queryFn: () => api.folders.list(storyId),
+    staleTime: 5_000,
+  })
+  const folders = foldersData?.folders
+  const folderAssignments = foldersData?.assignments ?? {}
 
   const { data: imageFragments } = useQuery({
     queryKey: ['fragments', storyId, 'image'],
@@ -285,6 +531,64 @@ export function FragmentList({
     },
   })
 
+  const createFolderMutation = useMutation({
+    mutationFn: (name: string) => api.folders.create(storyId, name),
+    onSuccess: (folder) => {
+      queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+      // Start renaming the new folder immediately
+      setRenamingFolderId(folder.id)
+      setRenameValue(folder.name)
+    },
+  })
+
+  const renameFolderMutation = useMutation({
+    mutationFn: ({ folderId, name }: { folderId: string; name: string }) =>
+      api.folders.update(storyId, folderId, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+    },
+  })
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (folderId: string) => api.folders.delete(storyId, folderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+    },
+  })
+
+  const assignFolderMutation = useMutation({
+    mutationFn: ({ fragmentId, folderId }: { fragmentId: string; folderId: string | null }) =>
+      api.folders.assignFragment(storyId, fragmentId, folderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+    },
+  })
+
+  const reorderFoldersMutation = useMutation({
+    mutationFn: (items: Array<{ id: string; order: number }>) =>
+      api.folders.reorder(storyId, items),
+    onMutate: async (items) => {
+      await queryClient.cancelQueries({ queryKey: ['folders', storyId] })
+      const previous = queryClient.getQueryData<Folder[]>(['folders', storyId])
+      queryClient.setQueryData<Folder[]>(['folders', storyId], (old) => {
+        if (!old) return old
+        const orderMap = new Map(items.map((item) => [item.id, item.order]))
+        return old
+          .map((f) => (orderMap.has(f.id) ? { ...f, order: orderMap.get(f.id)! } : f))
+          .sort((a, b) => a.order - b.order)
+      })
+      return { previous }
+    },
+    onError: (_err, _items, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['folders', storyId], context.previous)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+    },
+  })
+
   // Stable callback refs so FragmentRow memo is never defeated
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
@@ -300,6 +604,8 @@ export function FragmentList({
 
   const showType = type === undefined || !!allowedTypes?.length
   const canDrag = sort === 'order' && !search.trim()
+  const isSearching = !!search.trim()
+  const hasFolders = (folders?.length ?? 0) > 0
 
   const filtered = useMemo(() => {
     if (!fragments) return []
@@ -341,6 +647,57 @@ export function FragmentList({
     return list
   }, [fragments, search, sort, allowedTypes])
 
+  // The effective flat list: during drag it's the live-reordered list, otherwise filtered
+  const effectiveList = dragDisplayOrder ?? filtered
+
+  // Group fragments by folder (only when not searching and folders exist)
+  const folderGroups = useMemo((): FolderGroup[] => {
+    if (isSearching || !hasFolders) return []
+
+    // Use live display order during folder drag, otherwise sort from query data
+    const sortedFolders = folderDisplayOrder
+      ? [...folderDisplayOrder]
+      : [...(folders ?? [])].sort((a, b) => a.order - b.order)
+    const byFolder = new Map<string | null, Fragment[]>()
+
+    // Initialize folder buckets
+    for (const folder of sortedFolders) {
+      byFolder.set(folder.id, [])
+    }
+    byFolder.set(null, [])
+
+    // Distribute from the effective list so drag-reorder is reflected live
+    for (const fragment of effectiveList) {
+      const folderId = folderAssignments[fragment.id] ?? null
+      const validFolder = folderId && byFolder.has(folderId) ? folderId : null
+      byFolder.get(validFolder)!.push(fragment)
+    }
+
+    const groups: FolderGroup[] = []
+    for (const folder of sortedFolders) {
+      groups.push({ folder, fragments: byFolder.get(folder.id)! })
+    }
+    // Uncategorized always last
+    const uncategorized = byFolder.get(null)!
+    if (uncategorized.length > 0 || groups.length > 0) {
+      groups.push({ folder: null, fragments: uncategorized })
+    }
+
+    return groups
+  }, [effectiveList, folders, folderAssignments, folderDisplayOrder, isSearching, hasFolders])
+
+  // Map fragment ID → index in the effective flat list, so grouped view
+  // can pass correct global indices to the drag handlers
+  const fragmentIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (let i = 0; i < effectiveList.length; i++) {
+      map.set(effectiveList[i].id, i)
+    }
+    return map
+  }, [effectiveList])
+
+  const useGroupedView = !isSearching && hasFolders && folderGroups.length > 0
+
   const mediaById = useMemo(() => {
     const map = new Map<string, Fragment>()
     for (const fragment of imageFragments ?? []) {
@@ -364,7 +721,6 @@ export function FragmentList({
     const id = list[index]?.id ?? null
     setDragFragmentId(id)
     setDragDisplayOrder([...list])
-    // Set data transfer so the sidebar Archive button can accept this drop
     if (id) {
       e.dataTransfer.setData('application/x-errata-fragment-id', id)
       e.dataTransfer.effectAllowed = 'move'
@@ -384,13 +740,16 @@ export function FragmentList({
   }, [])
 
   const droppedOnArchiveRef = useRef(false)
+  const droppedOnFolderRef = useRef(false)
 
   const handleDragEnd = useCallback(() => {
-    if (droppedOnArchiveRef.current) {
+    if (droppedOnArchiveRef.current || droppedOnFolderRef.current) {
       droppedOnArchiveRef.current = false
+      droppedOnFolderRef.current = false
       dragItem.current = null
       setDragFragmentId(null)
       setDragDisplayOrder(null)
+      setDropTargetFolderId(null)
       return
     }
 
@@ -398,6 +757,7 @@ export function FragmentList({
     if (!displayOrder) {
       setDragFragmentId(null)
       setDragDisplayOrder(null)
+      setDropTargetFolderId(null)
       return
     }
 
@@ -415,16 +775,186 @@ export function FragmentList({
     dragItem.current = null
     setDragFragmentId(null)
     setDragDisplayOrder(null)
+    setDropTargetFolderId(null)
   }, [])
 
   const dragDisplayOrderRef = useRef(dragDisplayOrder)
   dragDisplayOrderRef.current = dragDisplayOrder
+
+  // Folder drop handlers (for fragment → folder assignment)
+  const assignFolderRef = useRef(assignFolderMutation.mutate)
+  assignFolderRef.current = assignFolderMutation.mutate
+  const dragFragmentIdRef = useRef(dragFragmentId)
+  dragFragmentIdRef.current = dragFragmentId
+  const draggingFolderIdRef = useRef(draggingFolderId)
+  draggingFolderIdRef.current = draggingFolderId
+
+  const makeFolderDropHandlers = useCallback((folderId: string | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+    },
+    onDragEnter: (e: React.DragEvent) => {
+      e.preventDefault()
+      // Only show fragment-assignment highlight when a fragment is being dragged
+      if (dragFragmentIdRef.current && !draggingFolderIdRef.current) {
+        setDropTargetFolderId(folderId)
+      }
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const { clientX, clientY } = e
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+        setDropTargetFolderId((prev) => prev === folderId ? null : prev)
+      }
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      // Only assign fragment to folder if a fragment (not a folder) is being dragged
+      if (draggingFolderIdRef.current) {
+        setDropTargetFolderId(null)
+        return
+      }
+      const fragId = dragFragmentIdRef.current ?? e.dataTransfer.getData('application/x-errata-fragment-id')
+      if (fragId) {
+        droppedOnFolderRef.current = true
+        assignFolderRef.current({ fragmentId: fragId, folderId })
+      }
+      setDropTargetFolderId(null)
+    },
+  }), [])
+
+  // Folder actions
+  const handleToggleFolder = useCallback((folderId: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderId)) {
+        next.delete(folderId)
+      } else {
+        next.add(folderId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleStartRename = useCallback((folderId: string) => {
+    const folder = folders?.find((f) => f.id === folderId)
+    if (folder) {
+      setRenamingFolderId(folderId)
+      setRenameValue(folder.name)
+    }
+  }, [folders])
+
+  const handleRenameCommit = useCallback(() => {
+    if (renamingFolderId && renameValue.trim()) {
+      renameFolderMutation.mutate({ folderId: renamingFolderId, name: renameValue.trim() })
+    }
+    setRenamingFolderId(null)
+  }, [renamingFolderId, renameValue, renameFolderMutation])
+
+  const handleRenameCancel = useCallback(() => {
+    setRenamingFolderId(null)
+  }, [])
+
+  const handleDeleteFolder = useCallback((folderId: string) => {
+    deleteFolderMutation.mutate(folderId)
+  }, [deleteFolderMutation])
+
+  const handleCreateFolder = useCallback(() => {
+    createFolderMutation.mutate('New Folder')
+  }, [createFolderMutation])
+
+  // Folder drag-reorder handlers
+  const folderDragItemRef = useRef<string | null>(null)
+  const foldersRef = useRef(folders)
+  foldersRef.current = folders
+  const reorderFoldersMutateRef = useRef(reorderFoldersMutation.mutate)
+  reorderFoldersMutateRef.current = reorderFoldersMutation.mutate
+  const folderDisplayOrderRef = useRef(folderDisplayOrder)
+  folderDisplayOrderRef.current = folderDisplayOrder
+
+  const handleFolderDragStart = useCallback((folderId: string, e: React.DragEvent) => {
+    // Don't start folder drag if a fragment is already being dragged
+    if (dragFragmentIdRef.current) return
+    folderDragItemRef.current = folderId
+    setDraggingFolderId(folderId)
+    const sorted = [...(foldersRef.current ?? [])].sort((a, b) => a.order - b.order)
+    setFolderDisplayOrder(sorted)
+    e.dataTransfer.setData('application/x-errata-folder-id', folderId)
+    e.dataTransfer.effectAllowed = 'move'
+  }, [])
+
+  const handleFolderDragEnter = useCallback((targetFolderId: string) => {
+    const dragId = folderDragItemRef.current
+    if (!dragId || dragId === targetFolderId) {
+      // Not a folder drag or same target — clear folder drag-over highlight
+      if (!dragId) setFolderDragOverId(null)
+      return
+    }
+    setFolderDragOverId(targetFolderId)
+    setFolderDisplayOrder((prev) => {
+      if (!prev) return prev
+      const fromIdx = prev.findIndex((f) => f.id === dragId)
+      const toIdx = prev.findIndex((f) => f.id === targetFolderId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      const reordered = [...prev]
+      const [removed] = reordered.splice(fromIdx, 1)
+      reordered.splice(toIdx, 0, removed)
+      return reordered
+    })
+  }, [])
+
+  const handleFolderDragEnd = useCallback(() => {
+    const displayOrder = folderDisplayOrderRef.current
+    if (displayOrder && folderDragItemRef.current) {
+      const items = displayOrder
+        .map((f, i) => ({ id: f.id, order: i }))
+        .filter((item) => {
+          const original = foldersRef.current?.find((f) => f.id === item.id)
+          return original && original.order !== item.order
+        })
+      if (items.length > 0) {
+        reorderFoldersMutateRef.current(items)
+      }
+    }
+    folderDragItemRef.current = null
+    setDraggingFolderId(null)
+    setFolderDragOverId(null)
+    setFolderDisplayOrder(null)
+  }, [])
 
   const displayList = dragDisplayOrder ?? filtered
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground p-4">Loading...</p>
   }
+
+  // Render a list of fragments (used both in flat and grouped views)
+  const renderFragmentList = (fragmentList: Fragment[]) => (
+    <>
+      {fragmentList.map((fragment) => {
+        const globalIndex = fragmentIndexMap.get(fragment.id) ?? 0
+        return (
+          <FragmentRow
+            key={fragment.id}
+            fragment={fragment}
+            index={globalIndex}
+            selected={selectedId === fragment.id}
+            isDragging={dragFragmentId === fragment.id}
+            canDrag={canDrag}
+            showType={showType}
+            mediaById={mediaById}
+            onSelect={stableOnSelect}
+            onPin={stableOnPin}
+            pinPending={pinMutation.isPending}
+            onDragStart={handleDragStart}
+            onDragEnter={handleDragEnter}
+            onDragEnd={handleDragEnd}
+          />
+        )
+      })}
+    </>
+  )
 
   return (
     <div className="flex flex-col h-full" data-component-id={listIdBase ?? componentId(type ?? 'fragment', 'sidebar-list')}>
@@ -464,6 +994,20 @@ export function FragmentList({
             ))}
           </div>
           <div className="flex gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 text-muted-foreground hover:text-foreground"
+                  onClick={handleCreateFolder}
+                  disabled={createFolderMutation.isPending}
+                >
+                  <FolderPlus className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">New folder</TooltipContent>
+            </Tooltip>
             {onImportCard && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -505,30 +1049,86 @@ export function FragmentList({
       </div>
 
       <ScrollArea className="flex-1 min-h-0" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-scroll')}>
-        <div className="p-2 space-y-1" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-items')}>
-          {displayList.length === 0 && (
-            <p className="text-xs text-muted-foreground py-8 text-center italic">
-              {search.trim() ? 'No matches' : 'No fragments yet'}
-            </p>
+        <div className="p-2 space-y-0.5" data-component-id={componentId(listIdBase ?? type ?? 'fragment', 'list-items')}>
+          {/* Grouped view */}
+          {useGroupedView && (
+            <>
+              {folderGroups.map((group) => {
+                const folderId = group.folder?.id ?? '__uncategorized__'
+                const isCollapsed = collapsedFolders.has(folderId)
+                const dropHandlers = makeFolderDropHandlers(group.folder?.id ?? null)
+
+                return (
+                  <div key={folderId} className="mb-1">
+                    {group.folder ? (
+                      <FolderHeader
+                        folder={group.folder}
+                        count={group.fragments.length}
+                        collapsed={isCollapsed}
+                        isDropTarget={dropTargetFolderId === group.folder.id}
+                        isDraggingFolder={draggingFolderId === group.folder.id}
+                        isFolderDragOver={folderDragOverId === group.folder.id}
+                        renamingId={renamingFolderId}
+                        renameValue={renameValue}
+                        onToggle={() => handleToggleFolder(folderId)}
+                        onRename={handleStartRename}
+                        onRenameChange={setRenameValue}
+                        onRenameCommit={handleRenameCommit}
+                        onRenameCancel={handleRenameCancel}
+                        onDelete={handleDeleteFolder}
+                        onFolderDragStart={handleFolderDragStart}
+                        onFolderDragEnter={handleFolderDragEnter}
+                        onFolderDragEnd={handleFolderDragEnd}
+                        {...dropHandlers}
+                      />
+                    ) : (
+                      <UncategorizedHeader
+                        count={group.fragments.length}
+                        collapsed={isCollapsed}
+                        isDropTarget={dropTargetFolderId === null && dragFragmentId !== null}
+                        onToggle={() => handleToggleFolder(folderId)}
+                        {...dropHandlers}
+                      />
+                    )}
+                    {!isCollapsed && group.fragments.length > 0 && (
+                      <div className="ml-3 border-l border-border/20 pl-0.5 mt-0.5">
+                        {renderFragmentList(group.fragments)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </>
           )}
-          {displayList.map((fragment, index) => (
-            <FragmentRow
-              key={fragment.id}
-              fragment={fragment}
-              index={index}
-              selected={selectedId === fragment.id}
-              isDragging={dragFragmentId === fragment.id}
-              canDrag={canDrag}
-              showType={showType}
-              mediaById={mediaById}
-              onSelect={stableOnSelect}
-              onPin={stableOnPin}
-              pinPending={pinMutation.isPending}
-              onDragStart={handleDragStart}
-              onDragEnter={handleDragEnter}
-              onDragEnd={handleDragEnd}
-            />
-          ))}
+
+          {/* Flat view (search active or no folders) */}
+          {!useGroupedView && (
+            <>
+              {displayList.length === 0 && (
+                <p className="text-xs text-muted-foreground py-8 text-center italic">
+                  {search.trim() ? 'No matches' : 'No fragments yet'}
+                </p>
+              )}
+              {displayList.map((fragment, index) => (
+                <FragmentRow
+                  key={fragment.id}
+                  fragment={fragment}
+                  index={index}
+                  selected={selectedId === fragment.id}
+                  isDragging={dragFragmentId === fragment.id}
+                  canDrag={canDrag}
+                  showType={showType}
+                  mediaById={mediaById}
+                  onSelect={stableOnSelect}
+                  onPin={stableOnPin}
+                  pinPending={pinMutation.isPending}
+                  onDragStart={handleDragStart}
+                  onDragEnter={handleDragEnter}
+                  onDragEnd={handleDragEnd}
+                />
+              ))}
+            </>
+          )}
 
           {/* Archive drop zone — visible during drag */}
           {dragFragmentId && (

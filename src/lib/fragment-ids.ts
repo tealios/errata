@@ -31,3 +31,12 @@ export function generateBranchId(): string {
   }
   return `br-${chars.join('')}`
 }
+
+export function generateFolderId(): string {
+  const chars: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const pool = i % 2 === 0 ? CONSONANTS : VOWELS
+    chars.push(pool[Math.floor(Math.random() * pool.length)])
+  }
+  return `fld-${chars.join('')}`
+}

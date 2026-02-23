@@ -63,6 +63,21 @@ export interface FrozenSection {
   text: string
 }
 
+export interface Folder {
+  id: string
+  name: string
+  order: number
+  color?: string
+}
+
+/** Fragment ID → Folder ID */
+export type FolderAssignments = Record<string, string>
+
+export interface FoldersResponse {
+  folders: Folder[]
+  assignments: FolderAssignments
+}
+
 export interface FragmentTypeInfo {
   type: string
   prefix: string
@@ -234,6 +249,7 @@ export interface GenerationLog {
   prewriterDurationMs?: number
   prewriterModel?: string
   prewriterUsage?: { inputTokens: number; outputTokens: number }
+  prewriterDirections?: Array<{ pacing: string; title: string; description: string; instruction: string }>
 }
 
 export interface PluginManifestInfo {
@@ -348,6 +364,7 @@ export interface SuggestionDirection {
   title: string
   description: string
   instruction: string
+  pacing?: 'linger' | 'continue' | 'end'
 }
 
 export type ChatEvent =
@@ -358,6 +375,7 @@ export type ChatEvent =
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
   | { type: 'phase'; phase: string }
   | { type: 'finish'; finishReason: string; stepCount: number }
+  | { type: 'prewriter-directions'; directions: SuggestionDirection[] }
 
 // Character Chat types
 export type PersonaMode =
