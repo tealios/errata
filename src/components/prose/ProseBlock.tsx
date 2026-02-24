@@ -7,7 +7,7 @@ import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
-import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare } from 'lucide-react'
+import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ProseBlockProps {
   storyId: string
@@ -557,7 +557,25 @@ export const ProseBlock = memo(function ProseBlock({
               {hasMultiple && (
                 <>
                   <span className="text-muted-foreground shrink-0">&middot;</span>
-                  <span className="text-[0.625rem] font-mono text-muted-foreground shrink-0">{variationIndex + 1}/{variationCount}</span>
+                  <div className="inline-flex items-center gap-0.5 shrink-0">
+                    <button
+                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                      disabled={!canPrev || switchMutation.isPending}
+                      onClick={() => switchVariation(-1)}
+                      title="Previous variation"
+                    >
+                      <ChevronLeft className="size-3" />
+                    </button>
+                    <span className="text-[0.625rem] font-mono text-muted-foreground">{variationIndex + 1}/{variationCount}</span>
+                    <button
+                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                      disabled={!canNext || switchMutation.isPending}
+                      onClick={() => switchVariation(1)}
+                      title="Next variation"
+                    >
+                      <ChevronRight className="size-3" />
+                    </button>
+                  </div>
                 </>
               )}
               {(generatedFrom || fragment.description) && (
