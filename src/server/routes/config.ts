@@ -13,9 +13,11 @@ import {
 import { ProviderConfigSchema } from '../config/schema'
 
 export function configRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Config'] } })
     .get('/config/providers', async () => {
       return getGlobalConfigSafe(dataDir)
+    }, {
+      detail: { summary: 'Get global config with masked API keys' },
     })
 
     .post('/config/providers', async ({ body }) => {
@@ -40,6 +42,7 @@ export function configRoutes(dataDir: string) {
         })),
       }
     }, {
+      detail: { summary: 'Add a new provider' },
       body: t.Object({
         name: t.String(),
         preset: t.Optional(t.String()),
@@ -67,6 +70,7 @@ export function configRoutes(dataDir: string) {
         })),
       }
     }, {
+      detail: { summary: 'Update a provider' },
       body: t.Object({
         name: t.Optional(t.String()),
         baseURL: t.Optional(t.String()),
@@ -86,6 +90,8 @@ export function configRoutes(dataDir: string) {
           apiKey: maskApiKey(p.apiKey),
         })),
       }
+    }, {
+      detail: { summary: 'Delete a provider' },
     })
 
     .post('/config/providers/:providerId/duplicate', async ({ params }) => {
@@ -97,6 +103,8 @@ export function configRoutes(dataDir: string) {
           apiKey: maskApiKey(p.apiKey),
         })),
       }
+    }, {
+      detail: { summary: 'Duplicate a provider' },
     })
 
     .patch('/config/default-provider', async ({ body }) => {
@@ -105,6 +113,7 @@ export function configRoutes(dataDir: string) {
       await saveGlobalConfig(dataDir, config)
       return { ok: true, defaultProviderId: body.providerId }
     }, {
+      detail: { summary: 'Set the default provider' },
       body: t.Object({
         providerId: t.Union([t.String(), t.Null()]),
       }),
@@ -139,6 +148,8 @@ export function configRoutes(dataDir: string) {
       } catch (err) {
         return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
       }
+    }, {
+      detail: { summary: 'List models from a provider' },
     })
 
     // Fetch models with arbitrary credentials (for unsaved providers, avoids CORS)
@@ -167,6 +178,7 @@ export function configRoutes(dataDir: string) {
         return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
       }
     }, {
+      detail: { summary: 'Fetch models with arbitrary credentials' },
       body: t.Object({
         baseURL: t.String(),
         apiKey: t.String(),
@@ -222,6 +234,7 @@ export function configRoutes(dataDir: string) {
         return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
       }
     }, {
+      detail: { summary: 'Test provider connection' },
       body: t.Object({
         providerId: t.Optional(t.String()),
         baseURL: t.Optional(t.String()),

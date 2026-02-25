@@ -10,19 +10,22 @@ import {
 } from '../fragments/folders'
 
 export function folderRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Folders'] } })
     .get('/stories/:storyId/folders', async ({ params }) => {
       const [folderList, assignments] = await Promise.all([
         listFolders(dataDir, params.storyId),
         getAssignments(dataDir, params.storyId),
       ])
       return { folders: folderList, assignments }
+    }, {
+      detail: { summary: 'List folders and fragment assignments' },
     })
 
     .post('/stories/:storyId/folders', async ({ params, body }) => {
       return createFolder(dataDir, params.storyId, body.name)
     }, {
       body: t.Object({ name: t.String() }),
+      detail: { summary: 'Create a folder' },
     })
 
     .put('/stories/:storyId/folders/:folderId', async ({ params, body, set }) => {
@@ -37,6 +40,7 @@ export function folderRoutes(dataDir: string) {
         name: t.Optional(t.String()),
         color: t.Optional(t.Union([t.String(), t.Null()])),
       }),
+      detail: { summary: 'Update a folder' },
     })
 
     .delete('/stories/:storyId/folders/:folderId', async ({ params, set }) => {
@@ -46,6 +50,8 @@ export function folderRoutes(dataDir: string) {
         return { error: 'Folder not found' }
       }
       return { ok: true }
+    }, {
+      detail: { summary: 'Delete a folder' },
     })
 
     .patch('/stories/:storyId/folders/reorder', async ({ params, body }) => {
@@ -58,6 +64,7 @@ export function folderRoutes(dataDir: string) {
           order: t.Number(),
         })),
       }),
+      detail: { summary: 'Reorder folders' },
     })
 
     .patch('/stories/:storyId/fragments/:fragmentId/folder', async ({ params, body }) => {
@@ -67,5 +74,6 @@ export function folderRoutes(dataDir: string) {
       body: t.Object({
         folderId: t.Union([t.String(), t.Null()]),
       }),
+      detail: { summary: 'Assign a fragment to a folder' },
     })
 }

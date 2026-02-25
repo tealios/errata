@@ -9,7 +9,7 @@ import {
 } from '../fragments/branches'
 
 export function branchRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Branches'] } })
     .get('/stories/:storyId/branches', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
       if (!story) {
@@ -17,6 +17,8 @@ export function branchRoutes(dataDir: string) {
         return { error: 'Story not found' }
       }
       return getBranchesIndex(dataDir, params.storyId)
+    }, {
+      detail: { summary: 'List all branches' },
     })
 
     .post('/stories/:storyId/branches', async ({ params, body, set }) => {
@@ -44,6 +46,7 @@ export function branchRoutes(dataDir: string) {
         parentBranchId: t.String(),
         forkAfterIndex: t.Optional(t.Number()),
       }),
+      detail: { summary: 'Create a new branch' },
     })
 
     .patch('/stories/:storyId/branches/active', async ({ params, body, set }) => {
@@ -63,6 +66,7 @@ export function branchRoutes(dataDir: string) {
       body: t.Object({
         branchId: t.String(),
       }),
+      detail: { summary: 'Switch the active branch' },
     })
 
     .put('/stories/:storyId/branches/:branchId', async ({ params, body, set }) => {
@@ -82,6 +86,7 @@ export function branchRoutes(dataDir: string) {
       body: t.Object({
         name: t.String(),
       }),
+      detail: { summary: 'Rename a branch' },
     })
 
     .delete('/stories/:storyId/branches/:branchId', async ({ params, set }) => {
@@ -97,5 +102,7 @@ export function branchRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to delete branch' }
       }
+    }, {
+      detail: { summary: 'Delete a branch' },
     })
 }

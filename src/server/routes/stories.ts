@@ -10,7 +10,7 @@ import { exportStoryAsZip, importStoryFromZip } from '../story-archive'
 import type { StoryMeta } from '../fragments/schema'
 
 export function storyRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Stories'] } })
     .post('/stories', async ({ body }) => {
       const now = new Date().toISOString()
       const slug = body.name
@@ -51,11 +51,12 @@ export function storyRoutes(dataDir: string) {
         description: t.String(),
         coverImage: t.Optional(t.Union([t.String(), t.Null()])),
       }),
+      detail: { summary: 'Create a new story' },
     })
 
     .get('/stories', async () => {
       return listStories(dataDir)
-    })
+    }, { detail: { summary: 'List all stories' } })
 
     .get('/stories/:storyId', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -64,7 +65,7 @@ export function storyRoutes(dataDir: string) {
         return { error: 'Story not found' }
       }
       return story
-    })
+    }, { detail: { summary: 'Get story by ID' } })
 
     .put('/stories/:storyId', async ({ params, body, set }) => {
       const existing = await getStory(dataDir, params.storyId)
@@ -89,12 +90,13 @@ export function storyRoutes(dataDir: string) {
         summary: t.Optional(t.String()),
         coverImage: t.Optional(t.Union([t.String(), t.Null()])),
       }),
+      detail: { summary: 'Update story metadata' },
     })
 
     .delete('/stories/:storyId', async ({ params }) => {
       await deleteStory(dataDir, params.storyId)
       return { ok: true }
-    })
+    }, { detail: { summary: 'Delete a story' } })
 
     // --- Story Export/Import ---
     .get('/stories/:storyId/export', async ({ params, set }) => {
@@ -110,7 +112,7 @@ export function storyRoutes(dataDir: string) {
         set.status = 404
         return { error: err instanceof Error ? err.message : 'Export failed' }
       }
-    })
+    }, { detail: { summary: 'Export story as ZIP archive' } })
 
     .post('/stories/import', async ({ request, set }) => {
       try {
@@ -128,7 +130,7 @@ export function storyRoutes(dataDir: string) {
         set.status = 422
         return { error: err instanceof Error ? err.message : 'Import failed' }
       }
-    })
+    }, { detail: { summary: 'Import story from ZIP archive' } })
 
     // --- Story Settings ---
     .patch('/stories/:storyId/settings', async ({ params, body, set }) => {
@@ -194,5 +196,6 @@ export function storyRoutes(dataDir: string) {
         guidedSceneSettingPrompt: t.Optional(t.String()),
         guidedSuggestPrompt: t.Optional(t.String()),
       }),
+      detail: { summary: 'Update story settings' },
     })
 }

@@ -2,7 +2,7 @@ import { Elysia } from 'elysia'
 import { getSessionUsage, getProjectUsage } from '../llm/token-tracker'
 
 export function tokenUsageRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Token Usage'] } })
     .get('/stories/:storyId/token-usage', async ({ params }) => {
       const session = getSessionUsage(params.storyId)
       const project = await getProjectUsage(dataDir, params.storyId)
@@ -19,5 +19,7 @@ export function tokenUsageRoutes(dataDir: string) {
           byModel: project.byModel,
         },
       }
+    }, {
+      detail: { summary: 'Get session and project token usage' },
     })
 }

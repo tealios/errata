@@ -16,7 +16,7 @@ import { generateFragmentId } from '@/lib/fragment-ids'
 import { invokeAgent } from '../agents'
 
 export function proseChainRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Prose Chain'] } })
     .get('/stories/:storyId/prose-chain', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
       if (!story) {
@@ -53,6 +53,8 @@ export function proseChainRoutes(dataDir: string) {
       )
 
       return { entries: entriesWithFragments }
+    }, {
+      detail: { summary: 'Get the full prose chain with variations' },
     })
 
     .post('/stories/:storyId/prose-chain', async ({ params, body, set }) => {
@@ -73,6 +75,7 @@ export function proseChainRoutes(dataDir: string) {
       body: t.Object({
         fragmentId: t.String(),
       }),
+      detail: { summary: 'Add a prose section to the chain' },
     })
 
     .post('/stories/:storyId/prose-chain/:sectionIndex/switch', async ({ params, body, set }) => {
@@ -99,6 +102,7 @@ export function proseChainRoutes(dataDir: string) {
       body: t.Object({
         fragmentId: t.String(),
       }),
+      detail: { summary: 'Switch the active variation in a section' },
     })
 
     .delete('/stories/:storyId/prose-chain/:sectionIndex', async ({ params, set }) => {
@@ -131,6 +135,8 @@ export function proseChainRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to remove prose section' }
       }
+    }, {
+      detail: { summary: 'Remove a section and archive its fragments' },
     })
 
     // --- Chapters (marker fragments in prose chain) ---
@@ -169,6 +175,7 @@ export function proseChainRoutes(dataDir: string) {
         content: t.Optional(t.String()),
         position: t.Number(),
       }),
+      detail: { summary: 'Create a chapter marker' },
     })
 
     .post('/stories/:storyId/chapters/:fragmentId/summarize', async ({ params, set }) => {
@@ -209,5 +216,7 @@ export function proseChainRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to summarize chapter' }
       }
+    }, {
+      detail: { summary: 'Summarize a chapter with AI' },
     })
 }

@@ -24,11 +24,11 @@ import { encodeStream } from './encode-stream'
 export function librarianRoutes(dataDir: string) {
   const logger = createLogger('api:librarian', { dataDir })
 
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Librarian'] } })
     // --- Generation Logs ---
     .get('/stories/:storyId/generation-logs', async ({ params }) => {
       return listGenerationLogs(dataDir, params.storyId)
-    })
+    }, { detail: { summary: 'List generation logs' } })
 
     .get('/stories/:storyId/generation-logs/:logId', async ({ params, set }) => {
       const log = await getGenerationLog(dataDir, params.storyId, params.logId)
@@ -37,7 +37,7 @@ export function librarianRoutes(dataDir: string) {
         return { error: 'Generation log not found' }
       }
       return log
-    })
+    }, { detail: { summary: 'Get a generation log by ID' } })
 
     // --- Librarian ---
     .get('/stories/:storyId/librarian/status', async ({ params }) => {
@@ -47,7 +47,7 @@ export function librarianRoutes(dataDir: string) {
         ...state,
         ...runtime,
       }
-    })
+    }, { detail: { summary: 'Get librarian status' } })
 
     .get('/stories/:storyId/librarian/analysis-stream', async ({ params, set }) => {
       const stream = createSSEStream(params.storyId)
@@ -58,15 +58,15 @@ export function librarianRoutes(dataDir: string) {
       return new Response(encodeStream(stream), {
         headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
       })
-    })
+    }, { detail: { summary: 'Stream live analysis events (NDJSON)' } })
 
     .get('/stories/:storyId/librarian/analyses', async ({ params }) => {
       return listLibrarianAnalyses(dataDir, params.storyId)
-    })
+    }, { detail: { summary: 'List all analyses' } })
 
     .get('/stories/:storyId/librarian/agent-runs', async ({ params }) => {
       return listAgentRuns(params.storyId)
-    })
+    }, { detail: { summary: 'List agent runs' } })
 
     .get('/stories/:storyId/librarian/analyses/:analysisId', async ({ params, set }) => {
       const analysis = await getLibrarianAnalysis(dataDir, params.storyId, params.analysisId)
@@ -75,7 +75,7 @@ export function librarianRoutes(dataDir: string) {
         return { error: 'Analysis not found' }
       }
       return analysis
-    })
+    }, { detail: { summary: 'Get an analysis by ID' } })
 
     .post('/stories/:storyId/librarian/analyses/:analysisId/suggestions/:index/accept', async ({ params, set }) => {
       const analysis = await getLibrarianAnalysis(dataDir, params.storyId, params.analysisId)
@@ -105,7 +105,7 @@ export function librarianRoutes(dataDir: string) {
         analysis,
         createdFragmentId: result.fragmentId,
       }
-    })
+    }, { detail: { summary: 'Accept a fragment suggestion' } })
 
     // --- Librarian Refine ---
     .post('/stories/:storyId/librarian/refine', async ({ params, body, set }) => {
@@ -161,6 +161,7 @@ export function librarianRoutes(dataDir: string) {
         fragmentId: t.String(),
         instructions: t.Optional(t.String()),
       }),
+      detail: { summary: 'Refine a non-prose fragment (streaming NDJSON)' },
     })
 
     // --- Librarian Prose Transform ---
@@ -233,17 +234,18 @@ export function librarianRoutes(dataDir: string) {
         contextBefore: t.Optional(t.String()),
         contextAfter: t.Optional(t.String()),
       }),
+      detail: { summary: 'Transform a prose selection (streaming NDJSON)' },
     })
 
     // --- Librarian Chat ---
     .get('/stories/:storyId/librarian/chat', async ({ params }) => {
       return getLibrarianChatHistory(dataDir, params.storyId)
-    })
+    }, { detail: { summary: 'Get chat history' } })
 
     .delete('/stories/:storyId/librarian/chat', async ({ params }) => {
       await clearLibrarianChatHistory(dataDir, params.storyId)
       return { ok: true }
-    })
+    }, { detail: { summary: 'Clear chat history' } })
 
     .post('/stories/:storyId/librarian/chat', async ({ params, body, set }) => {
       const requestLogger = logger.child({ storyId: params.storyId })
@@ -302,5 +304,6 @@ export function librarianRoutes(dataDir: string) {
           content: t.String(),
         })),
       }),
+      detail: { summary: 'Chat with the librarian (streaming NDJSON)' },
     })
 }

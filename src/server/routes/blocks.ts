@@ -11,7 +11,7 @@ import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import { getAgentBlockConfig, saveAgentBlockConfig, type AgentBlockConfig } from '../agents/agent-block-storage'
 
 export function blockRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Blocks'] } })
     .get('/stories/:storyId/blocks', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
       if (!story) {
@@ -30,7 +30,7 @@ export function blockRoutes(dataDir: string) {
         contentPreview: b.content.slice(0, 200),
       }))
       return { config, builtinBlocks }
-    })
+    }, { detail: { summary: 'Get block config and builtin block metadata' } })
 
     .get('/stories/:storyId/blocks/preview', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -53,7 +53,7 @@ export function blockRoutes(dataDir: string) {
         })
         .map(b => ({ id: b.id, name: b.name ?? b.id, role: b.role }))
       return { messages, blocks: blocksMeta, blockCount: blocks.length }
-    })
+    }, { detail: { summary: 'Compile and preview assembled context blocks' } })
 
     .post('/stories/:storyId/blocks/custom', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -68,7 +68,7 @@ export function blockRoutes(dataDir: string) {
       }
       const config = await addCustomBlock(dataDir, params.storyId, parsed.data)
       return config
-    })
+    }, { detail: { summary: 'Create a custom block' } })
 
     .put('/stories/:storyId/blocks/custom/:blockId', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -82,7 +82,7 @@ export function blockRoutes(dataDir: string) {
         return { error: 'Custom block not found' }
       }
       return config
-    })
+    }, { detail: { summary: 'Update a custom block' } })
 
     .delete('/stories/:storyId/blocks/custom/:blockId', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -92,7 +92,7 @@ export function blockRoutes(dataDir: string) {
       }
       const config = await deleteCustomBlock(dataDir, params.storyId, params.blockId)
       return config
-    })
+    }, { detail: { summary: 'Delete a custom block' } })
 
     .post('/stories/:storyId/blocks/eval-script', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -122,7 +122,7 @@ export function blockRoutes(dataDir: string) {
         const msg = err instanceof Error ? err.message : String(err)
         return { result: null, error: msg }
       }
-    })
+    }, { detail: { summary: 'Evaluate a script in block context' } })
 
     .patch('/stories/:storyId/blocks/config', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -138,7 +138,7 @@ export function blockRoutes(dataDir: string) {
         blockOrder,
       )
       return config
-    })
+    }, { detail: { summary: 'Update block overrides and ordering' } })
 
     .get('/stories/:storyId/export-configs', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -172,7 +172,7 @@ export function blockRoutes(dataDir: string) {
         ...(isBlockEmpty ? {} : { blockConfig }),
         ...(Object.keys(agentBlockConfigs).length > 0 ? { agentBlockConfigs } : {}),
       }
-    })
+    }, { detail: { summary: 'Export block and agent configs' } })
 
     .post('/stories/:storyId/import-configs', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -200,5 +200,5 @@ export function blockRoutes(dataDir: string) {
       }
 
       return { ok: true }
-    })
+    }, { detail: { summary: 'Import block and agent configs' } })
 }

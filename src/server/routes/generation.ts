@@ -45,7 +45,7 @@ import type { SuggestDirectionsResult } from '../directions/suggest'
 export function generationRoutes(dataDir: string) {
   const logger = createLogger('api:generation', { dataDir })
 
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Generation'] } })
     .post('/stories/:storyId/suggest-directions', async ({ params, body, set }) => {
       const requestLogger = logger.child({ storyId: params.storyId })
       requestLogger.info('Suggest directions request')
@@ -73,6 +73,7 @@ export function generationRoutes(dataDir: string) {
       body: t.Object({
         count: t.Optional(t.Number()),
       }),
+      detail: { summary: 'Get AI-generated story direction suggestions' },
     })
     .post('/stories/:storyId/generate', async ({ params, body, set }) => {
       const requestLogger = logger.child({ storyId: params.storyId })
@@ -574,5 +575,6 @@ export function generationRoutes(dataDir: string) {
         mode: t.Optional(t.Union([t.Literal('generate'), t.Literal('regenerate'), t.Literal('refine')])),
         fragmentId: t.Optional(t.String()),
       }),
+      detail: { summary: 'Generate prose via streaming NDJSON' },
     })
 }

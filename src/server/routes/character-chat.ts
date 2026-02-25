@@ -15,10 +15,12 @@ import { encodeStream } from './encode-stream'
 export function characterChatRoutes(dataDir: string) {
   const logger = createLogger('api:character-chat', { dataDir })
 
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Character Chat'] } })
     .get('/stories/:storyId/character-chat/conversations', async ({ params, query }) => {
       const characterId = typeof query?.characterId === 'string' ? query.characterId : undefined
       return listCharacterConversations(dataDir, params.storyId, characterId)
+    }, {
+      detail: { summary: 'List conversations, optionally filtered by character' },
     })
 
     .get('/stories/:storyId/character-chat/conversations/:conversationId', async ({ params, set }) => {
@@ -28,6 +30,8 @@ export function characterChatRoutes(dataDir: string) {
         return { error: 'Conversation not found' }
       }
       return conv
+    }, {
+      detail: { summary: 'Get a conversation by ID' },
     })
 
     .post('/stories/:storyId/character-chat/conversations', async ({ params, body, set }) => {
@@ -57,6 +61,7 @@ export function characterChatRoutes(dataDir: string) {
       await saveCharacterConversation(dataDir, params.storyId, conv)
       return conv
     }, {
+      detail: { summary: 'Create a new conversation' },
       body: t.Object({
         characterId: t.String(),
         persona: t.Union([
@@ -76,6 +81,8 @@ export function characterChatRoutes(dataDir: string) {
         return { error: 'Conversation not found' }
       }
       return { ok: true }
+    }, {
+      detail: { summary: 'Delete a conversation' },
     })
 
     .post('/stories/:storyId/character-chat/conversations/:conversationId/chat', async ({ params, body, set }) => {
@@ -148,6 +155,7 @@ export function characterChatRoutes(dataDir: string) {
         return { error: err instanceof Error ? err.message : 'Chat failed' }
       }
     }, {
+      detail: { summary: 'Send a message (streaming NDJSON)' },
       body: t.Object({
         messages: t.Array(t.Object({
           role: t.Union([t.Literal('user'), t.Literal('assistant')]),

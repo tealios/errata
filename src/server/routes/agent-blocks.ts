@@ -20,17 +20,17 @@ import {
 } from '../agents/agent-block-storage'
 
 export function agentBlockRoutes(dataDir: string) {
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Agent Blocks'] } })
     // List currently running agents for a story
     .get('/stories/:storyId/active-agents', ({ params }) => {
       return listActiveAgents(params.storyId)
-    })
+    }, { detail: { summary: 'List currently running agents' } })
 
     // List all registered model roles (auto-discovered from agents)
     .get('/model-roles', () => {
       ensureCoreAgentsRegistered()
       return modelRoleRegistry.list()
-    })
+    }, { detail: { summary: 'List all registered model roles' } })
     // List all registered agent block definitions (auto-discovered)
     .get('/agent-blocks', () => {
       ensureCoreAgentsRegistered()
@@ -40,7 +40,7 @@ export function agentBlockRoutes(dataDir: string) {
         description: def.description,
         availableTools: def.availableTools ?? [],
       }))
-    })
+    }, { detail: { summary: 'List all agent block definitions' } })
 
     // Get config + builtin blocks + available tools for an agent
     .get('/stories/:storyId/agent-blocks/:agentName', async ({ params, set }) => {
@@ -74,7 +74,7 @@ export function agentBlockRoutes(dataDir: string) {
         builtinBlocks,
         availableTools: def.availableTools ?? [],
       }
-    })
+    }, { detail: { summary: 'Get agent config and builtin blocks' } })
 
     // Compile preview with real story data
     .get('/stories/:storyId/agent-blocks/:agentName/preview', async ({ params, query, set }) => {
@@ -119,7 +119,7 @@ export function agentBlockRoutes(dataDir: string) {
         .map(b => ({ id: b.id, name: b.name ?? b.id, role: b.role }))
 
       return { messages, blocks: blocksMeta, blockCount: blocks.length }
-    })
+    }, { detail: { summary: 'Preview compiled agent context' } })
 
     // Create custom block
     .post('/stories/:storyId/agent-blocks/:agentName/custom', async ({ params, body, set }) => {
@@ -143,7 +143,7 @@ export function agentBlockRoutes(dataDir: string) {
 
       const config = await addAgentCustomBlock(dataDir, params.storyId, params.agentName, parsed.data)
       return config
-    })
+    }, { detail: { summary: 'Create a custom agent block' } })
 
     // Update custom block
     .put('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', async ({ params, body, set }) => {
@@ -165,7 +165,7 @@ export function agentBlockRoutes(dataDir: string) {
         return { error: 'Custom block not found' }
       }
       return config
-    })
+    }, { detail: { summary: 'Update a custom agent block' } })
 
     // Delete custom block
     .delete('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', async ({ params, set }) => {
@@ -183,7 +183,7 @@ export function agentBlockRoutes(dataDir: string) {
 
       const config = await deleteAgentCustomBlock(dataDir, params.storyId, params.agentName, params.blockId)
       return config
-    })
+    }, { detail: { summary: 'Delete a custom agent block' } })
 
     // Update overrides / blockOrder / disabledTools
     .patch('/stories/:storyId/agent-blocks/:agentName/config', async ({ params, body, set }) => {
@@ -224,5 +224,5 @@ export function agentBlockRoutes(dataDir: string) {
       // Return latest config
       const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
       return config
-    })
+    }, { detail: { summary: 'Update agent block config' } })
 }

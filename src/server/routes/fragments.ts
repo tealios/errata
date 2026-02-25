@@ -35,7 +35,7 @@ function hasMaterialProseChange(before: Fragment, after: Fragment): boolean {
 export function fragmentRoutes(dataDir: string) {
   const logger = createLogger('api:fragments', { dataDir })
 
-  return new Elysia()
+  return new Elysia({ detail: { tags: ['Fragments'] } })
     .post('/stories/:storyId/fragments', async ({ params, body, set }) => {
       const story = await getStory(dataDir, params.storyId)
       if (!story) {
@@ -72,6 +72,7 @@ export function fragmentRoutes(dataDir: string) {
       await createFragment(dataDir, params.storyId, fragment)
       return fragment
     }, {
+      detail: { summary: 'Create a fragment' },
       body: t.Object({
         type: t.String(),
         name: t.String(),
@@ -87,7 +88,7 @@ export function fragmentRoutes(dataDir: string) {
       const type = query.type as string | undefined
       const includeArchived = (query as Record<string, string>).includeArchived === 'true'
       return listFragments(dataDir, params.storyId, type, { includeArchived })
-    })
+    }, { detail: { summary: 'List fragments, optionally filtered by type' } })
 
     .get('/stories/:storyId/fragments/:fragmentId', async ({ params, set }) => {
       const fragment = await getFragment(
@@ -100,7 +101,7 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Fragment not found' }
       }
       return fragment
-    })
+    }, { detail: { summary: 'Get a fragment by ID' } })
 
     .put('/stories/:storyId/fragments/:fragmentId', async ({ params, body, set }) => {
       const requestLogger = logger.child({ storyId: params.storyId, extra: { fragmentId: params.fragmentId } })
@@ -148,6 +149,7 @@ export function fragmentRoutes(dataDir: string) {
 
       return updated
     }, {
+      detail: { summary: 'Update a fragment (full replace, versioned)' },
       body: t.Object({
         name: t.String(),
         description: t.String(),
@@ -193,6 +195,7 @@ export function fragmentRoutes(dataDir: string) {
 
       return updated
     }, {
+      detail: { summary: 'Edit fragment content via text replacement' },
       body: t.Object({
         oldText: t.String(),
         newText: t.String(),
@@ -212,7 +215,7 @@ export function fragmentRoutes(dataDir: string) {
       }
       await deleteFragment(dataDir, params.storyId, params.fragmentId)
       return { ok: true }
-    })
+    }, { detail: { summary: 'Permanently delete an archived fragment' } })
 
     .get('/stories/:storyId/fragments/:fragmentId/versions', async ({ params, set }) => {
       const versions = await listFragmentVersions(dataDir, params.storyId, params.fragmentId)
@@ -221,7 +224,7 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Fragment not found' }
       }
       return { versions }
-    })
+    }, { detail: { summary: 'List version history' } })
 
     .post('/stories/:storyId/fragments/:fragmentId/versions/:version/revert', async ({ params, set }) => {
       const story = await getStory(dataDir, params.storyId)
@@ -245,7 +248,7 @@ export function fragmentRoutes(dataDir: string) {
         return { error: `Version ${targetVersion} not found` }
       }
       return updated
-    })
+    }, { detail: { summary: 'Revert to a specific version' } })
 
     // --- Archive / Restore ---
     .post('/stories/:storyId/fragments/:fragmentId/archive', async ({ params, set }) => {
@@ -255,7 +258,7 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Fragment not found' }
       }
       return result
-    })
+    }, { detail: { summary: 'Archive a fragment' } })
 
     .post('/stories/:storyId/fragments/:fragmentId/restore', async ({ params, set }) => {
       const result = await restoreFragment(dataDir, params.storyId, params.fragmentId)
@@ -264,7 +267,7 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Fragment not found' }
       }
       return result
-    })
+    }, { detail: { summary: 'Restore an archived fragment' } })
 
     // --- Tags ---
     .get('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, set }) => {
@@ -274,12 +277,13 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Fragment not found' }
       }
       return { tags: fragment.tags }
-    })
+    }, { detail: { summary: 'Get fragment tags' } })
 
     .post('/stories/:storyId/fragments/:fragmentId/tags', async ({ params, body }) => {
       await addTag(dataDir, params.storyId, params.fragmentId, body.tag)
       return { ok: true }
     }, {
+      detail: { summary: 'Add a tag' },
       body: t.Object({ tag: t.String() }),
     })
 
@@ -287,6 +291,7 @@ export function fragmentRoutes(dataDir: string) {
       await removeTag(dataDir, params.storyId, params.fragmentId, body.tag)
       return { ok: true }
     }, {
+      detail: { summary: 'Remove a tag' },
       body: t.Object({ tag: t.String() }),
     })
 
@@ -295,12 +300,13 @@ export function fragmentRoutes(dataDir: string) {
       const refs = await getRefs(dataDir, params.storyId, params.fragmentId)
       const backRefs = await getBackRefs(dataDir, params.storyId, params.fragmentId)
       return { refs, backRefs }
-    })
+    }, { detail: { summary: 'Get refs and back-refs' } })
 
     .post('/stories/:storyId/fragments/:fragmentId/refs', async ({ params, body }) => {
       await addRef(dataDir, params.storyId, params.fragmentId, body.targetId)
       return { ok: true }
     }, {
+      detail: { summary: 'Add a ref' },
       body: t.Object({ targetId: t.String() }),
     })
 
@@ -308,6 +314,7 @@ export function fragmentRoutes(dataDir: string) {
       await removeRef(dataDir, params.storyId, params.fragmentId, body.targetId)
       return { ok: true }
     }, {
+      detail: { summary: 'Remove a ref' },
       body: t.Object({ targetId: t.String() }),
     })
 
@@ -326,6 +333,7 @@ export function fragmentRoutes(dataDir: string) {
       await updateFragment(dataDir, params.storyId, updated)
       return { ok: true, sticky: body.sticky }
     }, {
+      detail: { summary: 'Toggle the sticky flag' },
       body: t.Object({ sticky: t.Boolean() }),
     })
 
@@ -349,6 +357,7 @@ export function fragmentRoutes(dataDir: string) {
       }
       return { ok: true }
     }, {
+      detail: { summary: 'Bulk reorder fragments' },
       body: t.Object({
         items: t.Array(t.Object({
           id: t.String(),
@@ -372,6 +381,7 @@ export function fragmentRoutes(dataDir: string) {
       await updateFragment(dataDir, params.storyId, updated)
       return { ok: true, placement: body.placement }
     }, {
+      detail: { summary: 'Change fragment placement' },
       body: t.Object({
         placement: t.Union([t.Literal('system'), t.Literal('user')]),
       }),
@@ -384,7 +394,7 @@ export function fragmentRoutes(dataDir: string) {
         prefix: t.prefix,
         stickyByDefault: t.stickyByDefault,
       }))
-    })
+    }, { detail: { summary: 'List available fragment types' } })
 
     // --- Fragment Revert (legacy + versioned) ---
     .post('/stories/:storyId/fragments/:fragmentId/revert', async ({ params, set }) => {
@@ -420,5 +430,5 @@ export function fragmentRoutes(dataDir: string) {
       }
       await updateFragment(dataDir, params.storyId, updated)
       return updated
-    })
+    }, { detail: { summary: 'Revert to previous version' } })
 }
