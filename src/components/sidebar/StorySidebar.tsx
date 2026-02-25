@@ -131,7 +131,10 @@ export function StorySidebar({
               {story?.name ?? 'Errata'}
             </span>
           </Link>
-          <SidebarTrigger data-component-id="sidebar-collapse-trigger" />
+          <SidebarTrigger
+            className="group-data-[collapsible=icon]:-ml-[0.4em]"
+            data-component-id="sidebar-collapse-trigger"
+          />
         </div>
       </SidebarHeader>
 
