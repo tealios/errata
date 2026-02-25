@@ -21,6 +21,7 @@
     "@ai-sdk/openai-compatible": "^2.0.30",
     "@ai-sdk/react": "^3.0.88",
     "@elysiajs/eden": "^1.4.8",
+    "@elysiajs/openapi": "^1.4.14",
     "@floating-ui/react": "^0.27.18",
     "@sinclair/typebox": "^0.34.48",
     "@tailwindcss/vite": "^4.1.18",
