@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { List, ChevronsDown, Bookmark } from 'lucide-react'
+import { ChevronsDown, Bookmark } from 'lucide-react'
 import type { Fragment } from '@/lib/api'
 
 interface ProseOutlinePanelProps {
   storyId: string
   fragments: Fragment[]
   activeIndex: number
+  open: boolean
   onJump: (index: number) => void
   onScrollToBottom: () => void
 }
@@ -17,17 +18,10 @@ export function ProseOutlinePanel({
   storyId,
   fragments,
   activeIndex,
+  open,
   onJump,
   onScrollToBottom,
 }: ProseOutlinePanelProps) {
-  const OUTLINE_OPEN_KEY = 'errata:passages-panel-open'
-  const [open, setOpen] = useState(() => {
-    if (typeof window === 'undefined') return true
-    const saved = localStorage.getItem(OUTLINE_OPEN_KEY)
-    if (saved === '0') return false
-    if (saved === '1') return true
-    return true
-  })
   const activeRef = useRef<HTMLButtonElement>(null)
   const collapsedActiveRef = useRef<HTMLButtonElement>(null)
   const queryClient = useQueryClient()
@@ -43,11 +37,6 @@ export function ProseOutlinePanel({
       queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
     },
   })
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(OUTLINE_OPEN_KEY, open ? '1' : '0')
-  }, [open])
 
   // Scroll the active item into view when panel opens or active changes
   useEffect(() => {
@@ -77,31 +66,11 @@ export function ProseOutlinePanel({
           open ? 'w-56' : 'w-7'
         }`}
       >
-        {/* Toggle button — always inside the panel */}
-        <div className={`shrink-0 flex pt-4 pb-2 ${open ? 'px-3' : 'justify-center'}`}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setOpen(!open)}
-                data-component-id="prose-outline-toggle"
-                className={`flex items-center justify-center size-7 rounded-md transition-all duration-200 ${
-                  open
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:text-muted-foreground hover:bg-accent/50'
-                }`}
-              >
-                <List className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{open ? 'Collapse outline' : 'Expand outline'}</TooltipContent>
-          </Tooltip>
-        </div>
-
         {open ? (
           /* --- Expanded view --- */
           <>
-            {/* Header */}
-            <div className="shrink-0 px-4 pb-3 flex items-center justify-between">
+            {/* Header — top padding clears the floating toolbar */}
+            <div className="shrink-0 px-4 pt-12 pb-3 flex items-center justify-between">
               <h3 className="text-[0.625rem] uppercase tracking-[0.15em] text-muted-foreground font-medium">
                 Passages
               </h3>
@@ -211,8 +180,8 @@ export function ProseOutlinePanel({
         ) : (
           /* --- Collapsed rail view --- */
           <>
-            {/* Dot indicators */}
-            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 flex flex-col items-center py-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+            {/* Dot indicators — top padding clears the floating toolbar */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 flex flex-col items-center pt-12 pb-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
               {fragments.map((fragment, idx) => {
                 const isActive = idx === activeIndex
                 const isMarker = fragment.type === 'marker'

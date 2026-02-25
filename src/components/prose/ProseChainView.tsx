@@ -15,6 +15,7 @@ import { CharacterMentionProvider } from './CharacterMentionContext'
 interface ProseChainViewProps {
   storyId: string
   coverImage?: string | null
+  outlineOpen?: boolean
   onSelectFragment: (fragment: Fragment) => void
   onEditProse?: (fragmentId: string, selectedText?: string) => void
   onDebugLog?: (logId: string) => void
@@ -172,6 +173,7 @@ function StreamingSection({
 export function ProseChainView({
   storyId,
   coverImage,
+  outlineOpen,
   onSelectFragment,
   onEditProse,
   onDebugLog,
@@ -509,13 +511,14 @@ export function ProseChainView({
         </CharacterMentionProvider>
       </ScrollArea>
 
-      {/* Outline toggle + panel — hidden on mobile */}
+      {/* Outline panel — hidden on mobile */}
       {orderedItems.length > 1 && (
         <div className="hidden md:flex">
           <ProseOutlinePanel
             storyId={storyId}
             fragments={orderedItems}
             activeIndex={activeIndex}
+            open={outlineOpen ?? true}
             onJump={scrollToIndex}
             onScrollToBottom={scrollToBottom}
           />

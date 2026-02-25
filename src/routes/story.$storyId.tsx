@@ -36,7 +36,7 @@ import {
   parseCardJson,
   type ParsedCharacterCard,
 } from '@/lib/importers/tavern-card'
-import { Upload, BookOpen, MessageSquare } from 'lucide-react'
+import { Upload, BookOpen, MessageSquare, List } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { TimelineTabs } from '@/components/prose/TimelineTabs'
 import { CharacterChatView } from '@/components/character-chat/CharacterChatView'
@@ -77,6 +77,18 @@ function StoryEditorPage() {
   const [askLibrarianFragmentId, setAskLibrarianFragmentId] = useState<string | null>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
+  const OUTLINE_OPEN_KEY = 'errata:passages-panel-open'
+  const [outlineOpen, setOutlineOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const saved = localStorage.getItem(OUTLINE_OPEN_KEY)
+    if (saved === '0') return false
+    if (saved === '1') return true
+    return true
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(OUTLINE_OPEN_KEY, outlineOpen ? '1' : '0')
+  }, [outlineOpen])
   const dragCounter = useRef(0)
 
   const { data: story, isLoading } = useQuery({
@@ -537,35 +549,94 @@ function StoryEditorPage() {
           />
         )}
 
-        {/* View toggle — hidden in character chat since ChatConfig has its own close button */}
-        {mainView === 'prose' && (
-          <div className="absolute top-3 right-10 z-20 flex items-center gap-0.5 bg-background/80 backdrop-blur-sm border border-border/40 rounded-lg p-0.5 shadow-sm">
-            <Button
-              variant="secondary"
-              size="icon"
-              className="size-7"
-              onClick={() => setMainView('prose')}
-              title="Prose view"
+        {/* Unified view + outline toolbar — hidden in character chat (has its own header) */}
+        {mainView === 'prose' && <div className={`hidden md:flex absolute top-3 right-0 z-20 items-center gap-1 ${
+          outlineOpen ? 'w-56 px-3' : ''
+        }`}>
+          {/* Outline collapse — before view group when expanded */}
+          {outlineOpen && (
+            <button
+              onClick={() => setOutlineOpen(false)}
+              title="Collapse outline"
+              data-component-id="prose-outline-toggle"
+              className="flex items-center justify-center size-7 rounded-md bg-accent text-foreground hover:bg-accent/80 transition-colors duration-200"
             >
-              <BookOpen className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => setMainView('character-chat')}
-              title="Character chat"
-            >
-              <MessageSquare className="size-3.5" />
-            </Button>
+              <List className="size-3.5" />
+            </button>
+          )}
+
+          {/* View toggle group */}
+          <div className={`flex items-center gap-0.5 bg-background/80 backdrop-blur-sm border border-border/40 rounded-lg p-0.5 shadow-sm ${
+            outlineOpen ? 'flex-1' : ''
+          }`}>
+            {outlineOpen ? (
+              <>
+                <Button
+                  variant={mainView === 'prose' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 flex-1 gap-1.5 text-xs"
+                  onClick={() => setMainView('prose')}
+                  title="Prose view"
+                >
+                  <BookOpen className="size-3.5" />
+                  Story
+                </Button>
+                <Button
+                  variant={mainView === 'character-chat' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 flex-1 gap-1.5 text-xs"
+                  onClick={() => setMainView('character-chat')}
+                  title="Character chat"
+                >
+                  <MessageSquare className="size-3.5" />
+                  Chat
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant={mainView === 'prose' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setMainView('prose')}
+                  title="Prose view"
+                >
+                  <BookOpen className="size-3.5" />
+                </Button>
+                <Button
+                  variant={mainView === 'character-chat' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setMainView('character-chat')}
+                  title="Character chat"
+                >
+                  <MessageSquare className="size-3.5" />
+                </Button>
+              </>
+            )}
           </div>
-        )}
+
+          {/* Outline expand — after view group when collapsed, centered in the w-7 rail */}
+          {!outlineOpen && (
+            <div className="w-7 flex justify-center">
+              <button
+                onClick={() => setOutlineOpen(true)}
+                title="Expand outline"
+                data-component-id="prose-outline-toggle"
+                className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+              >
+                <List className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </div>}
 
         {/* Main view */}
         {mainView === 'prose' ? (
           <ProseChainView
             storyId={storyId}
             coverImage={story.coverImage}
+            outlineOpen={outlineOpen}
             onSelectFragment={handleSelectFragment}
             onEditProse={(fragmentId, selectedText) => {
               setEditingProseId(fragmentId)
