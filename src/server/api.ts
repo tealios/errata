@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { openapi } from '@elysiajs/openapi'
 import { pluginRegistry } from './plugins/registry'
 import { getRuntimePluginUi } from './plugins/runtime-ui'
 import { instructionRegistry } from './instructions'
@@ -41,7 +42,31 @@ function contentTypeForPath(path: string): string {
 
 export function createApp(dataDir: string = DATA_DIR) {
   const app = new Elysia({ prefix: '/api' })
-    .get('/health', () => ({ status: 'ok' }))
+    .use(openapi({
+      documentation: {
+        info: {
+          title: 'Errata API',
+          version: '1.0.0',
+          description: 'AI-assisted writing app built around a fragment system.',
+        },
+        tags: [
+          { name: 'Stories', description: 'Story CRUD, export/import, and settings' },
+          { name: 'Branches', description: 'Timeline branching and switching' },
+          { name: 'Fragments', description: 'Fragment CRUD, versioning, tags, refs, and reordering' },
+          { name: 'Prose Chain', description: 'Ordered prose sections with variation switching' },
+          { name: 'Blocks', description: 'Context block configuration and custom blocks' },
+          { name: 'Generation', description: 'LLM prose generation (streaming)' },
+          { name: 'Librarian', description: 'Background analysis, chat, and fragment refinement' },
+          { name: 'Character Chat', description: 'In-character conversations' },
+          { name: 'Config', description: 'Global provider management and model discovery' },
+          { name: 'Agent Blocks', description: 'Per-agent context block configuration' },
+          { name: 'Token Usage', description: 'Session and project token tracking' },
+          { name: 'Folders', description: 'Fragment folder organization' },
+          { name: 'Plugins', description: 'Plugin listing and UI asset serving' },
+        ],
+      },
+    }))
+    .get('/health', () => ({ status: 'ok' }), { detail: { tags: ['App'], summary: 'Health check' } })
 
     // --- Plugins ---
     .get('/plugins', () => {
@@ -60,7 +85,7 @@ export function createApp(dataDir: string = DATA_DIR) {
             : undefined,
         }
       })
-    })
+    }, { detail: { tags: ['Plugins'], summary: 'List all plugins' } })
     .get('/plugins/:pluginName/ui/*', ({ params, set }) => {
       const runtimeUi = getRuntimePluginUi(params.pluginName)
       if (!runtimeUi) {
@@ -91,7 +116,7 @@ export function createApp(dataDir: string = DATA_DIR) {
           'cache-control': 'no-cache',
         },
       })
-    })
+    }, { detail: { tags: ['Plugins'], summary: 'Serve plugin UI assets' } })
 
     // --- Route modules ---
     .use(storyRoutes(dataDir))
