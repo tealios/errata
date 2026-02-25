@@ -16,7 +16,7 @@ interface ProseChainViewProps {
   storyId: string
   coverImage?: string | null
   onSelectFragment: (fragment: Fragment) => void
-  onEditProse?: (fragmentId: string) => void
+  onEditProse?: (fragmentId: string, selectedText?: string) => void
   onDebugLog?: (logId: string) => void
   onLaunchWizard?: () => void
   onAskLibrarian?: (fragmentId: string) => void
@@ -441,8 +441,11 @@ export function ProseChainView({
         <CharacterMentionProvider characters={characterFragments} mediaById={mediaById}>
         <div className="mx-auto py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
           {orderedItems.length > 0 ? (
-            orderedItems.map((fragment, idx) => (
-              <ReactFragment key={fragment.id}>
+            orderedItems.map((fragment, idx) => {
+              const sectionIdx = sectionIndexMap.get(fragment.id) ?? -1
+              const stableKey = sectionIdx >= 0 ? `section-${sectionIdx}` : fragment.id
+              return (
+              <ReactFragment key={stableKey}>
                 {idx === 0 && <InsertChapterDivider storyId={storyId} position={0} />}
                 {fragment.type === 'marker' ? (
                   <ChapterMarker
@@ -475,7 +478,7 @@ export function ProseChainView({
                 )}
                 <InsertChapterDivider storyId={storyId} position={idx + 1} />
               </ReactFragment>
-            ))
+            )})
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center" data-component-id="prose-empty-state">
               <p className="font-display text-2xl italic text-muted-foreground mb-2">
