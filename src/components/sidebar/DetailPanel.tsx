@@ -42,6 +42,8 @@ interface DetailPanelProps {
     showInSidebar?: boolean
     icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string }
   }>
+  askLibrarianFragmentId?: string | null
+  onAskLibrarianConsumed?: () => void
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -89,6 +91,8 @@ export function DetailPanel({
   onDownloadStory,
   onExportProse,
   enabledPanelPlugins,
+  askLibrarianFragmentId,
+  onAskLibrarianConsumed,
 }: DetailPanelProps) {
   const isMobile = useIsMobile()
   const open = !!section
@@ -167,7 +171,7 @@ export function DetailPanel({
 
       {librarianActivated.current && (
         <div className={activeSection === 'agent-activity' ? 'h-full overflow-hidden' : 'hidden'}>
-          <LibrarianPanel storyId={storyId} />
+          <LibrarianPanel storyId={storyId} askFragmentId={askLibrarianFragmentId} onAskFragmentConsumed={onAskLibrarianConsumed} />
         </div>
       )}
 

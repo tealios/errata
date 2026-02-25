@@ -36,6 +36,8 @@ import { LibrarianChat } from '@/components/librarian/LibrarianChat'
 
 interface LibrarianPanelProps {
   storyId: string
+  askFragmentId?: string | null
+  onAskFragmentConsumed?: () => void
 }
 
 type TabValue = 'chat' | 'story' | 'activity'
@@ -51,7 +53,7 @@ function readSavedTab(storyId: string): TabValue {
   return 'chat'
 }
 
-export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
+export function LibrarianPanel({ storyId, askFragmentId, onAskFragmentConsumed }: LibrarianPanelProps) {
   const [activeTab, setActiveTab] = useState<TabValue>(() => readSavedTab(storyId))
   const [chatInitialInput, setChatInitialInput] = useState<string>('')
   const { openHelp } = useHelp()
@@ -61,16 +63,13 @@ export function LibrarianPanel({ storyId }: LibrarianPanelProps) {
     setActiveTab(readSavedTab(storyId))
   }, [storyId])
 
-  // Listen for ask librarian events
+  // Handle ask librarian from prose action panel
   useEffect(() => {
-    const handler = (e: Event) => {
-      const { fragmentId } = (e as CustomEvent).detail
-      setActiveTab('chat')
-      setChatInitialInput(`@${fragmentId} `)
-    }
-    window.addEventListener('errata:librarian:ask', handler)
-    return () => window.removeEventListener('errata:librarian:ask', handler)
-  }, [])
+    if (!askFragmentId) return
+    setActiveTab('chat')
+    setChatInitialInput(`@${askFragmentId} `)
+    onAskFragmentConsumed?.()
+  }, [askFragmentId, onAskFragmentConsumed])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

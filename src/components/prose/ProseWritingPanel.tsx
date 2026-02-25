@@ -31,6 +31,7 @@ type SelectionTransformMode = 'rewrite' | 'expand' | 'compress' | 'custom'
 interface ProseWritingPanelProps {
   storyId: string
   fragmentId: string
+  initialSelection?: string | null
   onClose: () => void
   onFragmentChange: (id: string) => void
 }
@@ -167,6 +168,7 @@ function SaveIndicator({ saveState, isDirty }: { saveState: 'idle' | 'saving' | 
 export function ProseWritingPanel({
   storyId,
   fragmentId,
+  initialSelection,
   onClose,
   onFragmentChange,
 }: ProseWritingPanelProps) {
@@ -286,6 +288,10 @@ export function ProseWritingPanel({
         blockquote: false,
         codeBlock: false,
         horizontalRule: false,
+        bold: false,
+        italic: false,
+        strike: false,
+        code: false,
       }),
     ],
     content: plainTextToDoc(currentFragment?.content ?? ''),
@@ -314,6 +320,53 @@ export function ProseWritingPanel({
     setIsTransformingSelection(false)
     setShowTransformUndo(false)
   }, [editor, fragmentId, currentFragment?.content])
+
+  // Apply initial text selection from prose view
+  const initialSelectionApplied = useRef(false)
+  useEffect(() => {
+    if (!editor || !initialSelection || initialSelectionApplied.current) return
+    initialSelectionApplied.current = true
+
+    // Search for the selected text in the ProseMirror document
+    const doc = editor.state.doc
+    const docText = doc.textBetween(0, doc.content.size, '\n\n')
+    const idx = docText.indexOf(initialSelection)
+    if (idx === -1) return
+
+    // Map plain-text offset to ProseMirror position by walking the doc
+    const endIdx = idx + initialSelection.length
+    let charsSeen = 0
+    let from = -1
+    let to = -1
+    doc.descendants((node, pos) => {
+      if (to !== -1) return false
+      if (node.isText) {
+        const start = charsSeen
+        const end = charsSeen + node.text!.length
+        if (from === -1 && idx >= start && idx < end) {
+          from = pos + (idx - start)
+        }
+        if (from !== -1 && endIdx >= start && endIdx <= end) {
+          to = pos + (endIdx - start)
+          return false
+        }
+        charsSeen = end
+      } else if (node.isBlock && charsSeen > 0) {
+        // Account for paragraph separators (\n\n) in textBetween output
+        charsSeen += 2
+      }
+      return true
+    })
+
+    if (from !== -1 && to !== -1) {
+      editor.commands.setTextSelection({ from, to })
+      editor.commands.focus()
+      // Scroll the selection into view
+      requestAnimationFrame(() => {
+        editor.commands.scrollIntoView()
+      })
+    }
+  }, [editor, initialSelection])
 
   // Track selection reactively
   const [hasSelection, setHasSelection] = useState(false)

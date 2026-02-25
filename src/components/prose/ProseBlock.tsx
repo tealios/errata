@@ -20,7 +20,7 @@ interface ProseBlockProps {
   onSelect: (fragment: Fragment) => void
   onDebugLog?: (logId: string) => void
   onBranchFrom?: (sectionIndex: number) => void
-  onEdit?: (fragmentId: string) => void
+  onEdit?: (fragmentId: string, selectedText?: string) => void
   onAskLibrarian?: (fragmentId: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
@@ -656,7 +656,7 @@ export const ProseBlock = memo(function ProseBlock({
               <div className="inline-flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto max-w-[calc(100vw-3rem)]">
                 <button
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { if (onEdit) { onEdit(fragment.id); setShowActions(false) } }}
+                  onClick={() => { if (onEdit) { onEdit(fragment.id, window.getSelection()?.toString() || undefined); setShowActions(false) } }}
                   disabled={!onEdit}
                   data-component-id={`prose-${fragment.id}-edit`}
                 >

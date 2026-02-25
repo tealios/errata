@@ -73,6 +73,8 @@ function StoryEditorPage() {
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
   const [editingProseId, setEditingProseId] = useState<string | null>(null)
+  const [editSelectionText, setEditSelectionText] = useState<string | null>(null)
+  const [askLibrarianFragmentId, setAskLibrarianFragmentId] = useState<string | null>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
   const dragCounter = useRef(0)
@@ -511,6 +513,8 @@ function StoryEditorPage() {
         onDownloadStory={() => api.stories.exportAsZip(storyId)}
         onExportProse={handleExportProse}
         enabledPanelPlugins={enabledPanelPlugins}
+        askLibrarianFragmentId={askLibrarianFragmentId}
+        onAskLibrarianConsumed={() => setAskLibrarianFragmentId(null)}
       />
 
       {/* Main Content */}
@@ -563,7 +567,10 @@ function StoryEditorPage() {
             storyId={storyId}
             coverImage={story.coverImage}
             onSelectFragment={handleSelectFragment}
-            onEditProse={(fragmentId) => setEditingProseId(fragmentId)}
+            onEditProse={(fragmentId, selectedText) => {
+              setEditingProseId(fragmentId)
+              setEditSelectionText(selectedText ?? null)
+            }}
             onDebugLog={handleDebugLog}
             onLaunchWizard={() => {
               setShowWizard(true)
@@ -571,7 +578,7 @@ function StoryEditorPage() {
             }}
             onAskLibrarian={(fragmentId) => {
               setActiveSection('agent-activity')
-              window.dispatchEvent(new CustomEvent('errata:librarian:ask', { detail: { fragmentId } }))
+              setAskLibrarianFragmentId(fragmentId)
             }}
           />
         ) : (
@@ -627,7 +634,8 @@ function StoryEditorPage() {
             <ProseWritingPanel
               storyId={storyId}
               fragmentId={editingProseId}
-              onClose={() => setEditingProseId(null)}
+              initialSelection={editSelectionText}
+              onClose={() => { setEditingProseId(null); setEditSelectionText(null) }}
               onFragmentChange={setEditingProseId}
             />
           </div>
