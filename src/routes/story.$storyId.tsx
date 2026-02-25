@@ -572,7 +572,7 @@ function StoryEditorPage() {
             {outlineOpen ? (
               <>
                 <Button
-                  variant={mainView === 'prose' ? 'secondary' : 'ghost'}
+                  variant="secondary"
                   size="sm"
                   className="h-7 flex-1 gap-1.5 text-xs"
                   onClick={() => setMainView('prose')}
@@ -582,7 +582,7 @@ function StoryEditorPage() {
                   Story
                 </Button>
                 <Button
-                  variant={mainView === 'character-chat' ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="sm"
                   className="h-7 flex-1 gap-1.5 text-xs"
                   onClick={() => setMainView('character-chat')}
@@ -595,7 +595,7 @@ function StoryEditorPage() {
             ) : (
               <>
                 <Button
-                  variant={mainView === 'prose' ? 'secondary' : 'ghost'}
+                  variant="secondary"
                   size="icon"
                   className="size-7"
                   onClick={() => setMainView('prose')}
@@ -604,7 +604,7 @@ function StoryEditorPage() {
                   <BookOpen className="size-3.5" />
                 </Button>
                 <Button
-                  variant={mainView === 'character-chat' ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="icon"
                   className="size-7"
                   onClick={() => setMainView('character-chat')}

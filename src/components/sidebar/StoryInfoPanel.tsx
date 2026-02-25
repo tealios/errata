@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Download, Package, Wand2, FileText, ImagePlus, X, ChevronDown, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { UsageSnapshot, UsageEntry, SourceUsage } from '@/lib/api/token-usage'
+import type { UsageSnapshot, UsageEntry } from '@/lib/api/token-usage'
 
 interface StoryInfoPanelProps {
   storyId: string

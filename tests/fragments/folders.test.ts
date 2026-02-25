@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createTempDir, makeTestSettings } from '../setup'
-import { createStory, createFragment } from '@/server/fragments/storage'
+import { createStory } from '@/server/fragments/storage'
 import {
   listFolders,
   getFolder,
@@ -12,7 +12,7 @@ import {
   assignFragment,
   assignFragmentsBulk,
 } from '@/server/fragments/folders'
-import type { Fragment, StoryMeta } from '@/server/fragments/schema'
+import type { StoryMeta } from '@/server/fragments/schema'
 
 let dataDir: string
 let cleanup: () => Promise<void>
@@ -36,26 +36,6 @@ const makeStory = (overrides: Partial<StoryMeta> = {}): StoryMeta => ({
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   settings: makeTestSettings(),
-  ...overrides,
-})
-
-const makeFragment = (overrides: Partial<Fragment> = {}): Fragment => ({
-  id: 'ch-a1b2c3',
-  type: 'character',
-  name: 'Test Character',
-  description: 'A test character',
-  content: 'Character details',
-  tags: [],
-  refs: [],
-  sticky: false,
-  placement: 'user' as const,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-  order: 0,
-  meta: {},
-  archived: false,
-  version: 1,
-  versions: [],
   ...overrides,
 })
 

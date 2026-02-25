@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type Fragment, type ExportedConfigs } from '@/lib/api'
+import { api, type Fragment } from '@/lib/api'
 import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, type Bubble } from '@/lib/fragment-visuals'
 import { serializeFragment, serializeBundle, downloadExportFile } from '@/lib/fragment-clipboard'
 import { Button } from '@/components/ui/button'

@@ -1,7 +1,7 @@
 import { ToolLoopAgent, stepCountIs } from 'ai'
 import { getModel } from '../llm/client'
 import { getStory, getFragment } from '../fragments/storage'
-import { buildContextState, compileBlocks } from '../llm/context-builder'
+import { buildContextState } from '../llm/context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { getFragmentsByTag } from '../fragments/associations'
 import { instructionRegistry } from '../instructions'

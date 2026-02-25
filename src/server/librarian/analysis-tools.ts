@@ -1,7 +1,7 @@
 import { tool } from 'ai'
 import { z } from 'zod/v4'
 import { getFragment, updateFragmentVersioned } from '../fragments/storage'
-import { checkFragmentWrite, isFragmentLocked } from '../fragments/protection'
+import { checkFragmentWrite } from '../fragments/protection'
 
 // --- Collector ---
 

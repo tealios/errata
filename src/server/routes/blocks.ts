@@ -1,4 +1,4 @@
-import { Elysia, t } from 'elysia'
+import { Elysia } from 'elysia'
 import { getStory } from '../fragments/storage'
 import { buildContextState, createDefaultBlocks, compileBlocks } from '../llm/context-builder'
 import { getBlockConfig, saveBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from '../blocks/storage'

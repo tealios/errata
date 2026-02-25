@@ -3,7 +3,6 @@ import {
   getStory,
   createFragment,
   getFragment,
-  listFragments,
 } from '../fragments/storage'
 import {
   addProseSection,

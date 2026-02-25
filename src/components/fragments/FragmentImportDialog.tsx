@@ -71,6 +71,26 @@ export function FragmentImportDialog({
     return { hasBlockConfig, agentNames }
   }, [parsed])
 
+  const scriptImportWarning = useMemo(() => {
+    if (!parsed || !isBundle(parsed)) return null
+
+    const hasGenerationScript = !!(
+      importBlockConfig &&
+      parsed.blockConfig?.customBlocks.some((block) => block.type === 'script')
+    )
+
+    const agentScripts = Object.entries(parsed.agentBlockConfigs ?? {})
+      .filter(([name, config]) => importAgentConfigs.has(name) && config.customBlocks.some((block) => block.type === 'script'))
+      .map(([name]) => name)
+
+    if (!hasGenerationScript && agentScripts.length === 0) return null
+
+    return {
+      hasGenerationScript,
+      agentScripts,
+    }
+  }, [parsed, importBlockConfig, importAgentConfigs])
+
   // Manage dialog state on open/close
   useEffect(() => {
     if (!open) {
@@ -346,6 +366,7 @@ export function FragmentImportDialog({
                   return next
                 })
               }}
+              scriptImportWarning={scriptImportWarning}
             />
           )}
         </div>
@@ -456,6 +477,7 @@ export function BundlePreview({
   onToggleBlockConfig,
   importAgentConfigs,
   onToggleAgentConfig,
+  scriptImportWarning,
 }: {
   data: FragmentBundleData
   selectedIndices: Set<number>
@@ -468,6 +490,7 @@ export function BundlePreview({
   onToggleBlockConfig?: () => void
   importAgentConfigs?: Set<string>
   onToggleAgentConfig?: (name: string) => void
+  scriptImportWarning?: { hasGenerationScript: boolean; agentScripts: string[] } | null
 }) {
   const allSelected = data.fragments.length === selectedIndices.size
 
@@ -561,6 +584,20 @@ export function BundlePreview({
             </div>
           </div>
           <div className="px-4 py-1.5">
+            {scriptImportWarning && (
+              <div className="mb-2 rounded-md border border-amber-500/20 bg-amber-500/8 px-3 py-2">
+                <p className="text-[0.6875rem] leading-relaxed text-amber-600/90 dark:text-amber-400/90">
+                  This pack includes script blocks. They execute JavaScript during generation, so only import from trusted sources.
+                </p>
+                <p className="mt-1 text-[0.625rem] leading-relaxed text-amber-600/80 dark:text-amber-400/80">
+                  {scriptImportWarning.hasGenerationScript ? 'Includes generation script blocks.' : ''}
+                  {scriptImportWarning.hasGenerationScript && scriptImportWarning.agentScripts.length > 0 ? ' ' : ''}
+                  {scriptImportWarning.agentScripts.length > 0
+                    ? `Includes agent scripts: ${scriptImportWarning.agentScripts.map((name) => formatAgentName(name)).join(', ')}.`
+                    : ''}
+                </p>
+              </div>
+            )}
             {bundleConfigs.hasBlockConfig && (
               <div
                 onClick={onToggleBlockConfig}

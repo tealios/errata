@@ -1,11 +1,10 @@
 import { Elysia, t } from 'elysia'
 import { getStory, getFragment } from '../fragments/storage'
 import {
-  saveGenerationLog,
   getGenerationLog,
   listGenerationLogs,
 } from '../llm/generation-logs'
-import { triggerLibrarian, getLibrarianRuntimeStatus } from '../librarian/scheduler'
+import { getLibrarianRuntimeStatus } from '../librarian/scheduler'
 import { createSSEStream } from '../librarian/analysis-stream'
 import { createAgentInstance, listAgentRuns } from '../agents'
 import {

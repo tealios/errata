@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, memo, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { api, type Fragment, type Folder, type FolderAssignments } from '@/lib/api'
+import { api, type Fragment, type Folder } from '@/lib/api'
 import { componentId, fragmentComponentId } from '@/lib/dom-ids'
 import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, type Bubble } from '@/lib/fragment-visuals'
 import { Badge } from '@/components/ui/badge'
@@ -442,6 +442,7 @@ export function FragmentList({
   const [folderDisplayOrder, setFolderDisplayOrder] = useState<Folder[] | null>(null)
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [newFolderId, setNewFolderId] = useState<string | null>(null)
 
   const { data: fragments, isLoading } = useQuery({
     queryKey: ['fragments', storyId, type, allowedTypes?.join(',') ?? 'all'],
@@ -535,6 +536,8 @@ export function FragmentList({
     mutationFn: (name: string) => api.folders.create(storyId, name),
     onSuccess: (folder) => {
       queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+      // Keep the new empty folder visible until it gets its first fragment
+      setNewFolderId(folder.id)
       // Start renaming the new folder immediately
       setRenamingFolderId(folder.id)
       setRenameValue(folder.name)
@@ -559,8 +562,10 @@ export function FragmentList({
   const assignFolderMutation = useMutation({
     mutationFn: ({ fragmentId, folderId }: { fragmentId: string; folderId: string | null }) =>
       api.folders.assignFragment(storyId, fragmentId, folderId),
-    onSuccess: () => {
+    onSuccess: (_data, { folderId }) => {
       queryClient.invalidateQueries({ queryKey: ['folders', storyId] })
+      // Clear the "just-created" exception once a fragment is assigned to it
+      if (folderId === newFolderId) setNewFolderId(null)
     },
   })
 
@@ -673,9 +678,14 @@ export function FragmentList({
       byFolder.get(validFolder)!.push(fragment)
     }
 
+    // Only show folders that contain at least one fragment of the current type,
+    // plus any just-created folder so users can drag fragments into it
     const groups: FolderGroup[] = []
     for (const folder of sortedFolders) {
-      groups.push({ folder, fragments: byFolder.get(folder.id)! })
+      const folderFragments = byFolder.get(folder.id)!
+      if (folderFragments.length > 0 || folder.id === newFolderId) {
+        groups.push({ folder, fragments: folderFragments })
+      }
     }
     // Uncategorized always last
     const uncategorized = byFolder.get(null)!
@@ -684,7 +694,7 @@ export function FragmentList({
     }
 
     return groups
-  }, [effectiveList, folders, folderAssignments, folderDisplayOrder, isSearching, hasFolders])
+  }, [effectiveList, folders, folderAssignments, folderDisplayOrder, isSearching, hasFolders, newFolderId])
 
   // Map fragment ID → index in the effective flat list, so grouped view
   // can pass correct global indices to the drag handlers

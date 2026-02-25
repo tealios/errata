@@ -33,7 +33,6 @@ function resolveSourceFragmentId(
 async function findSuggestionFragment(
   dataDir: string,
   storyId: string,
-  analysis: LibrarianAnalysis,
   suggestion: FragmentSuggestion,
 ): Promise<Fragment | null> {
   if (suggestion.targetFragmentId) {
@@ -76,7 +75,7 @@ export async function applyFragmentSuggestion(args: {
   }
 
   const sourceFragmentId = resolveSourceFragmentId(analysis, suggestion)
-  const existing = await findSuggestionFragment(dataDir, storyId, analysis, suggestion)
+  const existing = await findSuggestionFragment(dataDir, storyId, suggestion)
 
   if (existing) {
     const protection = checkFragmentWrite(existing, { content: suggestion.content })
