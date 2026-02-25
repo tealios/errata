@@ -38,6 +38,7 @@ import { getAgentBlockConfig } from '../agents/agent-block-storage'
 import { invokeAgent } from '../agents/runner'
 import { registerActiveAgent, unregisterActiveAgent } from '../agents/active-registry'
 import { reportUsage } from '../llm/token-tracker'
+import { normalizeTokenUsage } from '../llm/usage-normalizer'
 import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 import type { SuggestDirectionsResult } from '../directions/suggest'
@@ -244,7 +245,7 @@ export function generationRoutes(dataDir: string) {
           const emit = (event: Record<string, unknown>) => {
             controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
           }
-          let totalUsagePromise: PromiseLike<{ inputTokens?: number; outputTokens?: number }> | undefined
+          let totalUsagePromise: PromiseLike<unknown> | undefined
           try {
             // Run prewriter inside the stream so events are streamed live
             let writerMessages = modelMessages
@@ -515,8 +516,8 @@ export function generationRoutes(dataDir: string) {
               let totalUsage: { inputTokens: number; outputTokens: number } | undefined
               try {
                 const rawUsage = await totalUsagePromise
-                if (rawUsage && typeof rawUsage.inputTokens === 'number') {
-                  totalUsage = { inputTokens: rawUsage.inputTokens, outputTokens: rawUsage.outputTokens ? rawUsage.outputTokens : 0 }
+                totalUsage = normalizeTokenUsage(rawUsage)
+                if (totalUsage) {
                   reportUsage(dataDir, params.storyId, 'generation.writer', totalUsage, resolvedModelId)
                 }
               } catch {
