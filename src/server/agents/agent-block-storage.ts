@@ -1,9 +1,10 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, mkdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { existsSync } from 'node:fs'
 import { z } from 'zod/v4'
 import { BlockConfigSchema, type CustomBlockDefinition, type BlockOverride } from '../blocks/schema'
 import { getContentRoot } from '../fragments/branches'
+import { writeJsonAtomic } from '../fs-utils'
 
 export const AgentBlockConfigSchema = BlockConfigSchema.extend({
   disabledTools: z.array(z.string()).default([]),
@@ -35,7 +36,7 @@ export async function getAgentBlockConfig(dataDir: string, storyId: string, agen
 export async function saveAgentBlockConfig(dataDir: string, storyId: string, agentName: string, config: AgentBlockConfig): Promise<void> {
   const path = await agentBlockConfigPath(dataDir, storyId, agentName)
   await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(config, null, 2), 'utf-8')
+  await writeJsonAtomic(path, config)
 }
 
 export async function addAgentCustomBlock(

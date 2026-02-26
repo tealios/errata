@@ -1,10 +1,11 @@
-import { mkdir, readdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { PREFIXES } from '@/lib/fragment-ids'
 import { getContentRoot, initBranches } from './branches'
 import { createLogger } from '../logging'
+import { writeJsonAtomic } from '../fs-utils'
 
 const requestLogger = createLogger('fragment-storage')
 
@@ -41,7 +42,7 @@ async function readJson<T>(path: string): Promise<T | null> {
 }
 
 async function writeJson(path: string, data: unknown): Promise<void> {
-  await writeFile(path, JSON.stringify(data, null, 2), 'utf-8')
+  await writeJsonAtomic(path, data)
 }
 
 function normalizeFragment(fragment: Fragment | null): Fragment | null {

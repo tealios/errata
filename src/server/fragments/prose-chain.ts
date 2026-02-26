@@ -1,8 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ProseChain } from './schema'
 import { getContentRoot } from './branches'
+import { writeJsonAtomic } from '../fs-utils'
 
 const PROSE_CHAIN_FILE = 'prose-chain.json'
 
@@ -36,7 +37,7 @@ export async function saveProseChain(
   chain: ProseChain,
 ): Promise<void> {
   const path = await proseChainPath(dataDir, storyId)
-  await writeFile(path, JSON.stringify(chain, null, 2), 'utf-8')
+  await writeJsonAtomic(path, chain)
 }
 
 /**

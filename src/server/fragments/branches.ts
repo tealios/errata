@@ -1,9 +1,10 @@
-import { mkdir, readFile, writeFile, cp, rm, rename } from 'node:fs/promises'
+import { mkdir, readFile, cp, rm, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { BranchesIndex, BranchMeta, ProseChain } from './schema'
 import { generateBranchId } from '@/lib/fragment-ids'
+import { writeJsonAtomic } from '../fs-utils'
 
 // --- Branch scope (AsyncLocalStorage) ---
 
@@ -41,7 +42,7 @@ async function readJson<T>(path: string): Promise<T | null> {
 }
 
 async function writeJson(path: string, data: unknown): Promise<void> {
-  await writeFile(path, JSON.stringify(data, null, 2), 'utf-8')
+  await writeJsonAtomic(path, data)
 }
 
 // --- Default branches index ---

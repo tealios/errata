@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
+import { writeJsonAtomic } from '../fs-utils'
 
 // --- Types ---
 
@@ -62,12 +63,6 @@ async function conversationsDir(dataDir: string, storyId: string): Promise<strin
 async function conversationPath(dataDir: string, storyId: string, conversationId: string): Promise<string> {
   const dir = await conversationsDir(dataDir, storyId)
   return join(dir, `${conversationId}.json`)
-}
-
-async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
-  const tmpPath = `${path}.tmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-  await writeFile(tmpPath, JSON.stringify(value, null, 2), 'utf-8')
-  await rename(tmpPath, path)
 }
 
 // --- CRUD ---

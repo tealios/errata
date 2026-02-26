@@ -1,7 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { generateFolderId } from '@/lib/fragment-ids'
+import { writeJsonAtomic } from '../fs-utils'
 
 export interface Folder {
   id: string
@@ -35,7 +36,7 @@ async function readIndex(dataDir: string, storyId: string): Promise<FoldersIndex
 
 async function writeIndex(dataDir: string, storyId: string, index: FoldersIndex): Promise<void> {
   const path = foldersPath(dataDir, storyId)
-  await writeFile(path, JSON.stringify(index, null, 2), 'utf-8')
+  await writeJsonAtomic(path, index)
 }
 
 export async function listFolders(dataDir: string, storyId: string): Promise<Folder[]> {

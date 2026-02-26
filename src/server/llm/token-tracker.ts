@@ -6,10 +6,11 @@
  * per-story on disk.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { createLogger } from '../logging'
+import { writeJsonAtomic } from '../fs-utils'
 
 const logger = createLogger('token-tracker')
 
@@ -83,7 +84,7 @@ async function readProjectFile(dataDir: string, storyId: string): Promise<Projec
 async function writeProjectFile(dataDir: string, storyId: string, data: ProjectUsage): Promise<void> {
   const dir = join(dataDir, 'stories', storyId)
   await mkdir(dir, { recursive: true })
-  await writeFile(usagePath(dataDir, storyId), JSON.stringify(data, null, 2), 'utf-8')
+  await writeJsonAtomic(usagePath(dataDir, storyId), data)
 }
 
 interface FlushDelta {

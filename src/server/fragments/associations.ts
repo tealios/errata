@@ -1,10 +1,11 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { AssociationsSchema, type Associations } from './schema'
 import { getFragment, updateFragment } from './storage'
 import { createLogger } from '../logging/logger'
 import { getContentRoot } from './branches'
+import { writeJsonAtomic } from '../fs-utils'
 
 const log = createLogger('tags')
 
@@ -31,7 +32,7 @@ export async function saveAssociations(
   assoc: Associations
 ): Promise<void> {
   const path = await associationsPath(dataDir, storyId)
-  await writeFile(path, JSON.stringify(assoc, null, 2), 'utf-8')
+  await writeJsonAtomic(path, assoc)
 }
 
 // --- Fragment tag sync ---

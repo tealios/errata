@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
+import { writeJsonAtomic } from '../fs-utils'
 
 export interface ToolCallLog {
   toolName: string
@@ -67,7 +68,7 @@ export async function saveGenerationLog(
 ): Promise<void> {
   const dir = await logsDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
-  await writeFile(await logPath(dataDir, storyId, log.id), JSON.stringify(log, null, 2), 'utf-8')
+  await writeJsonAtomic(await logPath(dataDir, storyId, log.id), log)
 }
 
 export async function getGenerationLog(
