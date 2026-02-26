@@ -52,6 +52,7 @@ function getCachedProvider(id: string, baseURL: string, apiKey: string, name: st
       name,
       baseURL,
       apiKey,
+      includeUsage: true,
       headers: customHeaders && Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
     })
     providerCache.set(cacheKey, provider)
