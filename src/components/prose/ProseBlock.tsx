@@ -7,7 +7,7 @@ import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
-import { RefreshCw, Sparkles, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RefreshCw, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 
 interface ProseBlockProps {
   storyId: string
@@ -21,7 +21,7 @@ interface ProseBlockProps {
   onDebugLog?: (logId: string) => void
   onBranchFrom?: (sectionIndex: number) => void
   onEdit?: (fragmentId: string, selectedText?: string) => void
-  onAskLibrarian?: (fragmentId: string) => void
+  onAskLibrarian?: (fragmentId: string, prefill?: string) => void
   quickSwitch: boolean
   mentionsEnabled?: boolean
   mentionColors?: Map<string, string>
@@ -109,7 +109,7 @@ export const ProseBlock = memo(function ProseBlock({
   void isFirst
   void isLast
   const queryClient = useQueryClient()
-  const [actionMode, setActionMode] = useState<'regenerate' | 'refine' | null>(null)
+  const [actionMode, setActionMode] = useState<'regenerate' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
   const [isStreamingAction, setIsStreamingAction] = useState(false)
   const [streamedActionText, setStreamedActionText] = useState('')
@@ -118,7 +118,9 @@ export const ProseBlock = memo(function ProseBlock({
   const [showActions, setShowActions] = useState(false)
   const [actionInput, setActionInput] = useState('')
   const [editingPrompt, setEditingPrompt] = useState(false)
+  const [clickY, setClickY] = useState(0)
   const blockRef = useRef<HTMLDivElement>(null)
+  const actionPanelRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
   const promptInputRef = useRef<HTMLInputElement>(null)
 
@@ -255,7 +257,6 @@ export const ProseBlock = memo(function ProseBlock({
   const handleActionSubmit = async () => {
     if (!actionInput.trim() || isStreamingAction) return
 
-    const mode = actionMode
     setActionMode(null)
     setShowActions(false)
     setIsStreamingAction(true)
@@ -263,9 +264,7 @@ export const ProseBlock = memo(function ProseBlock({
     setActionThoughtSteps([])
 
     try {
-      const stream = mode === 'refine'
-        ? await api.generation.refine(storyId, fragment.id, actionInput)
-        : await api.generation.regenerate(storyId, fragment.id, actionInput)
+      const stream = await api.generation.regenerate(storyId, fragment.id, actionInput)
 
       const reader = stream.getReader()
       let accumulated = ''
@@ -513,8 +512,13 @@ export const ProseBlock = memo(function ProseBlock({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => {
-          if (!isStreamingAction) setShowActions(v => !v)
+        onClick={(e: React.MouseEvent) => {
+          if (isStreamingAction) return
+          if (!showActions && blockRef.current) {
+            const blockRect = blockRef.current.getBoundingClientRect()
+            setClickY(e.clientY - blockRect.top)
+          }
+          setShowActions(v => !v)
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { setShowActions(false); return }
@@ -547,174 +551,117 @@ export const ProseBlock = memo(function ProseBlock({
 
       </div>
 
-      {/* Action panel — sticky to bottom of scroll area, contained to prose column */}
+      {/* Action toolbar — compact pill near click point */}
       {(showActions || actionMode) && !isStreamingAction && (
-        <div className="sticky bottom-4 z-10 flex justify-center py-2 animate-in fade-in slide-in-from-bottom-2 duration-200" data-component-id="prose-block-actions">
-          <div className="flex flex-col items-center rounded-2xl border border-border/50 bg-popover/95 backdrop-blur-md shadow-2xl shadow-black/10 overflow-hidden min-w-0">
-            {/* Info row — ID, prompt (clickable to re-run), variation, debug */}
-            <div className="flex items-center gap-2 px-3 py-1.5 min-w-0 w-full">
-              <span className="text-[0.625rem] font-mono text-muted-foreground shrink-0">{fragment.id}</span>
-              {hasMultiple && (
-                <>
-                  <span className="text-muted-foreground shrink-0">&middot;</span>
-                  <div className="inline-flex items-center gap-0.5 shrink-0">
-                    <button
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                      disabled={!canPrev || switchMutation.isPending}
-                      onClick={() => switchVariation(-1)}
-                      title="Previous variation"
-                    >
-                      <ChevronLeft className="size-3" />
-                    </button>
-                    <span className="text-[0.625rem] font-mono text-muted-foreground">{variationIndex + 1}/{variationCount}</span>
-                    <button
-                      className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                      disabled={!canNext || switchMutation.isPending}
-                      onClick={() => switchVariation(1)}
-                      title="Next variation"
-                    >
-                      <ChevronRight className="size-3" />
-                    </button>
-                  </div>
-                </>
-              )}
-              {(generatedFrom || fragment.description) && (
-                <>
-                  <span className="text-muted-foreground shrink-0">&middot;</span>
+        <div
+          ref={actionPanelRef}
+          className="absolute left-0 right-0 z-10 flex justify-center animate-in fade-in zoom-in-95 duration-150"
+          style={{ top: clickY, transform: 'translateY(-50%)' }}
+          data-component-id="prose-block-actions"
+        >
+          {actionMode ? (
+            /* Regenerate input — inline textarea */
+            <div className="w-full max-w-md rounded-xl border border-border/40 bg-popover/95 backdrop-blur-md shadow-lg shadow-black/[0.06] overflow-hidden">
+              <textarea
+                ref={actionInputRef}
+                value={actionInput}
+                onChange={(e) => setActionInput(e.target.value)}
+                placeholder="New direction..."
+                className="w-full resize-none bg-transparent px-3.5 py-2.5 text-sm placeholder:italic placeholder:text-muted-foreground/60 focus:outline-none"
+                rows={2}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { setActionMode(null); setActionInput('') }
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleActionSubmit() }
+                }}
+              />
+              <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/20">
+                <span className="text-[0.6rem] text-muted-foreground/50 font-mono tracking-wide">
+                  ESC &middot; CTRL+ENTER
+                </span>
+                <div className="flex items-center gap-1">
                   <button
-                    className="text-[0.625rem] text-muted-foreground italic truncate hover:text-primary/70 transition-colors text-left"
-                    onClick={() => {
-                      setActionMode('regenerate')
-                      setActionInput(generatedFrom || fragment.description || '')
-                    }}
-                    title="Click to edit and regenerate"
+                    className="px-2 py-0.5 rounded-md text-[0.6875rem] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => { setActionMode(null); setActionInput('') }}
                   >
-                    {generatedFrom || fragment.description}
+                    Cancel
                   </button>
-                </>
-              )}
-              <div className="ml-auto flex items-center gap-1 shrink-0">
-                {!!fragment.meta?.generatedFrom && onDebugLog && (
                   <button
-                    className="p-1 rounded-lg text-muted-foreground hover:text-primary hover:bg-accent/50 transition-all"
-                    onClick={() => { onDebugLog(fragment.id); setShowActions(false) }}
-                    title="View debug log"
+                    className="px-2.5 py-0.5 rounded-md text-[0.6875rem] font-medium bg-foreground/[0.07] hover:bg-foreground/[0.12] text-foreground disabled:opacity-30 transition-all"
+                    disabled={!actionInput.trim()}
+                    onClick={handleActionSubmit}
                   >
-                    <Bug className="size-3" />
+                    Regenerate
                   </button>
-                )}
-              </div>
-            </div>
-            {/* Separator */}
-            <div className="h-px bg-border/30 w-full" />
-
-            {actionMode ? (
-              /* Inline action input */
-              <div className="px-3 py-2 w-full max-w-lg">
-                <textarea
-                  ref={actionInputRef}
-                  value={actionInput}
-                  onChange={(e) => setActionInput(e.target.value)}
-                  placeholder={actionMode === 'regenerate' ? 'New direction...' : 'How to refine...'}
-                  className="w-full resize-none rounded-lg border border-border/40 bg-transparent px-3 py-2 text-sm placeholder:italic placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary/30"
-                  rows={2}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setActionMode(null)
-                      setActionInput('')
-                    }
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                      e.preventDefault()
-                      handleActionSubmit()
-                    }
-                  }}
-                />
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    Esc to cancel &middot; Ctrl+Enter to {actionMode}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      className="px-2.5 py-1 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all"
-                      onClick={() => { setActionMode(null); setActionInput('') }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="px-2.5 py-1 rounded-lg text-[0.6875rem] font-medium text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-40 transition-all"
-                      disabled={!actionInput.trim()}
-                      onClick={handleActionSubmit}
-                    >
-                      {actionMode === 'regenerate' ? 'Regenerate' : 'Refine'}
-                    </button>
-                  </div>
                 </div>
               </div>
-            ) : (
-              /* Action row */
-              <div className="inline-flex items-center gap-0.5 px-1.5 py-1 overflow-x-auto max-w-[calc(100vw-3rem)]">
+            </div>
+          ) : (
+            /* Two-tier action toolbar */
+            <div className="flex flex-col rounded-xl border border-border/30 bg-popover/95 backdrop-blur-md shadow-lg shadow-black/[0.06] overflow-hidden min-w-0">
+              {/* Top tier — ID, variation, secondary icon actions */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 min-w-0">
                 <button
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { if (onEdit) { onEdit(fragment.id, window.getSelection()?.toString() || undefined); setShowActions(false) } }}
-                  disabled={!onEdit}
-                  data-component-id={`prose-${fragment.id}-edit`}
+                  className="text-[0.625rem] font-mono text-muted-foreground/60 hover:text-foreground transition-colors shrink-0 select-all"
+                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(fragment.id) }}
+                  title="Copy ID"
                 >
-                  <PenLine className="size-3" />
-                  Edit
+                  {fragment.id}
                 </button>
-                <button
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all disabled:opacity-30"
-                  onClick={() => {
-                    setShowActions(false)
-                    handleQuickRegenerate()
-                  }}
-                  disabled={!canQuickRegenerate}
-                  data-component-id={`prose-${fragment.id}-regenerate`}
-                >
-                  <RefreshCw className="size-3" />
-                  Regenerate
-                </button>
-                <button
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { setActionMode('refine'); setActionInput('') }}
-                  data-component-id={`prose-${fragment.id}-refine`}
-                >
-                  <Sparkles className="size-3" />
-                  Refine
-                </button>
-                {onAskLibrarian && (
-                  <button
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                    onClick={() => { onAskLibrarian(fragment.id); setShowActions(false) }}
-                    data-component-id={`prose-${fragment.id}-ask`}
-                  >
-                    <MessageSquare className="size-3" />
-                    Ask
-                  </button>
-                )}
-                {onBranchFrom && sectionIndex >= 0 && (
-                  <button
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                    onClick={() => { onBranchFrom(sectionIndex); setShowActions(false) }}
-                    data-component-id={`prose-${fragment.id}-branch`}
-                  >
-                    <GitBranch className="size-3" />
-                    Split from here
-                  </button>
-                )}
-                <div className="w-px h-4 bg-border/30 mx-0.5" />
-                <button
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-all"
-                  onClick={() => { onSelect(fragment); setShowActions(false) }}
-                >
-                  Details
-                </button>
-                {sectionIndex >= 0 && (
+                {hasMultiple && (
                   <>
-                    <div className="w-px h-4 bg-border/30 mx-0.5" />
+                    <div className="w-px h-3 bg-border/20" />
+                    <div className="inline-flex items-center gap-0 shrink-0">
+                      <button
+                        className="p-0.5 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-all disabled:opacity-25"
+                        disabled={!canPrev || switchMutation.isPending}
+                        onClick={() => switchVariation(-1)}
+                        title="Previous variation"
+                      >
+                        <ChevronLeft className="size-3" />
+                      </button>
+                      <span className="text-[0.5625rem] font-mono text-muted-foreground/50 tabular-nums min-w-[1.5rem] text-center">{variationIndex + 1}/{variationCount}</span>
+                      <button
+                        className="p-0.5 rounded text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-all disabled:opacity-25"
+                        disabled={!canNext || switchMutation.isPending}
+                        onClick={() => switchVariation(1)}
+                        title="Next variation"
+                      >
+                        <ChevronRight className="size-3" />
+                      </button>
+                    </div>
+                  </>
+                )}
+                <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                  {onBranchFrom && sectionIndex >= 0 && (
                     <button
-                      className="inline-flex items-center p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                      className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-all"
+                      onClick={() => { onBranchFrom(sectionIndex); setShowActions(false) }}
+                      title="Split from here"
+                      data-component-id={`prose-${fragment.id}-branch`}
+                    >
+                      <GitBranch className="size-3" />
+                    </button>
+                  )}
+                  <button
+                    className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-all"
+                    onClick={() => { onSelect(fragment); setShowActions(false) }}
+                    title="Details"
+                  >
+                    <Info className="size-3" />
+                  </button>
+                  {!!fragment.meta?.generatedFrom && onDebugLog && (
+                    <button
+                      className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-all"
+                      onClick={() => { onDebugLog(fragment.id); setShowActions(false) }}
+                      title="Debug log"
+                    >
+                      <Bug className="size-3" />
+                    </button>
+                  )}
+                  {sectionIndex >= 0 && (
+                    <button
+                      className="p-1 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-25"
                       disabled={deleteMutation.isPending}
                       onClick={() => {
                         if (window.confirm('Remove this passage? It will be archived.')) {
@@ -722,15 +669,62 @@ export const ProseBlock = memo(function ProseBlock({
                           setShowActions(false)
                         }
                       }}
+                      title="Remove passage"
                       data-component-id={`prose-${fragment.id}-remove`}
                     >
                       <Trash2 className="size-3" />
                     </button>
+                  )}
+                </div>
+              </div>
+              {/* Divider */}
+              <div className="h-px bg-border/15" />
+              {/* Bottom tier — primary actions */}
+              <div className="flex items-center gap-px px-1 py-0.5">
+                <button
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all disabled:opacity-25"
+                  onClick={() => { if (onEdit) { onEdit(fragment.id, window.getSelection()?.toString() || undefined); setShowActions(false) } }}
+                  disabled={!onEdit}
+                  data-component-id={`prose-${fragment.id}-edit`}
+                >
+                  <PenLine className="size-3.5" />
+                  Edit
+                </button>
+                <button
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all disabled:opacity-25"
+                  onClick={() => {
+                    setShowActions(false)
+                    handleQuickRegenerate()
+                  }}
+                  disabled={!canQuickRegenerate}
+                  data-component-id={`prose-${fragment.id}-regenerate`}
+                >
+                  <RefreshCw className="size-3.5" />
+                  Redo
+                </button>
+                {onAskLibrarian && (
+                  <>
+                    <button
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all"
+                      onClick={() => { onAskLibrarian(fragment.id, `refine ${fragment.id}: `); setShowActions(false) }}
+                      data-component-id={`prose-${fragment.id}-refine`}
+                    >
+                      <MessageSquare className="size-3.5" />
+                      Refine
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all"
+                      onClick={() => { onAskLibrarian(fragment.id); setShowActions(false) }}
+                      data-component-id={`prose-${fragment.id}-ask`}
+                    >
+                      <MessageSquare className="size-3.5" />
+                      Ask
+                    </button>
                   </>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

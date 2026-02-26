@@ -31,6 +31,7 @@
     "@tanstack/react-router-devtools": "^1.132.0",
     "@tanstack/react-router-ssr-query": "^1.131.7",
     "@tanstack/react-start": "^1.132.0",
+    "@tanstack/react-virtual": "^3.13.19",
     "@tanstack/router-plugin": "^1.132.0",
     "@tealios/errata-plugin-sdk": "file:packages/errata-plugin-sdk",
     "@tiptap/extension-bubble-menu": "^3.20.0",

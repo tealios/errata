@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment as ReactFragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
@@ -20,7 +21,7 @@ interface ProseChainViewProps {
   onEditProse?: (fragmentId: string, selectedText?: string) => void
   onDebugLog?: (logId: string) => void
   onLaunchWizard?: () => void
-  onAskLibrarian?: (fragmentId: string) => void
+  onAskLibrarian?: (fragmentId: string, prefill?: string) => void
 }
 
 /** Thin hover zone between blocks that reveals a "+ Chapter" insert button */
@@ -316,13 +317,69 @@ export function ProseChainView({
     })
   }, [storyId, queryClient])
 
+  // Stable ref to the Radix scroll-area viewport element
+  const viewportRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      viewportRef.current = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+    }
+  }, [])
+  const getViewport = useCallback(() => viewportRef.current, [])
+
+  // Measure offset from viewport top to the list container (accounts for cover image + padding)
+  const listContainerRef = useRef<HTMLDivElement>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+
+  useEffect(() => {
+    const viewport = getViewport()
+    const container = listContainerRef.current
+    if (!viewport || !container) return
+    const measure = () => {
+      setScrollMargin(container.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [coverImage, getViewport])
+
+  // Whether to use virtualization (skip for short lists)
+  const useVirtual = orderedItems.length > 10
+
+  const virtualizer = useVirtualizer({
+    count: orderedItems.length,
+    getScrollElement: getViewport,
+    estimateSize: (i) => {
+      const item = orderedItems[i]
+      if (!item) return 200
+      return item.type === 'marker' ? 100 : Math.max(120, Math.min(600, (item.content?.length ?? 0) * 0.3 + 80))
+    },
+    overscan: 3,
+    scrollMargin,
+    enabled: useVirtual,
+    onChange: (instance) => {
+      const items = instance.getVirtualItems()
+      if (!items.length) return
+      const viewport = instance.scrollElement
+      if (!viewport) return
+      const center = viewport.scrollTop + viewport.clientHeight / 2
+      for (const item of items) {
+        if (item.start <= center && item.end >= center) {
+          setActiveIndex(item.index)
+          return
+        }
+      }
+      setActiveIndex(items[items.length - 1].index)
+    },
+  })
+
   // Persist scroll position to sessionStorage
   const SCROLL_POS_KEY = `errata:scroll-pos:${storyId}`
   const restoredRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    const viewport = getViewport()
     if (!viewport) return
 
     const handleScroll = () => {
@@ -337,12 +394,12 @@ export function ProseChainView({
       viewport.removeEventListener('scroll', handleScroll)
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [SCROLL_POS_KEY])
+  }, [SCROLL_POS_KEY, getViewport])
 
   // Restore scroll position once fragments are loaded
   useEffect(() => {
     if (restoredRef.current || orderedItems.length === 0) return
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    const viewport = getViewport()
     if (!viewport) return
 
     const saved = sessionStorage.getItem(SCROLL_POS_KEY)
@@ -351,15 +408,17 @@ export function ProseChainView({
       if (!isNaN(pos)) {
         requestAnimationFrame(() => {
           viewport.scrollTop = pos
+          if (useVirtual) virtualizer.measure()
         })
       }
     }
     restoredRef.current = true
-  }, [orderedItems, SCROLL_POS_KEY])
+  }, [orderedItems, SCROLL_POS_KEY, getViewport, useVirtual, virtualizer])
 
-  // Track which prose block is currently visible
+  // Track active index for non-virtualized mode (IntersectionObserver)
   useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (useVirtual) return // virtualizer onChange handles this
+    const viewport = getViewport()
     if (!viewport || orderedItems.length === 0) return
 
     const observer = new IntersectionObserver(
@@ -377,14 +436,18 @@ export function ProseChainView({
     const blocks = viewport.querySelectorAll('[data-prose-index]')
     blocks.forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [orderedItems])
+  }, [orderedItems, useVirtual, getViewport])
 
   const scrollToIndex = useCallback((index: number) => {
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (!viewport) return
-    const el = viewport.querySelector(`[data-prose-index="${index}"]`) as HTMLElement | null
-    el?.scrollIntoView({ behavior: 'instant', block: 'start' })
-  }, [])
+    if (useVirtual) {
+      virtualizer.scrollToIndex(index, { align: 'start' })
+    } else {
+      const viewport = getViewport()
+      if (!viewport) return
+      const el = viewport.querySelector(`[data-prose-index="${index}"]`) as HTMLElement | null
+      el?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    }
+  }, [useVirtual, virtualizer, getViewport])
 
   const branchFromMutation = useMutation({
     mutationFn: async (sectionIndex: number) => {
@@ -420,10 +483,10 @@ export function ProseChainView({
   }, [storyId, onSelectFragment])
 
   const scrollToBottom = useCallback(() => {
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    const viewport = getViewport()
     if (!viewport) return
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
-  }, [])
+  }, [getViewport])
 
   return (
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
@@ -443,44 +506,107 @@ export function ProseChainView({
         <CharacterMentionProvider characters={characterFragments} mediaById={mediaById}>
         <div className="mx-auto py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
           {orderedItems.length > 0 ? (
-            orderedItems.map((fragment, idx) => {
-              const sectionIdx = sectionIndexMap.get(fragment.id) ?? -1
-              const stableKey = sectionIdx >= 0 ? `section-${sectionIdx}` : fragment.id
-              return (
-              <ReactFragment key={stableKey}>
-                {idx === 0 && <InsertChapterDivider storyId={storyId} position={0} />}
-                {fragment.type === 'marker' ? (
-                  <ChapterMarker
-                    storyId={storyId}
-                    fragment={fragment}
-                    displayIndex={idx}
-                    sectionIndex={sectionIndexMap.get(fragment.id) ?? -1}
-                    onSelect={onSelectFragment}
-                    onDelete={handleDeleteSection}
-                  />
-                ) : (
-                  <ProseBlock
-                    storyId={storyId}
-                    fragment={fragment}
-                    displayIndex={idx}
-                    sectionIndex={sectionIndexMap.get(fragment.id) ?? -1}
-                    chainEntry={chainEntryMap.get(fragment.id) ?? null}
-                    isLast={idx === orderedItems.length - 1}
-                    isFirst={idx === 0}
-                    onSelect={onSelectFragment}
-                    onEdit={onEditProse}
-                    onDebugLog={onDebugLog}
-                    onBranchFrom={handleBranchFrom}
-                    onAskLibrarian={onAskLibrarian}
-                    quickSwitch={quickSwitch}
-                    mentionsEnabled={mentionsEnabled}
-                    mentionColors={mentionColors}
-                    onClickMention={handleMentionClick}
-                  />
-                )}
-                <InsertChapterDivider storyId={storyId} position={idx + 1} />
-              </ReactFragment>
-            )})
+            useVirtual ? (
+              /* Virtualized rendering for long stories */
+              <div ref={listContainerRef} style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const fragment = orderedItems[virtualItem.index]
+                  const idx = virtualItem.index
+                  const sectionIdx = sectionIndexMap.get(fragment.id) ?? -1
+                  const stableKey = sectionIdx >= 0 ? `section-${sectionIdx}` : fragment.id
+                  return (
+                    <div
+                      key={stableKey}
+                      data-index={virtualItem.index}
+                      data-prose-index={idx}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
+                      }}
+                    >
+                      {idx === 0 && <InsertChapterDivider storyId={storyId} position={0} />}
+                      {fragment.type === 'marker' ? (
+                        <ChapterMarker
+                          storyId={storyId}
+                          fragment={fragment}
+                          displayIndex={idx}
+                          sectionIndex={sectionIdx}
+                          onSelect={onSelectFragment}
+                          onDelete={handleDeleteSection}
+                        />
+                      ) : (
+                        <ProseBlock
+                          storyId={storyId}
+                          fragment={fragment}
+                          displayIndex={idx}
+                          sectionIndex={sectionIdx}
+                          chainEntry={chainEntryMap.get(fragment.id) ?? null}
+                          isLast={idx === orderedItems.length - 1}
+                          isFirst={idx === 0}
+                          onSelect={onSelectFragment}
+                          onEdit={onEditProse}
+                          onDebugLog={onDebugLog}
+                          onBranchFrom={handleBranchFrom}
+                          onAskLibrarian={onAskLibrarian}
+                          quickSwitch={quickSwitch}
+                          mentionsEnabled={mentionsEnabled}
+                          mentionColors={mentionColors}
+                          onClickMention={handleMentionClick}
+                        />
+                      )}
+                      <InsertChapterDivider storyId={storyId} position={idx + 1} />
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              /* Non-virtualized rendering for short stories (<=10 items) */
+              <div ref={listContainerRef}>
+                {orderedItems.map((fragment, idx) => {
+                  const sectionIdx = sectionIndexMap.get(fragment.id) ?? -1
+                  const stableKey = sectionIdx >= 0 ? `section-${sectionIdx}` : fragment.id
+                  return (
+                    <ReactFragment key={stableKey}>
+                      {idx === 0 && <InsertChapterDivider storyId={storyId} position={0} />}
+                      {fragment.type === 'marker' ? (
+                        <ChapterMarker
+                          storyId={storyId}
+                          fragment={fragment}
+                          displayIndex={idx}
+                          sectionIndex={sectionIdx}
+                          onSelect={onSelectFragment}
+                          onDelete={handleDeleteSection}
+                        />
+                      ) : (
+                        <ProseBlock
+                          storyId={storyId}
+                          fragment={fragment}
+                          displayIndex={idx}
+                          sectionIndex={sectionIdx}
+                          chainEntry={chainEntryMap.get(fragment.id) ?? null}
+                          isLast={idx === orderedItems.length - 1}
+                          isFirst={idx === 0}
+                          onSelect={onSelectFragment}
+                          onEdit={onEditProse}
+                          onDebugLog={onDebugLog}
+                          onBranchFrom={handleBranchFrom}
+                          onAskLibrarian={onAskLibrarian}
+                          quickSwitch={quickSwitch}
+                          mentionsEnabled={mentionsEnabled}
+                          mentionColors={mentionColors}
+                          onClickMention={handleMentionClick}
+                        />
+                      )}
+                      <InsertChapterDivider storyId={storyId} position={idx + 1} />
+                    </ReactFragment>
+                  )
+                })}
+              </div>
+            )
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center" data-component-id="prose-empty-state">
               <p className="font-display text-2xl italic text-muted-foreground mb-2">
