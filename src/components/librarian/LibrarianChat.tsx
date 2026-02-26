@@ -4,7 +4,7 @@ import { api, type ChatEvent } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Send, Trash2, Loader2 } from 'lucide-react'
+import { Send, Loader2 } from 'lucide-react'
 import {
   AssistantMessageView,
   type AssistantMessage,
@@ -13,10 +13,11 @@ import {
 
 interface LibrarianChatProps {
   storyId: string
+  conversationId?: string | null
   initialInput?: string
 }
 
-export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
+export function LibrarianChat({ storyId, conversationId, initialInput }: LibrarianChatProps) {
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -26,6 +27,17 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const initialInputAppliedRef = useRef<string | null>(null)
+  const prevConversationIdRef = useRef<string | null | undefined>(undefined)
+
+  // Reset state when conversationId changes
+  useEffect(() => {
+    if (prevConversationIdRef.current !== conversationId) {
+      prevConversationIdRef.current = conversationId
+      setMessages([])
+      setLoaded(false)
+      setError(null)
+    }
+  }, [conversationId])
 
   // Apply initial input when it changes or when component becomes visible
   useEffect(() => {
@@ -39,10 +51,17 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
     }
   })
 
+  // Query key depends on whether we're in a conversation or legacy chat
+  const historyQueryKey = conversationId
+    ? ['librarian-conversation-history', storyId, conversationId]
+    : ['librarian-chat-history', storyId]
+
   // Load persisted chat history on mount
   const { data: chatHistory } = useQuery({
-    queryKey: ['librarian-chat-history', storyId],
-    queryFn: () => api.librarian.getChatHistory(storyId),
+    queryKey: historyQueryKey,
+    queryFn: () => conversationId
+      ? api.librarian.getConversationHistory(storyId, conversationId)
+      : api.librarian.getChatHistory(storyId),
     staleTime: Infinity,
   })
 
@@ -95,7 +114,9 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
         content: m.content,
       }))
 
-      const stream = await api.librarian.chat(storyId, apiMessages)
+      const stream = conversationId
+        ? await api.librarian.conversationChat(storyId, conversationId, apiMessages)
+        : await api.librarian.chat(storyId, apiMessages)
       const reader = stream.getReader()
 
       let currentAssistant: AssistantMessage = { role: 'assistant', content: '' }
@@ -146,7 +167,11 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
 
       // Invalidate fragment queries so sidebar lists update
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-      await queryClient.invalidateQueries({ queryKey: ['librarian-chat-history', storyId] })
+      await queryClient.invalidateQueries({ queryKey: historyQueryKey })
+      // Also invalidate conversation list so titles/timestamps refresh
+      if (conversationId) {
+        await queryClient.invalidateQueries({ queryKey: ['librarian-conversations', storyId] })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chat failed')
       // Remove the empty assistant message on error
@@ -155,21 +180,7 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
       setIsStreaming(false)
       textareaRef.current?.focus()
     }
-  }, [input, isStreaming, messages, storyId, queryClient])
-
-  const handleClear = useCallback(async () => {
-    setMessages([])
-    setError(null)
-    setInput('')
-    textareaRef.current?.focus()
-    // Clear persisted history
-    try {
-      await api.librarian.clearChatHistory(storyId)
-      await queryClient.invalidateQueries({ queryKey: ['librarian-chat-history', storyId] })
-    } catch {
-      // Ignore errors on clear
-    }
-  }, [storyId, queryClient])
+  }, [input, isStreaming, messages, storyId, conversationId, queryClient, historyQueryKey])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -227,21 +238,6 @@ export function LibrarianChat({ storyId, initialInput }: LibrarianChatProps) {
 
       {/* Input area */}
       <div className="border-t border-border/30 p-3 space-y-2">
-        {messages.length > 0 && !isStreaming && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-[0.625rem] gap-1 text-muted-foreground hover:text-muted-foreground"
-              onClick={handleClear}
-              data-component-id="librarian-chat-clear"
-            >
-              <Trash2 className="size-3" />
-              Clear
-            </Button>
-          </div>
-        )}
-
         <div className="flex gap-2 items-end">
           <Textarea
             ref={textareaRef}

@@ -26,7 +26,6 @@ import {
   ChevronRight,
   Sparkles,
   ArrowUpDown,
-  Layers,
   Archive,
   Keyboard,
   Wrench,
@@ -36,6 +35,7 @@ import {
   Home,
   CircleHelp,
   GitBranch,
+  Radio,
 } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { componentId } from '@/lib/dom-ids'
@@ -49,7 +49,7 @@ export type SidebarSection =
   | 'archive'
   | 'branches'
   | 'context-order'
-  | 'agent-context'
+  | 'agents'
   | 'settings'
   | 'agent-activity'
   | `plugin-${string}`
@@ -230,34 +230,32 @@ export function StorySidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
               <SidebarMenu>
-              {story?.settings.contextOrderMode === 'advanced' && (
-                <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={activeSection === 'agent-context'}
-                      onClick={() => handleToggle('agent-context')}
-                      tooltip="Agents"
-                      data-component-id="sidebar-section-agent-context"
-                    >
-                      <Layers className="size-4" />
-                      <span>Agents</span>
-                      <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activeSection === 'agents'}
+                  onClick={() => handleToggle('agents')}
+                  tooltip="Agents"
+                  data-component-id="sidebar-section-agents"
+                >
+                  <Radio className="size-4" />
+                  <span>Agents</span>
+                  <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={activeSection === 'context-order'}
-                      onClick={() => handleToggle('context-order')}
-                      tooltip="Fragment Order"
-                      data-component-id="sidebar-section-context-order"
-                    >
-                      <ArrowUpDown className="size-4" />
-                      <span>Fragment Order</span>
-                      <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </>
+              {story?.settings.contextOrderMode === 'advanced' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeSection === 'context-order'}
+                    onClick={() => handleToggle('context-order')}
+                    tooltip="Fragment Order"
+                    data-component-id="sidebar-section-context-order"
+                  >
+                    <ArrowUpDown className="size-4" />
+                    <span>Fragment Order</span>
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
 
                 <SidebarMenuItem>

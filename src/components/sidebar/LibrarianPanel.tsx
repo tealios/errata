@@ -1,14 +1,12 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   api,
-  type AgentRunTraceRecord,
-  type ChatEvent,
+  type ConversationMeta,
   type LibrarianAnalysis,
   type LibrarianAnalysisSummary,
   type LibrarianState,
 } from '@/lib/api'
-import { useHelp } from '@/hooks/use-help'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -27,9 +25,8 @@ import {
   Wrench,
   MessageSquare,
   BookOpen,
-  Radio,
-  GitBranch,
-  CircleHelp,
+  Trash2,
+  ArrowLeft,
 } from 'lucide-react'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { LibrarianChat } from '@/components/librarian/LibrarianChat'
@@ -37,10 +34,11 @@ import { LibrarianChat } from '@/components/librarian/LibrarianChat'
 interface LibrarianPanelProps {
   storyId: string
   askFragmentId?: string | null
+  askPrefill?: string | null
   onAskFragmentConsumed?: () => void
 }
 
-type TabValue = 'chat' | 'story' | 'activity'
+type TabValue = 'chat' | 'story'
 
 function tabStorageKey(storyId: string): string {
   return `errata.librarian.activeTab.${storyId}`
@@ -49,27 +47,54 @@ function tabStorageKey(storyId: string): string {
 function readSavedTab(storyId: string): TabValue {
   if (typeof window === 'undefined') return 'chat'
   const saved = window.localStorage.getItem(tabStorageKey(storyId))
-  if (saved === 'story' || saved === 'activity') return saved
+  if (saved === 'story') return saved
   return 'chat'
 }
 
-export function LibrarianPanel({ storyId, askFragmentId, onAskFragmentConsumed }: LibrarianPanelProps) {
+export function LibrarianPanel({ storyId, askFragmentId, askPrefill, onAskFragmentConsumed }: LibrarianPanelProps) {
   const [activeTab, setActiveTab] = useState<TabValue>(() => readSavedTab(storyId))
   const [chatInitialInput, setChatInitialInput] = useState<string>('')
-  const { openHelp } = useHelp()
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const queryClient = useQueryClient()
+
+  // Fetch conversation list
+  const { data: conversations } = useQuery({
+    queryKey: ['librarian-conversations', storyId],
+    queryFn: () => api.librarian.listConversations(storyId),
+  })
+
+  const createConversationMutation = useMutation({
+    mutationFn: (title: string | undefined) => api.librarian.createConversation(storyId, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['librarian-conversations', storyId] })
+    },
+  })
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: (conversationId: string) => api.librarian.deleteConversation(storyId, conversationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['librarian-conversations', storyId] })
+    },
+  })
 
   useEffect(() => {
     setActiveTab(readSavedTab(storyId))
+    setActiveConversationId(null)
   }, [storyId])
 
-  // Handle ask librarian from prose action panel
+  // Handle ask librarian from prose action panel — always create a new conversation
   useEffect(() => {
     if (!askFragmentId) return
     setActiveTab('chat')
-    setChatInitialInput(`@${askFragmentId} `)
+    const prefill = askPrefill ?? `@${askFragmentId} `
+    createConversationMutation.mutate(undefined, {
+      onSuccess: (conversation) => {
+        setActiveConversationId(conversation.id)
+        setChatInitialInput(prefill)
+      },
+    })
     onAskFragmentConsumed?.()
-  }, [askFragmentId, onAskFragmentConsumed])
+  }, [askFragmentId, askPrefill, onAskFragmentConsumed])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -81,26 +106,6 @@ export function LibrarianPanel({ storyId, askFragmentId, onAskFragmentConsumed }
     queryFn: () => api.librarian.getStatus(storyId),
     refetchInterval: 5000,
   })
-
-  const { data: story } = useQuery({
-    queryKey: ['story', storyId],
-    queryFn: () => api.stories.get(storyId),
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: (data: { autoApplyLibrarianSuggestions?: boolean }) =>
-      api.settings.update(storyId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['story', storyId] })
-    },
-  })
-
-  const autoApply = story?.settings.autoApplyLibrarianSuggestions ?? false
-  const toggleAutoApply = useCallback(() => {
-    updateMutation.mutate({ autoApplyLibrarianSuggestions: !autoApply })
-  }, [autoApply, updateMutation])
-
-  const runStatus = status?.runStatus ?? 'idle'
 
   return (
     <Tabs
@@ -120,56 +125,53 @@ export function LibrarianPanel({ storyId, askFragmentId, onAskFragmentConsumed }
             <BookOpen className="size-3" />
             Story
           </TabsTrigger>
-          <TabsTrigger value="activity" className="text-[0.6875rem] gap-1.5 flex-1 px-1" data-component-id="librarian-tab-activity">
-            <Radio className="size-3" />
-            Activity
-          </TabsTrigger>
         </TabsList>
-      </div>
-
-      {/* Status strip — always visible */}
-      <StatusStrip status={status} runStatus={runStatus} />
-
-      {/* Live analysis trace */}
-      {runStatus === 'running' && (
-        <LiveAnalysisTrace storyId={storyId} />
-      )}
-
-      {/* Auto-apply toggle */}
-      <div className="shrink-0 mx-4 mb-1">
-        <div className="flex items-center justify-between h-6 px-2.5 rounded-md bg-muted/40">
-          <div className="flex items-center gap-1">
-            <span className="text-[0.625rem] text-muted-foreground">Auto-apply suggestions</span>
-            <button
-              type="button"
-              onClick={() => openHelp('librarian#auto-suggestions')}
-              className="text-muted-foreground hover:text-primary/60 transition-colors"
-              title="Learn more"
-            >
-              <CircleHelp className="size-2.5" />
-            </button>
-          </div>
-          <button
-            onClick={toggleAutoApply}
-            disabled={updateMutation.isPending}
-            className={`relative shrink-0 h-[14px] w-[26px] rounded-full transition-colors ${
-              autoApply ? 'bg-foreground' : 'bg-muted-foreground/20'
-            }`}
-            aria-label="Toggle auto-apply suggestions"
-            data-component-id="librarian-auto-apply"
-          >
-            <span
-              className={`absolute top-[2px] h-[10px] w-[10px] rounded-full bg-background transition-[left] duration-150 ${
-                autoApply ? 'left-[14px]' : 'left-[2px]'
-              }`}
-            />
-          </button>
-        </div>
       </div>
 
       {/* Tab content */}
       <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
-        <LibrarianChat storyId={storyId} initialInput={chatInitialInput} />
+        {activeConversationId ? (
+          <div className="flex flex-col h-full">
+            {/* Conversation header */}
+            <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 border-b border-border/20">
+              <button
+                onClick={() => { setActiveConversationId(null); setChatInitialInput('') }}
+                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+                title="Back to conversations"
+              >
+                <ArrowLeft className="size-3" />
+              </button>
+              <span className="text-[0.6875rem] text-muted-foreground truncate flex-1">
+                {conversations?.find(c => c.id === activeConversationId)?.title ?? 'Chat'}
+              </span>
+              <button
+                onClick={() => {
+                  deleteConversationMutation.mutate(activeConversationId, {
+                    onSuccess: () => setActiveConversationId(null),
+                  })
+                }}
+                className="text-muted-foreground/50 hover:text-destructive transition-colors p-0.5 rounded"
+                title="Delete conversation"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <LibrarianChat storyId={storyId} conversationId={activeConversationId} initialInput={chatInitialInput} />
+            </div>
+          </div>
+        ) : (
+          <ConversationList
+            conversations={conversations ?? []}
+            onSelect={(id) => { setActiveConversationId(id); setChatInitialInput('') }}
+            onNew={async () => {
+              const conv = await createConversationMutation.mutateAsync(undefined)
+              setActiveConversationId(conv.id)
+              setChatInitialInput('')
+            }}
+            onDelete={(id) => deleteConversationMutation.mutate(id)}
+          />
+        )}
       </TabsContent>
 
       <TabsContent value="story" className="flex-1 min-h-0 mt-0">
@@ -177,93 +179,110 @@ export function LibrarianPanel({ storyId, askFragmentId, onAskFragmentConsumed }
           storyId={storyId}
           status={status}
           onOpenChat={(message) => {
-            setChatInitialInput(message)
-            setActiveTab('chat')
+            createConversationMutation.mutate(undefined, {
+              onSuccess: (conversation) => {
+                setActiveConversationId(conversation.id)
+                setChatInitialInput(message)
+                setActiveTab('chat')
+              },
+            })
           }}
         />
-      </TabsContent>
-
-      <TabsContent value="activity" className="flex-1 min-h-0 mt-0">
-        <ActivityContent storyId={storyId} />
       </TabsContent>
     </Tabs>
   )
 }
 
-// ─── Status Strip ──────────────────────────────────────────
+// ─── Conversation List ────────────────────────────────────
 
-interface StatusStripProps {
-  status: {
-    runStatus?: string
-    pendingFragmentId?: string | null
-    runningFragmentId?: string | null
-    lastError?: string | null
-    lastAnalyzedFragmentId: string | null
-  } | undefined
-  runStatus: string
+interface ConversationListProps {
+  conversations: ConversationMeta[]
+  onSelect: (id: string) => void
+  onNew: () => void
+  onDelete: (id: string) => void
 }
 
-function StatusStrip({ status, runStatus }: StatusStripProps) {
-  const isActive = runStatus === 'running' || runStatus === 'scheduled'
-  const isError = runStatus === 'error'
-
-  const dotColor = runStatus === 'running'
-    ? 'bg-blue-400'
-    : runStatus === 'scheduled'
-      ? 'bg-amber-400'
-      : isError
-        ? 'bg-red-400'
-        : 'bg-emerald-500/50'
-
-  const label = runStatus === 'running'
-    ? 'Analyzing'
-    : runStatus === 'scheduled'
-      ? 'Queued'
-      : isError
-        ? 'Error'
-        : 'Idle'
-
-  const fragmentId = runStatus === 'running'
-    ? status?.runningFragmentId
-    : runStatus === 'scheduled'
-      ? status?.pendingFragmentId
-      : status?.lastAnalyzedFragmentId
+function ConversationList({ conversations, onSelect, onNew, onDelete }: ConversationListProps) {
+  const sorted = useMemo(() =>
+    [...conversations].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [conversations],
+  )
 
   return (
-    <div className="shrink-0 mx-4 mt-2 mb-1">
-      <div className="flex items-center gap-2 h-6 px-2.5 rounded-md bg-muted/40">
-        {/* Animated dot */}
-        <span className="relative flex size-2">
-          {isActive && (
-            <span
-              className={`absolute inset-0 rounded-full ${dotColor} animate-ping`}
-              style={{ animationDuration: '2s' }}
-            />
-          )}
-          <span className={`relative inline-flex size-2 rounded-full ${dotColor}`} />
-        </span>
-
-        <span className="text-[0.625rem] text-muted-foreground tracking-wide">
-          {label}
-        </span>
-
-        {fragmentId && (
-          <>
-            <span className="text-muted-foreground">&middot;</span>
-            <span className="text-[0.625rem] font-mono text-muted-foreground truncate">
-              {fragmentId}
-            </span>
-          </>
-        )}
-
-        {isError && status?.lastError && (
-          <span className="text-[0.625rem] text-red-500/70 truncate ml-auto" title={status.lastError}>
-            {status.lastError.length > 30 ? status.lastError.slice(0, 30) + '\u2026' : status.lastError}
-          </span>
-        )}
+    <div className="flex flex-col h-full">
+      {/* New chat button */}
+      <div className="shrink-0 px-3 py-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-7 text-[0.6875rem] gap-1.5"
+          onClick={onNew}
+        >
+          <Plus className="size-3" />
+          New chat
+        </Button>
       </div>
+
+      {/* Conversation list */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="px-3 pb-3 space-y-1">
+          {sorted.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <MessageSquare className="size-5 text-muted-foreground/30 mb-2" />
+              <p className="text-xs text-muted-foreground italic max-w-[200px]">
+                No conversations yet. Start a new chat to ask the librarian about your story.
+              </p>
+            </div>
+          )}
+
+          {sorted.map((conv) => {
+            const date = new Date(conv.updatedAt)
+            const timeStr = formatRelativeTime(date)
+
+            return (
+              <button
+                key={conv.id}
+                onClick={() => onSelect(conv.id)}
+                className="group w-full text-left rounded-md px-2.5 py-2 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-start gap-2">
+                  <MessageSquare className="size-3 text-muted-foreground/50 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[0.6875rem] text-foreground/80 truncate leading-tight">
+                      {conv.title}
+                    </div>
+                    <div className="text-[0.5625rem] text-muted-foreground/60 mt-0.5">
+                      {timeStr}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-all p-0.5 rounded shrink-0"
+                    title="Delete conversation"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </ScrollArea>
     </div>
   )
+}
+
+function formatRelativeTime(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDays = Math.floor(diffHr / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 // ─── Story Tab ─────────────────────────────────────────────
@@ -451,69 +470,6 @@ function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { s
   )
 }
 
-// ─── Activity Tab ──────────────────────────────────────────
-
-function ActivityContent({ storyId }: LibrarianPanelProps) {
-  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
-
-  const { data: agentRuns } = useQuery({
-    queryKey: ['librarian-agent-runs', storyId],
-    queryFn: () => api.librarian.listAgentRuns(storyId),
-    refetchInterval: 3000,
-  })
-
-  const hasRuns = agentRuns && agentRuns.length > 0
-
-  return (
-    <ScrollArea className="h-full">
-      <div className="px-4 py-3 space-y-1">
-
-        {/* Agent runs */}
-        <section>
-          <SectionLabel icon={<GitBranch className="size-3" />}>Agent Runs</SectionLabel>
-          {hasRuns ? (
-            <div className="space-y-1 mt-1.5">
-              {agentRuns.slice(0, 12).map((run) => {
-                const expanded = expandedRunId === run.rootRunId
-                const runTime = new Date(run.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                const isError = run.status === 'error'
-                return (
-                  <div key={run.rootRunId} className="rounded-md border border-border/25 overflow-hidden">
-                    <button
-                      onClick={() => setExpandedRunId(expanded ? null : run.rootRunId)}
-                      className="w-full flex items-center gap-1.5 px-2.5 py-2 text-[0.6875rem] hover:bg-accent/30 transition-colors"
-                    >
-                      {expanded
-                        ? <ChevronDown className="size-3 text-muted-foreground shrink-0" />
-                        : <ChevronRight className="size-3 text-muted-foreground shrink-0" />
-                      }
-                      <span className="font-mono text-foreground/65 truncate">{run.agentName}</span>
-                      <span className="text-muted-foreground shrink-0">{runTime}</span>
-                      <span className="text-muted-foreground shrink-0">{formatDuration(run.durationMs)}</span>
-                      <span className={`ml-auto text-[0.5625rem] font-mono shrink-0 ${isError ? 'text-red-500/70' : 'text-emerald-500/50'}`}>
-                        {run.status}
-                      </span>
-                    </button>
-                    {expanded && <TraceTree run={run} />}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Radio className="size-5 text-muted-foreground mb-3" />
-              <p className="text-xs text-muted-foreground italic max-w-[220px]">
-                No activity yet. The librarian runs automatically after each generation.
-              </p>
-            </div>
-          )}
-        </section>
-
-      </div>
-    </ScrollArea>
-  )
-}
-
 // ─── Shared Components ─────────────────────────────────────
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
@@ -523,177 +479,6 @@ function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: Re
       <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
         {children}
       </h4>
-    </div>
-  )
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
-}
-
-function TraceTree({ run }: { run: AgentRunTraceRecord }) {
-  const byParent = new Map<string | null, AgentRunTraceRecord['trace']>()
-  for (const entry of run.trace) {
-    const key = entry.parentRunId ?? null
-    const list = byParent.get(key) ?? []
-    list.push(entry)
-    byParent.set(key, list)
-  }
-  for (const [, list] of byParent.entries()) {
-    list.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
-  }
-
-  const roots = byParent.get(null) ?? []
-
-  const renderNode = (node: AgentRunTraceRecord['trace'][number], depth: number) => {
-    const children = byParent.get(node.runId) ?? []
-    return (
-      <div key={node.runId}>
-        <div
-          className="flex items-start gap-1.5 text-[0.625rem] py-0.5"
-          style={{ paddingLeft: `${depth * 12 + 4}px` }}
-        >
-          <span className="text-muted-foreground mt-px">{depth === 0 ? '\u25CF' : '\u2514'}</span>
-          <span className="font-mono text-foreground/70">{node.agentName}</span>
-          <span className="text-muted-foreground">{formatDuration(node.durationMs)}</span>
-          <span className={node.status === 'error' ? 'text-red-500/70' : 'text-emerald-500/50'}>
-            {node.status}
-          </span>
-        </div>
-        {node.error && (
-          <p
-            className="text-[0.5625rem] text-red-500/60 leading-tight"
-            style={{ paddingLeft: `${depth * 12 + 20}px` }}
-          >
-            {node.error}
-          </p>
-        )}
-        {node.output && <TraceNodeOutput output={node.output} depth={depth} />}
-        {children.map((child) => renderNode(child, depth + 1))}
-      </div>
-    )
-  }
-
-  return (
-    <div className="border-t border-border/15 px-1 py-2 bg-muted/15">
-      {run.input && <TraceDataSection label="Input" data={run.input} />}
-      {run.output && <TraceDataSection label="Output" data={run.output} />}
-      {roots.map((root) => renderNode(root, 0))}
-      {run.error && (
-        <p className="text-[0.5625rem] text-red-500/60 px-2 mt-1">{run.error}</p>
-      )}
-    </div>
-  )
-}
-
-function TraceDataSection({ label, data }: { label: string; data: Record<string, unknown> }) {
-  const [expanded, setExpanded] = useState(false)
-  const entries = Object.entries(data)
-  if (entries.length === 0) return null
-
-  // Build a compact summary: show short scalar values inline
-  const previewParts: string[] = []
-  for (const [key, value] of entries) {
-    if (typeof value === 'string' && value.length <= 60) {
-      previewParts.push(`${key}: ${value}`)
-    } else if (typeof value === 'number' || typeof value === 'boolean') {
-      previewParts.push(`${key}: ${String(value)}`)
-    }
-    if (previewParts.length >= 3) break
-  }
-  const preview = previewParts.length > 0 ? previewParts.join(', ') : `${entries.length} fields`
-
-  return (
-    <div className="px-2 py-0.5">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground hover:text-foreground/60 transition-colors"
-      >
-        {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
-        <span className="font-medium">{label}</span>
-        {!expanded && <span className="font-mono truncate max-w-[200px]">{preview}</span>}
-      </button>
-      {expanded && (
-        <pre className="mt-1 text-[0.5625rem] text-muted-foreground leading-relaxed whitespace-pre-wrap break-all px-4 py-1 rounded-md border border-border/15 bg-muted/10">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
-    </div>
-  )
-}
-
-function TraceNodeOutput({ output, depth }: { output: Record<string, unknown>; depth: number }) {
-  const [expanded, setExpanded] = useState(false)
-  const indent = depth * 12 + 20
-
-  const summary = typeof output.summary === 'string' ? output.summary : null
-  const reasoning = typeof output.reasoning === 'string' ? output.reasoning : null
-  const modelId = typeof output.modelId === 'string' ? output.modelId : null
-  const durationMs = typeof output.durationMs === 'number' ? output.durationMs : null
-  const trace = Array.isArray(output.trace) ? output.trace as Array<{ type: string; [key: string]: unknown }> : null
-
-  // Show a compact preview, expandable for full details
-  return (
-    <div style={{ paddingLeft: `${indent}px` }} className="py-0.5">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground hover:text-muted-foreground transition-colors"
-      >
-        {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
-        <span>Output</span>
-        {modelId && (
-          <Badge variant="outline" className="text-[0.5rem] h-3 px-1">{modelId}</Badge>
-        )}
-        {durationMs != null && (
-          <span className="text-muted-foreground">{formatDuration(durationMs)}</span>
-        )}
-      </button>
-      {expanded && (
-        <div className="mt-1 space-y-1.5">
-          {reasoning && (
-            <TraceOutputSection icon={<Brain className="size-3 text-purple-400/60" />} label="Reasoning">
-              <p className="text-[0.5625rem] text-muted-foreground leading-relaxed whitespace-pre-wrap break-words">
-                {reasoning}
-              </p>
-            </TraceOutputSection>
-          )}
-          {summary && (
-            <div className="rounded-md border border-border/15 px-2 py-1.5">
-              <p className="text-[0.625rem] text-foreground/60 leading-relaxed">{summary}</p>
-            </div>
-          )}
-          {trace && trace.length > 0 && (
-            <StoredTraceViewer trace={trace} />
-          )}
-          {/* Fallback: show raw output for unknown shapes */}
-          {!summary && !reasoning && !trace && (
-            <pre className="text-[0.5625rem] text-muted-foreground leading-relaxed whitespace-pre-wrap break-all px-2">
-              {JSON.stringify(output, null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TraceOutputSection({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
-  const [expanded, setExpanded] = useState(false)
-  return (
-    <div className="rounded-md border border-border/15 overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1.5 px-2 py-1 text-[0.625rem] hover:bg-accent/20 transition-colors"
-      >
-        {icon}
-        <span className="text-muted-foreground">{label}</span>
-      </button>
-      {expanded && (
-        <div className="border-t border-border/10 px-2 py-1.5">
-          {children}
-        </div>
-      )}
     </div>
   )
 }
@@ -1085,129 +870,3 @@ function TraceItem({ item }: { item: CollapsedTraceItem }) {
   return null
 }
 
-// ─── Live Analysis Trace ────────────────────────────────────
-
-function LiveAnalysisTrace({ storyId }: { storyId: string }) {
-  const [events, setEvents] = useState<ChatEvent[]>([])
-  const [connected, setConnected] = useState(false)
-  const readerRef = useRef<ReadableStreamDefaultReader<ChatEvent> | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function connect() {
-      try {
-        const stream = await api.librarian.getAnalysisStream(storyId)
-        if (cancelled) return
-        setConnected(true)
-        const reader = stream.getReader()
-        readerRef.current = reader
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done || cancelled) break
-          setEvents((prev) => [...prev, value])
-        }
-      } catch {
-        // Stream ended or error
-      } finally {
-        if (!cancelled) {
-          setConnected(false)
-        }
-      }
-    }
-
-    connect()
-
-    return () => {
-      cancelled = true
-      readerRef.current?.cancel().catch(() => {})
-    }
-  }, [storyId])
-
-  // Collapse live events into display items
-  const items = useMemo(() => {
-    const collapsed: CollapsedTraceItem[] = []
-    let reasoningBuf = ''
-    let textBuf = ''
-
-    for (const ev of events) {
-      if (ev.type === 'reasoning') {
-        if (textBuf) { collapsed.push({ kind: 'text', text: textBuf }); textBuf = '' }
-        reasoningBuf += ev.text
-      } else if (ev.type === 'text') {
-        if (reasoningBuf) { collapsed.push({ kind: 'reasoning', text: reasoningBuf }); reasoningBuf = '' }
-        textBuf += ev.text
-      } else {
-        if (reasoningBuf) { collapsed.push({ kind: 'reasoning', text: reasoningBuf }); reasoningBuf = '' }
-        if (textBuf) { collapsed.push({ kind: 'text', text: textBuf }); textBuf = '' }
-        if (ev.type === 'tool-call') {
-          collapsed.push({ kind: 'tool-call', toolName: ev.toolName, args: ev.args })
-        } else if (ev.type === 'tool-result') {
-          collapsed.push({ kind: 'tool-result', toolName: ev.toolName, result: ev.result })
-        }
-      }
-    }
-    if (reasoningBuf) collapsed.push({ kind: 'reasoning', text: reasoningBuf })
-    if (textBuf) collapsed.push({ kind: 'text', text: textBuf })
-    return collapsed
-  }, [events])
-
-  if (!connected && events.length === 0) return null
-
-  return (
-    <div className="shrink-0 mx-4 mb-1">
-      <div className="rounded-md border border-border/20 bg-muted/20 p-2 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="relative flex size-1.5">
-            {connected && (
-              <span className="absolute inset-0 rounded-full bg-blue-400 animate-ping" style={{ animationDuration: '2s' }} />
-            )}
-            <span className={`relative inline-flex size-1.5 rounded-full ${connected ? 'bg-blue-400' : 'bg-muted-foreground/30'}`} />
-          </span>
-          <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-wider">Live Trace</span>
-        </div>
-        <div className="space-y-0.5 max-h-32 overflow-y-auto">
-          {items.map((item, i) => (
-            <LiveTraceItem key={`${item.kind}-${i}`} item={item} />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LiveTraceItem({ item }: { item: CollapsedTraceItem }) {
-  if (item.kind === 'reasoning') {
-    return (
-      <div className="flex items-start gap-1 px-1">
-        <Brain className="size-2.5 text-purple-400/50 shrink-0 mt-0.5" />
-        <p className="text-[0.5625rem] text-muted-foreground leading-snug truncate">{item.text.slice(0, 120)}{item.text.length > 120 ? '\u2026' : ''}</p>
-      </div>
-    )
-  }
-  if (item.kind === 'text') {
-    return (
-      <div className="px-1">
-        <p className="text-[0.5625rem] text-foreground/40 leading-snug truncate">{item.text.slice(0, 120)}{item.text.length > 120 ? '\u2026' : ''}</p>
-      </div>
-    )
-  }
-  if (item.kind === 'tool-call') {
-    return (
-      <div className="flex items-center gap-1 px-1">
-        <Wrench className="size-2.5 text-blue-400/50 shrink-0" />
-        <Badge variant="outline" className="text-[0.5rem] h-3 px-1">{item.toolName}</Badge>
-      </div>
-    )
-  }
-  if (item.kind === 'tool-result') {
-    return (
-      <div className="flex items-center gap-1 px-1">
-        <Check className="size-2 text-emerald-500/40" />
-        <span className="text-[0.5rem] text-muted-foreground">{item.toolName}</span>
-      </div>
-    )
-  }
-  return null
-}

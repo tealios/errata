@@ -5,7 +5,7 @@ import type { SidebarSection } from './StorySidebar'
 import { getPluginPanel } from '@/lib/plugin-panels'
 import { FragmentList } from '@/components/fragments/FragmentList'
 import { ContextOrderPanel } from '@/components/fragments/ContextOrderPanel'
-import { AgentContextPanel } from '@/components/agents/AgentContextPanel'
+import { AgentsPanel } from '@/components/agents/AgentsPanel'
 import { StoryInfoPanel } from './StoryInfoPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { LibrarianPanel } from './LibrarianPanel'
@@ -43,6 +43,7 @@ interface DetailPanelProps {
     icon?: { type: 'lucide'; name: string } | { type: 'svg'; src: string }
   }>
   askLibrarianFragmentId?: string | null
+  askLibrarianPrefill?: string | null
   onAskLibrarianConsumed?: () => void
 }
 
@@ -55,7 +56,7 @@ const SECTION_TITLES: Record<string, string> = {
   archive: 'Archive',
   branches: 'Timelines',
   'context-order': 'Fragment Order',
-  'agent-context': 'Agents',
+  agents: 'Agents',
   settings: 'Settings',
   'agent-activity': 'Librarian',
 }
@@ -92,6 +93,7 @@ export function DetailPanel({
   onExportProse,
   enabledPanelPlugins,
   askLibrarianFragmentId,
+  askLibrarianPrefill,
   onAskLibrarianConsumed,
 }: DetailPanelProps) {
   const isMobile = useIsMobile()
@@ -161,8 +163,8 @@ export function DetailPanel({
         </ScrollArea>
       )}
 
-      {activeSection === 'agent-context' && (
-        <AgentContextPanel storyId={storyId} />
+      {activeSection === 'agents' && (
+        <AgentsPanel storyId={storyId} />
       )}
 
       {activeSection === 'context-order' && (
@@ -171,7 +173,7 @@ export function DetailPanel({
 
       {librarianActivated.current && (
         <div className={activeSection === 'agent-activity' ? 'h-full overflow-hidden' : 'hidden'}>
-          <LibrarianPanel storyId={storyId} askFragmentId={askLibrarianFragmentId} onAskFragmentConsumed={onAskLibrarianConsumed} />
+          <LibrarianPanel storyId={storyId} askFragmentId={askLibrarianFragmentId} askPrefill={askLibrarianPrefill} onAskFragmentConsumed={onAskLibrarianConsumed} />
         </div>
       )}
 

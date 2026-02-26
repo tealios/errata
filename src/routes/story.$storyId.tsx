@@ -75,6 +75,7 @@ function StoryEditorPage() {
   const [editingProseId, setEditingProseId] = useState<string | null>(null)
   const [editSelectionText, setEditSelectionText] = useState<string | null>(null)
   const [askLibrarianFragmentId, setAskLibrarianFragmentId] = useState<string | null>(null)
+  const [askLibrarianPrefill, setAskLibrarianPrefill] = useState<string | null>(null)
   const [fileDragOver, setFileDragOver] = useState(false)
   const [timelineBarVisible, setTimelineBarVisible] = useTimelineBar()
   const OUTLINE_OPEN_KEY = 'errata:passages-panel-open'
@@ -526,7 +527,8 @@ function StoryEditorPage() {
         onExportProse={handleExportProse}
         enabledPanelPlugins={enabledPanelPlugins}
         askLibrarianFragmentId={askLibrarianFragmentId}
-        onAskLibrarianConsumed={() => setAskLibrarianFragmentId(null)}
+        askLibrarianPrefill={askLibrarianPrefill}
+        onAskLibrarianConsumed={() => { setAskLibrarianFragmentId(null); setAskLibrarianPrefill(null) }}
       />
 
       {/* Main Content */}
@@ -647,9 +649,10 @@ function StoryEditorPage() {
               setShowWizard(true)
               notifyPluginPanelOpen({ panel: 'wizard' }, { storyId })
             }}
-            onAskLibrarian={(fragmentId) => {
+            onAskLibrarian={(fragmentId, prefill) => {
               setActiveSection('agent-activity')
               setAskLibrarianFragmentId(fragmentId)
+              setAskLibrarianPrefill(prefill ?? null)
             }}
           />
         ) : (
