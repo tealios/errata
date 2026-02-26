@@ -40,3 +40,12 @@ export function generateFolderId(): string {
   }
   return `fld-${chars.join('')}`
 }
+
+export function generateConversationId(): string {
+  const chars: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const pool = i % 2 === 0 ? CONSONANTS : VOWELS
+    chars.push(pool[Math.floor(Math.random() * pool.length)])
+  }
+  return `cv-${chars.join('')}`
+}

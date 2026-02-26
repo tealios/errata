@@ -5,6 +5,7 @@ import type {
   LibrarianAnalysis,
   LibrarianAcceptSuggestionResponse,
   ChatHistory,
+  ConversationMeta,
   AgentRunTraceRecord,
 } from './types'
 
@@ -44,4 +45,20 @@ export const librarian = {
     apiFetch<{ ok: boolean }>(`/stories/${storyId}/librarian/chat`, { method: 'DELETE' }),
   getAnalysisStream: (storyId: string) =>
     fetchGetEventStream(`/stories/${storyId}/librarian/analysis-stream`),
+  // Conversations
+  listConversations: (storyId: string) =>
+    apiFetch<ConversationMeta[]>(`/stories/${storyId}/librarian/conversations`),
+  createConversation: (storyId: string, title?: string) =>
+    apiFetch<ConversationMeta>(`/stories/${storyId}/librarian/conversations`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  deleteConversation: (storyId: string, conversationId: string) =>
+    apiFetch<{ ok: boolean }>(`/stories/${storyId}/librarian/conversations/${conversationId}`, {
+      method: 'DELETE',
+    }),
+  getConversationHistory: (storyId: string, conversationId: string) =>
+    apiFetch<ChatHistory>(`/stories/${storyId}/librarian/conversations/${conversationId}/chat`),
+  conversationChat: (storyId: string, conversationId: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    fetchEventStream(`/stories/${storyId}/librarian/conversations/${conversationId}/chat`, { messages }),
 }

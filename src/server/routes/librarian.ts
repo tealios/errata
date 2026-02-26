@@ -15,6 +15,11 @@ import {
   getChatHistory as getLibrarianChatHistory,
   saveChatHistory as saveLibrarianChatHistory,
   clearChatHistory as clearLibrarianChatHistory,
+  listConversations,
+  createConversation,
+  deleteConversation,
+  getConversationHistory,
+  saveConversationHistory,
 } from '../librarian/storage'
 import { applyFragmentSuggestion } from '../librarian/suggestions'
 import { createLogger } from '../logging'
@@ -304,5 +309,79 @@ export function librarianRoutes(dataDir: string) {
         })),
       }),
       detail: { summary: 'Chat with the librarian (streaming NDJSON)' },
+    })
+
+    // --- Conversations ---
+    .get('/stories/:storyId/librarian/conversations', async ({ params }) => {
+      return listConversations(dataDir, params.storyId)
+    }, { detail: { summary: 'List chat conversations' } })
+
+    .post('/stories/:storyId/librarian/conversations', async ({ params, body }) => {
+      return createConversation(dataDir, params.storyId, body.title ?? 'New chat')
+    }, {
+      body: t.Object({ title: t.Optional(t.String()) }),
+      detail: { summary: 'Create a chat conversation' },
+    })
+
+    .delete('/stories/:storyId/librarian/conversations/:conversationId', async ({ params, set }) => {
+      const ok = await deleteConversation(dataDir, params.storyId, params.conversationId)
+      if (!ok) { set.status = 404; return { error: 'Conversation not found' } }
+      return { ok: true }
+    }, { detail: { summary: 'Delete a conversation' } })
+
+    .get('/stories/:storyId/librarian/conversations/:conversationId/chat', async ({ params }) => {
+      return getConversationHistory(dataDir, params.storyId, params.conversationId)
+    }, { detail: { summary: 'Get conversation chat history' } })
+
+    .post('/stories/:storyId/librarian/conversations/:conversationId/chat', async ({ params, body, set }) => {
+      const requestLogger = logger.child({ storyId: params.storyId, extra: { conversationId: params.conversationId } })
+      requestLogger.info('Conversation chat request', { messageCount: body.messages.length })
+
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) { set.status = 404; return { error: 'Story not found' } }
+      if (!body.messages.length) { set.status = 422; return { error: 'At least one message is required' } }
+
+      try {
+        const agent = createAgentInstance('librarian.chat', { dataDir, storyId: params.storyId })
+        const { eventStream, completion } = await agent.execute({
+          messages: body.messages,
+          maxSteps: story.settings.maxSteps ?? 10,
+        })
+
+        completion.then(async (result) => {
+          requestLogger.info('Conversation chat completed', {
+            stepCount: result.stepCount,
+            finishReason: result.finishReason,
+            toolCallCount: result.toolCalls.length,
+          })
+          const fullHistory = [
+            ...body.messages,
+            {
+              role: 'assistant' as const,
+              content: result.text,
+              ...(result.reasoning ? { reasoning: result.reasoning } : {}),
+            },
+          ]
+          await saveConversationHistory(dataDir, params.storyId, params.conversationId, fullHistory)
+        }).catch((err) => {
+          requestLogger.error('Conversation chat completion error', { error: err instanceof Error ? err.message : String(err) })
+        })
+
+        return new Response(encodeStream(eventStream), {
+          headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+        })
+      } catch (err) {
+        requestLogger.error('Conversation chat failed', { error: err instanceof Error ? err.message : String(err) })
+        set.status = 500
+        return { error: err instanceof Error ? err.message : 'Chat failed' }
+      }
+    }, {
+      body: t.Object({
+        messages: t.Array(t.Object({
+          role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+          content: t.String(),
+        })),
+      }),
+      detail: { summary: 'Chat in a conversation (streaming NDJSON)' },
     })
 }

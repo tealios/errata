@@ -195,6 +195,13 @@ export interface ChatHistory {
   updatedAt: string
 }
 
+export interface ConversationMeta {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ProviderConfigSafe {
   id: string
   name: string

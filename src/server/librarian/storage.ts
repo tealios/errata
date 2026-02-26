@@ -1,7 +1,9 @@
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
+import { generateConversationId } from '@/lib/fragment-ids'
+import { writeJsonAtomic } from '../fs-utils'
 
 // --- Types ---
 
@@ -141,12 +143,6 @@ async function analysisIndexPath(dataDir: string, storyId: string): Promise<stri
   return join(dir, 'index.json')
 }
 
-async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
-  const tmpPath = `${path}.tmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-  await writeFile(tmpPath, JSON.stringify(value, null, 2), 'utf-8')
-  await rename(tmpPath, path)
-}
-
 function shouldReplaceIndexEntry(
   previous: LibrarianAnalysisIndexEntry | undefined,
   incoming: { createdAt: string; analysisId: string },
@@ -233,10 +229,9 @@ export async function saveAnalysis(
 ): Promise<void> {
   const dir = await analysesDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
-  await writeFile(
+  await writeJsonAtomic(
     await analysisPath(dataDir, storyId, analysis.id),
-    JSON.stringify(analysis, null, 2),
-    'utf-8',
+    analysis,
   )
 
   const currentIndex = await getAnalysisIndex(dataDir, storyId) ?? defaultAnalysisIndex()
@@ -330,7 +325,7 @@ export async function saveState(
 ): Promise<void> {
   const dir = await librarianDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
-  await writeFile(await statePath(dataDir, storyId), JSON.stringify(state, null, 2), 'utf-8')
+  await writeJsonAtomic(await statePath(dataDir, storyId), state)
 }
 
 // --- Chat history ---
@@ -374,7 +369,7 @@ export async function saveChatHistory(
     messages,
     updatedAt: new Date().toISOString(),
   }
-  await writeFile(await chatHistoryPath(dataDir, storyId), JSON.stringify(history, null, 2), 'utf-8')
+  await writeJsonAtomic(await chatHistoryPath(dataDir, storyId), history)
 }
 
 export async function clearChatHistory(
@@ -383,7 +378,126 @@ export async function clearChatHistory(
 ): Promise<void> {
   const path = await chatHistoryPath(dataDir, storyId)
   if (existsSync(path)) {
-    const { unlink } = await import('node:fs/promises')
     await unlink(path)
+  }
+}
+
+// --- Conversations ---
+
+export interface ConversationMeta {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface ConversationsIndex {
+  conversations: ConversationMeta[]
+}
+
+async function conversationsIndexPath(dataDir: string, storyId: string): Promise<string> {
+  const dir = await librarianDir(dataDir, storyId)
+  return join(dir, 'conversations.json')
+}
+
+function conversationHistoryPath(dir: string, conversationId: string): string {
+  return join(dir, `chat-${conversationId}.json`)
+}
+
+async function readConversationsIndex(dataDir: string, storyId: string): Promise<ConversationsIndex> {
+  const path = await conversationsIndexPath(dataDir, storyId)
+  if (!existsSync(path)) return { conversations: [] }
+  const raw = await readFile(path, 'utf-8')
+  const parsed = JSON.parse(raw) as Partial<ConversationsIndex>
+  return { conversations: parsed.conversations ?? [] }
+}
+
+async function writeConversationsIndex(dataDir: string, storyId: string, index: ConversationsIndex): Promise<void> {
+  const dir = await librarianDir(dataDir, storyId)
+  await mkdir(dir, { recursive: true })
+  await writeJsonAtomic(await conversationsIndexPath(dataDir, storyId), index)
+}
+
+export async function listConversations(dataDir: string, storyId: string): Promise<ConversationMeta[]> {
+  const index = await readConversationsIndex(dataDir, storyId)
+  // Most recently updated first
+  return index.conversations.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export async function createConversation(dataDir: string, storyId: string, title: string): Promise<ConversationMeta> {
+  const index = await readConversationsIndex(dataDir, storyId)
+  const now = new Date().toISOString()
+  const conversation: ConversationMeta = {
+    id: generateConversationId(),
+    title,
+    createdAt: now,
+    updatedAt: now,
+  }
+  index.conversations.push(conversation)
+  await writeConversationsIndex(dataDir, storyId, index)
+  return conversation
+}
+
+export async function updateConversationTitle(
+  dataDir: string,
+  storyId: string,
+  conversationId: string,
+  title: string,
+): Promise<ConversationMeta | null> {
+  const index = await readConversationsIndex(dataDir, storyId)
+  const conv = index.conversations.find(c => c.id === conversationId)
+  if (!conv) return null
+  conv.title = title
+  conv.updatedAt = new Date().toISOString()
+  await writeConversationsIndex(dataDir, storyId, index)
+  return conv
+}
+
+export async function deleteConversation(dataDir: string, storyId: string, conversationId: string): Promise<boolean> {
+  const index = await readConversationsIndex(dataDir, storyId)
+  const idx = index.conversations.findIndex(c => c.id === conversationId)
+  if (idx === -1) return false
+  index.conversations.splice(idx, 1)
+  await writeConversationsIndex(dataDir, storyId, index)
+  // Delete history file
+  const dir = await librarianDir(dataDir, storyId)
+  const historyFile = conversationHistoryPath(dir, conversationId)
+  if (existsSync(historyFile)) await unlink(historyFile)
+  return true
+}
+
+export async function getConversationHistory(
+  dataDir: string,
+  storyId: string,
+  conversationId: string,
+): Promise<ChatHistory> {
+  const dir = await librarianDir(dataDir, storyId)
+  const path = conversationHistoryPath(dir, conversationId)
+  if (!existsSync(path)) return { messages: [], updatedAt: new Date().toISOString() }
+  const raw = await readFile(path, 'utf-8')
+  return JSON.parse(raw) as ChatHistory
+}
+
+export async function saveConversationHistory(
+  dataDir: string,
+  storyId: string,
+  conversationId: string,
+  messages: ChatHistoryMessage[],
+): Promise<void> {
+  const dir = await librarianDir(dataDir, storyId)
+  await mkdir(dir, { recursive: true })
+  const history: ChatHistory = { messages, updatedAt: new Date().toISOString() }
+  await writeJsonAtomic(conversationHistoryPath(dir, conversationId), history)
+  // Update conversation timestamp
+  const index = await readConversationsIndex(dataDir, storyId)
+  const conv = index.conversations.find(c => c.id === conversationId)
+  if (conv) {
+    conv.updatedAt = history.updatedAt
+    // Auto-title from first user message if still default
+    if (conv.title === 'New chat' && messages.length > 0) {
+      const firstUser = messages.find(m => m.role === 'user')
+      if (firstUser) conv.title = firstUser.content.slice(0, 60).trim() || 'New chat'
+    }
+    await writeConversationsIndex(dataDir, storyId, index)
   }
 }
