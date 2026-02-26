@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia'
 import { getStory } from '../fragments/storage'
-import { buildContextState, createDefaultBlocks, compileBlocks } from '../llm/context-builder'
+import { buildContextState, createDefaultBlocks, compileBlocks, expandMessagesFragmentTags } from '../llm/context-builder'
 import { getBlockConfig, saveBlockConfig, addCustomBlock, updateCustomBlock, deleteCustomBlock, updateBlockOverrides } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
@@ -45,7 +45,8 @@ export function blockRoutes(dataDir: string) {
         ...ctxState,
         ...createScriptHelpers(dataDir, params.storyId),
       })
-      const messages = compileBlocks(blocks)
+      let messages = compileBlocks(blocks)
+      messages = await expandMessagesFragmentTags(messages, dataDir, params.storyId)
       const blocksMeta = blocks
         .sort((a, b) => {
           if (a.role !== b.role) return a.role === 'system' ? -1 : 1

@@ -1,6 +1,6 @@
 import type { ToolSet } from 'ai'
 import type { ContextBlock, ContextMessage } from '../llm/context-builder'
-import { compileBlocks } from '../llm/context-builder'
+import { compileBlocks, expandMessagesFragmentTags } from '../llm/context-builder'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
 import { agentBlockRegistry } from './agent-block-registry'
@@ -35,7 +35,8 @@ export async function compileAgentContext(
   blocks = await applyBlockConfig(blocks, config, scriptContext)
 
   // 3. Compile blocks → messages
-  const messages = compileBlocks(blocks)
+  let messages = compileBlocks(blocks)
+  messages = await expandMessagesFragmentTags(messages, dataDir, storyId)
 
   // 4. Filter tools
   const disabledTools = new Set(config.disabledTools ?? [])

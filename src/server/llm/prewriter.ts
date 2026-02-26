@@ -1,7 +1,7 @@
 import { tool, ToolLoopAgent, stepCountIs, type ToolSet } from 'ai'
 import { z } from 'zod/v4'
 import { getModel } from './client'
-import { compileBlocks, type ContextBlock, type ContextMessage } from './context-builder'
+import { compileBlocks, expandMessagesFragmentTags, type ContextBlock, type ContextMessage } from './context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { instructionRegistry } from '../instructions'
 import { registry } from '../fragments/registry'
@@ -159,7 +159,8 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
       : b,
   )
 
-  const prewriterMessages = compileBlocks(prewriterBlocks)
+  let prewriterMessages = compileBlocks(prewriterBlocks)
+  prewriterMessages = await expandMessagesFragmentTags(prewriterMessages, dataDir, storyId)
 
   // Directions collector — captured via closure in the suggestDirections tool
   let capturedDirections: PrewriterDirection[] = []

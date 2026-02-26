@@ -10,7 +10,7 @@ import {
   findSectionIndex,
 } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
-import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints } from '../llm/context-builder'
+import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints, expandMessagesFragmentTags } from '../llm/context-builder'
 import { getBlockConfig } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
@@ -186,6 +186,7 @@ export function generationRoutes(dataDir: string) {
       })
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
       let messages = compileBlocks(blocks)
+      messages = await expandMessagesFragmentTags(messages, dataDir, params.storyId)
       messages = await runBeforeGeneration(enabledPlugins, messages)
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 
@@ -292,7 +293,8 @@ export function generationRoutes(dataDir: string) {
                 // and custom blocks from the prewriter's agent block config
                 const carryOverBlocks = blocks.filter(b => b.source === 'custom' || b.id === 'system-fragments' || b.id.startsWith('gl-'))
                 writerBlocks.push(...carryOverBlocks, ...prewriterResult.customBlocks)
-                const writerCompiled = compileBlocks(writerBlocks)
+                let writerCompiled = compileBlocks(writerBlocks)
+                writerCompiled = await expandMessagesFragmentTags(writerCompiled, dataDir, params.storyId)
                 writerMessages = addCacheBreakpoints(writerCompiled)
                 logMessages = writerCompiled
               } finally {

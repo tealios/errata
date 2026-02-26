@@ -753,6 +753,111 @@ export async function buildContext(
 const ANTHROPIC_CACHE_CONTROL = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 
 /**
+ * Regex for fragment tag references: <@ch-bafego> or <@ch-bafego:short>
+ * Matches valid fragment IDs (2-4 char prefix, hyphen, 6 lowercase alpha chars)
+ * with an optional :short modifier.
+ */
+const FRAGMENT_TAG_RE = /<@([a-z]{2,4}-[a-z]{6})(?::(short))?>/g
+
+export interface ExpandFragmentTagsOptions {
+  /** Maximum recursion depth for expanding tags within expanded content. Default 0 (no recursion). */
+  maxDepth?: number
+}
+
+/**
+ * Expands fragment reference tags in a string.
+ * - `<@ch-bafego>` → full rendered content via registry.renderContext()
+ * - `<@ch-bafego:short>` → `{name}: {description}`
+ * - Unknown fragment → `[unknown fragment: {id}]`
+ *
+ * When maxDepth > 0, expanded content is re-scanned up to maxDepth levels.
+ * Circular references are detected and replaced with `[circular fragment: {id}]`.
+ */
+export async function expandFragmentTags(
+  content: string,
+  dataDir: string,
+  storyId: string,
+  opts?: ExpandFragmentTagsOptions,
+  /** @internal */ _ancestors?: Set<string>,
+): Promise<string> {
+  const maxDepth = opts?.maxDepth ?? 0
+  const ancestors = _ancestors ?? new Set<string>()
+
+  // Collect all matches first to avoid async issues with replace
+  const matches: Array<{ full: string; id: string; modifier?: string }> = []
+  let match: RegExpExecArray | null
+  // Reset lastIndex since we reuse the global regex
+  FRAGMENT_TAG_RE.lastIndex = 0
+  while ((match = FRAGMENT_TAG_RE.exec(content)) !== null) {
+    matches.push({ full: match[0], id: match[1], modifier: match[2] })
+  }
+
+  if (matches.length === 0) return content
+
+  // Deduplicate fragment IDs to minimize reads
+  const uniqueIds = [...new Set(matches.map(m => m.id))]
+  const fragments = new Map<string, Fragment | null>()
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      const fragment = await getFragment(dataDir, storyId, id)
+      fragments.set(id, fragment)
+    }),
+  )
+
+  // Replace all tags
+  let result = content
+  for (const m of matches) {
+    // Detect circular reference
+    if (ancestors.has(m.id)) {
+      result = result.replace(m.full, `[circular fragment: ${m.id}]`)
+      continue
+    }
+
+    const fragment = fragments.get(m.id)
+    let replacement: string
+    if (!fragment) {
+      replacement = `[unknown fragment: ${m.id}]`
+    } else if (m.modifier === 'short') {
+      replacement = `${fragment.name}: ${fragment.description}`
+    } else {
+      replacement = registry.renderContext(fragment)
+      // Recurse into expanded content if depth allows
+      if (maxDepth > 0) {
+        const childAncestors = new Set(ancestors)
+        childAncestors.add(m.id)
+        replacement = await expandFragmentTags(
+          replacement,
+          dataDir,
+          storyId,
+          { maxDepth: maxDepth - 1 },
+          childAncestors,
+        )
+      }
+    }
+    result = result.replace(m.full, replacement)
+  }
+
+  return result
+}
+
+/**
+ * Expands fragment tags in all messages' content.
+ * Convenience wrapper over expandFragmentTags for ContextMessage arrays.
+ */
+export async function expandMessagesFragmentTags(
+  messages: ContextMessage[],
+  dataDir: string,
+  storyId: string,
+): Promise<ContextMessage[]> {
+  return Promise.all(
+    messages.map(async (msg) => ({
+      ...msg,
+      content: await expandFragmentTags(msg.content, dataDir, storyId),
+    })),
+  )
+}
+
+/**
  * Converts flat ContextMessage[] into ModelMessage[] with cache breakpoint hints.
  *
  * - System message: adds providerOptions with Anthropic cache control so the
