@@ -33,6 +33,36 @@ export function resolveProvider(
   return globalConfig?.defaultProviderId ?? null
 }
 
+/** Resolve the inherited temperature for a role by walking the fallback chain, then falling back to the provider-level temperature */
+export function resolveInheritedTemperature(
+  roleKey: string,
+  settings: StoryMeta['settings'],
+  globalConfig: GlobalConfigSafe | null,
+): { value: number; source: string } | null {
+  const overrides = settings.modelOverrides ?? {}
+  const chain = getModelFallbackChain(roleKey)
+
+  // Walk fallback chain (skip self) to find a parent with temperature set
+  for (let i = 1; i < chain.length; i++) {
+    const parentKey = chain[i]
+    const temp = overrides[parentKey]?.temperature
+    if (temp != null) {
+      return { value: temp, source: parentKey }
+    }
+  }
+
+  // Fall back to the resolved provider's temperature
+  const providerId = resolveProvider(roleKey, settings, globalConfig)
+  if (providerId && globalConfig) {
+    const provider = globalConfig.providers.find(p => p.id === providerId)
+    if (provider?.temperature != null) {
+      return { value: provider.temperature, source: provider.name }
+    }
+  }
+
+  return null
+}
+
 /** Get the inherit label for a role's provider dropdown (e.g. "Inherit (Librarian)") */
 export function getInheritLabel(
   roleKey: string,

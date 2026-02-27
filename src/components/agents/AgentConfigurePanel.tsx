@@ -29,10 +29,10 @@ import { BlockContentView } from '@/components/blocks/BlockContentView'
 import { ScriptBlockEditor, FragmentReference } from '@/components/blocks/ScriptBlockEditor'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
 import { ModelSelect } from '@/components/settings/ModelSelect'
-import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
+import { resolveProvider, getInheritLabel, resolveInheritedTemperature } from '@/lib/model-role-helpers'
 import { cn } from '@/lib/utils'
 
-interface AgentContextPanelProps {
+interface AgentConfigurePanelProps {
   storyId: string
 }
 
@@ -145,7 +145,7 @@ function groupAgents(agents: AgentBlockInfo[]): { label: string; agents: AgentBl
   return groups
 }
 
-export function AgentContextPanel({ storyId }: AgentContextPanelProps) {
+export function AgentConfigurePanel({ storyId }: AgentConfigurePanelProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
 
   const { data: agents, isLoading } = useQuery({
@@ -245,7 +245,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showTools, setShowTools] = useState(false)
-  const [showModel, setShowModel] = useState(true)
+  const [showBlocks, setShowBlocks] = useState(true)
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -492,8 +492,8 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
       </div>
 
       <ScrollArea className="flex-1 min-h-0 [&>[data-slot=scroll-area-viewport]>div]:!block">
-        <div className="px-2 py-3 space-y-1">
-          {/* Model selection section */}
+        <div className="px-3 py-3 space-y-3">
+          {/* Model settings — always visible, grouped in a bordered container */}
           {agent && story && (() => {
             const overrideKey = agent.agentName
             const roles = modelRoles ?? []
@@ -502,91 +502,89 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
             const directModelId = overrides[overrideKey]?.modelId ?? null
             const effectiveProviderId = resolveProvider(overrideKey, story.settings, globalConfig ?? null)
             const isGeneration = overrideKey === 'generation'
+            const directTemp = overrides[overrideKey]?.temperature
+            const inherited = directTemp == null
+              ? resolveInheritedTemperature(overrideKey, story.settings, globalConfig ?? null)
+              : null
 
             return (
-              <div className="mb-3">
-                <button
-                  className="flex items-center gap-2 px-1 mb-1.5 w-full"
-                  onClick={() => setShowModel(!showModel)}
-                >
-                  <div className="size-1 rounded-full bg-muted-foreground/50" />
-                  <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
-                    Model
-                  </span>
-                  <div className="flex-1 h-px bg-border/20" />
-                  <ChevronDown className={cn(
-                    'size-3 text-muted-foreground transition-transform duration-150',
-                    showModel && 'rotate-180',
-                  )} />
-                </button>
-
-                {showModel && (
-                  <div className="px-1 py-1.5 space-y-2">
-                    <div>
-                      <label className="text-[0.625rem] text-muted-foreground mb-1 block">Provider</label>
-                      <ProviderSelect
-                        value={directProviderId}
-                        globalConfig={globalConfig ?? null}
-                        onChange={(id) => {
-                          modelOverrideMutation.mutate({
-                            modelOverrides: { ...overrides, [overrideKey]: { providerId: id, modelId: null } },
-                          })
-                        }}
-                        disabled={modelOverrideMutation.isPending}
-                        inheritLabel={isGeneration ? undefined : getInheritLabel(overrideKey, roles, story.settings, globalConfig ?? null)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[0.625rem] text-muted-foreground mb-1 block">Model</label>
-                      <ModelSelect
-                        providerId={effectiveProviderId}
-                        value={directModelId}
-                        onChange={(mid) => {
-                          modelOverrideMutation.mutate({
-                            modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], modelId: mid } },
-                          })
-                        }}
-                        disabled={modelOverrideMutation.isPending}
-                        defaultLabel={isGeneration ? 'Default' : 'Inherit'}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[0.625rem] text-muted-foreground mb-1 block">Temperature</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={2}
-                        step={0.1}
-                        value={overrides[overrideKey]?.temperature ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          const temp = val === '' ? null : parseFloat(val)
-                          modelOverrideMutation.mutate({
-                            modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], temperature: temp } },
-                          })
-                        }}
-                        disabled={modelOverrideMutation.isPending}
-                        placeholder="Default"
-                        title="Temperature (0–2). Leave empty to use provider default."
-                        className="w-full h-[26px] px-1.5 text-[0.6875rem] font-mono bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none placeholder:text-muted-foreground/50"
-                      />
-                    </div>
+              <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <p className="text-[0.75rem] font-medium text-foreground/80 shrink-0">Provider</p>
+                  <div className="min-w-0 flex-1 max-w-[160px]">
+                    <ProviderSelect
+                      value={directProviderId}
+                      globalConfig={globalConfig ?? null}
+                      onChange={(id) => {
+                        modelOverrideMutation.mutate({
+                          modelOverrides: { ...overrides, [overrideKey]: { providerId: id, modelId: null } },
+                        })
+                      }}
+                      disabled={modelOverrideMutation.isPending}
+                      inheritLabel={isGeneration ? undefined : getInheritLabel(overrideKey, roles, story.settings, globalConfig ?? null)}
+                    />
                   </div>
-                )}
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <p className="text-[0.75rem] font-medium text-foreground/80 shrink-0">Model</p>
+                  <div className="min-w-0 flex-1 max-w-[160px]">
+                    <ModelSelect
+                      providerId={effectiveProviderId}
+                      value={directModelId}
+                      onChange={(mid) => {
+                        modelOverrideMutation.mutate({
+                          modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], modelId: mid } },
+                        })
+                      }}
+                      disabled={modelOverrideMutation.isPending}
+                      defaultLabel={isGeneration ? 'Default' : 'Inherit'}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <div className="shrink-0">
+                    <p className="text-[0.75rem] font-medium text-foreground/80">Temp</p>
+                    {inherited && directTemp == null && (
+                      <p className="text-[0.5625rem] text-muted-foreground/60 leading-tight">
+                        {inherited.value} via {inherited.source}
+                      </p>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={directTemp ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const temp = val === '' ? null : parseFloat(val)
+                      modelOverrideMutation.mutate({
+                        modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], temperature: temp } },
+                      })
+                    }}
+                    disabled={modelOverrideMutation.isPending}
+                    placeholder={inherited ? `${inherited.value}` : '—'}
+                    title="Temperature (0–2). Leave empty to inherit."
+                    className="w-[72px] h-[26px] px-1.5 text-[0.6875rem] font-mono text-center bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none placeholder:text-muted-foreground/50"
+                  />
+                </div>
               </div>
             )
           })()}
 
           {/* Tool toggles section */}
           {availableTools.length > 0 && (
-            <div className="mb-3">
+            <div>
               <button
-                className="flex items-center gap-2 px-1 mb-1.5 w-full"
+                className="flex items-center gap-2 px-0.5 mb-1.5 w-full"
                 onClick={() => setShowTools(!showTools)}
               >
-                <div className="size-1 rounded-full bg-muted-foreground/50" />
                 <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
-                  Tools ({availableTools.length - disabledTools.size}/{availableTools.length})
+                  Tools
+                </span>
+                <span className="text-[0.5625rem] text-muted-foreground/50 font-medium">
+                  {availableTools.length - disabledTools.size}/{availableTools.length}
                 </span>
                 <div className="flex-1 h-px bg-border/20" />
                 <ChevronDown className={cn(
@@ -596,13 +594,13 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
               </button>
 
               {showTools && (
-                <div className="px-1 py-1.5 space-y-0.5">
+                <div className="rounded-lg border border-border/30 divide-y divide-border/20">
                   {availableTools.map((toolName) => {
                     const enabled = !disabledTools.has(toolName)
                     return (
                       <div
                         key={toolName}
-                        className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-accent/10 transition-colors"
+                        className="flex items-center gap-2.5 px-3 py-1.5"
                       >
                         <button
                           className={cn(
@@ -629,229 +627,252 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
             </div>
           )}
 
-          {/* Blocks */}
-          {mergedBlocks.map((block, index) => {
-            const isExpanded = expandedId === block.id
-            const isCustom = block.source === 'custom'
-            const isScript = isCustom && block.customDef?.type === 'script'
-            const showRoleLabel = roleTransitions.has(index)
+          {/* Prompt blocks — collapsible */}
+          <div>
+            <button
+              className="flex items-center gap-2 px-0.5 mb-1.5 w-full"
+              onClick={() => setShowBlocks(!showBlocks)}
+            >
+              <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
+                Prompt blocks
+              </span>
+              <span className="text-[0.5625rem] text-muted-foreground/50 font-medium">
+                {mergedBlocks.length}
+              </span>
+              <div className="flex-1 h-px bg-border/20" />
+              <ChevronDown className={cn(
+                'size-3 text-muted-foreground transition-transform duration-150',
+                showBlocks && 'rotate-180',
+              )} />
+            </button>
 
-            return (
-              <div key={block.id}>
-                {showRoleLabel && (
-                  <div className={cn("flex items-center gap-2 px-1", index > 0 && "mt-3 mb-1.5", index === 0 && "mb-1.5")}>
-                    <div className="size-1 rounded-full bg-muted-foreground/50" />
-                    <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
-                      {block.role} messages
-                    </span>
-                    <div className="flex-1 h-px bg-border/20" />
-                  </div>
-                )}
+            {showBlocks && (
+              <div className="space-y-1">
+                {mergedBlocks.map((block, index) => {
+                  const isExpanded = expandedId === block.id
+                  const isCustom = block.source === 'custom'
+                  const isScript = isCustom && block.customDef?.type === 'script'
+                  const showRoleLabel = roleTransitions.has(index)
 
-                <div
-                  className={cn(
-                    "rounded-lg border border-border/30 transition-all duration-200",
-                    !block.enabled && 'opacity-[0.35]',
-                    isExpanded && 'bg-accent/15 border-border/50 shadow-sm',
-                    isCustom && !isExpanded && 'border-dashed',
-                  )}
-                >
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={isExpanded}
-                    draggable
-                    onDragStart={() => handleDragStart(index)}
-                    onDragEnter={() => handleDragEnter(index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    className={cn(
-                      'group flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none transition-all duration-150',
-                      dragIndex === index && 'opacity-40 scale-[0.97]',
-                    )}
-                    onClick={() => setExpandedId(isExpanded ? null : block.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : block.id) } }}
-                  >
-                    <div
-                      role="presentation"
-                      className="shrink-0 cursor-grab opacity-0 group-hover:opacity-50 transition-opacity duration-150 -ml-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <GripVertical className="size-3.5 text-muted-foreground" />
-                    </div>
+                  return (
+                    <div key={block.id}>
+                      {showRoleLabel && (
+                        <div className={cn("flex items-center gap-2 px-1", index > 0 && "mt-3 mb-1.5", index === 0 && "mb-1.5")}>
+                          <div className="size-1 rounded-full bg-muted-foreground/50" />
+                          <span className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium">
+                            {block.role} messages
+                          </span>
+                          <div className="flex-1 h-px bg-border/20" />
+                        </div>
+                      )}
 
-                    {isCustom && (
-                      <div className="shrink-0">
-                        {isScript ? (
-                          <Code2 className="size-3.5 text-amber-500/60" />
-                        ) : (
-                          <FileText className="size-3.5 text-muted-foreground" />
+                      <div
+                        className={cn(
+                          "rounded-lg border border-border/30 transition-all duration-200",
+                          !block.enabled && 'opacity-[0.35]',
+                          isExpanded && 'bg-accent/15 border-border/50 shadow-sm',
+                          isCustom && !isExpanded && 'border-dashed',
+                        )}
+                      >
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          draggable
+                          onDragStart={() => handleDragStart(index)}
+                          onDragEnter={() => handleDragEnter(index)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={cn(
+                            'group flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none transition-all duration-150',
+                            dragIndex === index && 'opacity-40 scale-[0.97]',
+                          )}
+                          onClick={() => setExpandedId(isExpanded ? null : block.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : block.id) } }}
+                        >
+                          <div
+                            role="presentation"
+                            className="shrink-0 cursor-grab opacity-0 group-hover:opacity-50 transition-opacity duration-150 -ml-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <GripVertical className="size-3.5 text-muted-foreground" />
+                          </div>
+
+                          {isCustom && (
+                            <div className="shrink-0">
+                              {isScript ? (
+                                <Code2 className="size-3.5 text-amber-500/60" />
+                              ) : (
+                                <FileText className="size-3.5 text-muted-foreground" />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[0.75rem] font-medium truncate leading-tight">{block.name}</p>
+                            {!isExpanded && block.contentPreview && (
+                              <p className="text-[0.625rem] text-muted-foreground truncate mt-0.5 leading-snug">
+                                {block.contentPreview.slice(0, 80)}
+                              </p>
+                            )}
+                          </div>
+
+                          <Badge
+                            variant="outline"
+                            className="text-[0.5625rem] h-4 px-1.5 shrink-0 font-normal border-transparent text-muted-foreground bg-muted/30"
+                          >
+                            {block.role === 'system' ? 'sys' : 'usr'}
+                          </Badge>
+
+                          <button
+                            className={cn(
+                              'shrink-0 size-[18px] rounded-full border-[1.5px] flex items-center justify-center transition-all duration-200',
+                              block.enabled
+                                ? 'border-emerald-500/80 bg-emerald-500 text-white shadow-[0_0_6px_rgba(16,185,129,0.2)]'
+                                : 'border-muted-foreground/30 bg-transparent hover:border-muted-foreground/50',
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleToggleEnabled(block.id, block.enabled)
+                            }}
+                            title={block.enabled ? 'Disable block' : 'Enable block'}
+                          >
+                            {block.enabled && <Check className="size-2.5" strokeWidth={3} />}
+                          </button>
+
+                          <ChevronDown
+                            className={cn(
+                              'size-3.5 text-muted-foreground shrink-0 transition-transform duration-200',
+                              isExpanded && 'rotate-180',
+                            )}
+                          />
+                        </div>
+
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/20">
+                            {isCustom && block.customDef ? (
+                              <>
+                                <div className="flex items-center gap-2 pt-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'text-[0.625rem] h-5 px-2 font-normal',
+                                      isScript
+                                        ? 'text-amber-500/70 border-amber-500/15 bg-amber-500/5'
+                                        : 'text-muted-foreground bg-muted/20',
+                                    )}
+                                  >
+                                    {isScript ? 'JavaScript' : 'Plain text'}
+                                  </Badge>
+                                </div>
+
+                                {isScript ? (
+                                  <>
+                                    <ScriptBlockEditor
+                                      storyId={storyId}
+                                      blockId={block.id}
+                                      value={block.customDef.content}
+                                      onSave={(val) => {
+                                        updateCustomMutation.mutate({
+                                          blockId: block.id,
+                                          updates: { content: val },
+                                        })
+                                      }}
+                                    />
+                                    <FragmentReference storyId={storyId} />
+                                  </>
+                                ) : (
+                                  <BlurSaveTextarea
+                                    value={block.customDef.content}
+                                    onSave={(val) => {
+                                      updateCustomMutation.mutate({
+                                        blockId: block.id,
+                                        updates: { content: val },
+                                      })
+                                    }}
+                                    className="text-xs min-h-[80px] resize-y border-border/30 focus:border-border/60"
+                                    rows={4}
+                                    placeholder="Block content..."
+                                  />
+                                )}
+
+                                <div className="flex justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs gap-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/5"
+                                    onClick={() => deleteCustomMutation.mutate(block.id)}
+                                  >
+                                    <Trash2 className="size-3" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="pt-2">
+                                  <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-1.5">
+                                    Original Content
+                                  </h4>
+                                  <pre className="whitespace-pre-wrap text-[0.6875rem] text-muted-foreground bg-muted/15 rounded-md p-3 max-h-[120px] overflow-y-auto border border-border/15 leading-relaxed">
+                                    {block.contentPreview}{block.contentPreview.length >= 200 ? '...' : ''}
+                                  </pre>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-1.5">
+                                    Modify
+                                  </h4>
+                                  <div className="flex rounded-lg bg-muted/25 p-[3px] gap-[3px]">
+                                    {CONTENT_MODES.map(({ value: mode, label }) => {
+                                      const isActive = (block.override?.contentMode ?? null) === mode
+                                      return (
+                                        <button
+                                          key={label}
+                                          className={cn(
+                                            'flex-1 px-1 py-[5px] rounded-md text-[0.625rem] font-medium transition-all duration-150',
+                                            isActive
+                                              ? 'bg-background text-foreground shadow-sm'
+                                              : 'text-muted-foreground hover:text-muted-foreground',
+                                          )}
+                                          onClick={() => handleContentModeChange(block.id, mode)}
+                                        >
+                                          {label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+
+                                {block.override?.contentMode && (
+                                  <BlurSaveTextarea
+                                    value={block.override?.customContent ?? ''}
+                                    onSave={(val) => handleCustomContentChange(block.id, val)}
+                                    placeholder={`Content to ${block.override.contentMode}...`}
+                                    className="font-mono text-xs min-h-[60px] resize-y border-border/30 focus:border-border/60 bg-muted/10"
+                                    rows={3}
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[0.75rem] font-medium truncate leading-tight">{block.name}</p>
-                      {!isExpanded && block.contentPreview && (
-                        <p className="text-[0.625rem] text-muted-foreground truncate mt-0.5 leading-snug">
-                          {block.contentPreview.slice(0, 80)}
-                        </p>
-                      )}
                     </div>
+                  )
+                })}
 
-                    <Badge
-                      variant="outline"
-                      className="text-[0.5625rem] h-4 px-1.5 shrink-0 font-normal border-transparent text-muted-foreground bg-muted/30"
-                    >
-                      {block.role === 'system' ? 'sys' : 'usr'}
-                    </Badge>
-
-                    <button
-                      className={cn(
-                        'shrink-0 size-[18px] rounded-full border-[1.5px] flex items-center justify-center transition-all duration-200',
-                        block.enabled
-                          ? 'border-emerald-500/80 bg-emerald-500 text-white shadow-[0_0_6px_rgba(16,185,129,0.2)]'
-                          : 'border-muted-foreground/30 bg-transparent hover:border-muted-foreground/50',
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleToggleEnabled(block.id, block.enabled)
-                      }}
-                      title={block.enabled ? 'Disable block' : 'Enable block'}
-                    >
-                      {block.enabled && <Check className="size-2.5" strokeWidth={3} />}
-                    </button>
-
-                    <ChevronDown
-                      className={cn(
-                        'size-3.5 text-muted-foreground shrink-0 transition-transform duration-200',
-                        isExpanded && 'rotate-180',
-                      )}
-                    />
-                  </div>
-
-                  {isExpanded && (
-                    <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/20">
-                      {isCustom && block.customDef ? (
-                        <>
-                          <div className="flex items-center gap-2 pt-2">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'text-[0.625rem] h-5 px-2 font-normal',
-                                isScript
-                                  ? 'text-amber-500/70 border-amber-500/15 bg-amber-500/5'
-                                  : 'text-muted-foreground bg-muted/20',
-                              )}
-                            >
-                              {isScript ? 'JavaScript' : 'Plain text'}
-                            </Badge>
-                          </div>
-
-                          {isScript ? (
-                            <>
-                              <ScriptBlockEditor
-                                storyId={storyId}
-                                blockId={block.id}
-                                value={block.customDef.content}
-                                onSave={(val) => {
-                                  updateCustomMutation.mutate({
-                                    blockId: block.id,
-                                    updates: { content: val },
-                                  })
-                                }}
-                              />
-                              <FragmentReference storyId={storyId} />
-                            </>
-                          ) : (
-                            <BlurSaveTextarea
-                              value={block.customDef.content}
-                              onSave={(val) => {
-                                updateCustomMutation.mutate({
-                                  blockId: block.id,
-                                  updates: { content: val },
-                                })
-                              }}
-                              className="text-xs min-h-[80px] resize-y border-border/30 focus:border-border/60"
-                              rows={4}
-                              placeholder="Block content..."
-                            />
-                          )}
-
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs gap-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/5"
-                              onClick={() => deleteCustomMutation.mutate(block.id)}
-                            >
-                              <Trash2 className="size-3" />
-                              Delete
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="pt-2">
-                            <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-1.5">
-                              Original Content
-                            </h4>
-                            <pre className="whitespace-pre-wrap text-[0.6875rem] text-muted-foreground bg-muted/15 rounded-md p-3 max-h-[120px] overflow-y-auto border border-border/15 leading-relaxed">
-                              {block.contentPreview}{block.contentPreview.length >= 200 ? '...' : ''}
-                            </pre>
-                          </div>
-
-                          <div>
-                            <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-1.5">
-                              Modify
-                            </h4>
-                            <div className="flex rounded-lg bg-muted/25 p-[3px] gap-[3px]">
-                              {CONTENT_MODES.map(({ value: mode, label }) => {
-                                const isActive = (block.override?.contentMode ?? null) === mode
-                                return (
-                                  <button
-                                    key={label}
-                                    className={cn(
-                                      'flex-1 px-1 py-[5px] rounded-md text-[0.625rem] font-medium transition-all duration-150',
-                                      isActive
-                                        ? 'bg-background text-foreground shadow-sm'
-                                        : 'text-muted-foreground hover:text-muted-foreground',
-                                    )}
-                                    onClick={() => handleContentModeChange(block.id, mode)}
-                                  >
-                                    {label}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-
-                          {block.override?.contentMode && (
-                            <BlurSaveTextarea
-                              value={block.override?.customContent ?? ''}
-                              onSave={(val) => handleCustomContentChange(block.id, val)}
-                              placeholder={`Content to ${block.override.contentMode}...`}
-                              className="font-mono text-xs min-h-[60px] resize-y border-border/30 focus:border-border/60 bg-muted/10"
-                              rows={3}
-                            />
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {/* Add custom block */}
+                <button
+                  className="w-full mt-3 py-3.5 rounded-lg border-2 border-dashed border-border/30 hover:border-primary/30 hover:bg-primary/[0.02] transition-all duration-200 flex items-center justify-center gap-2 text-[0.6875rem] text-muted-foreground hover:text-primary/60 group"
+                  onClick={() => setShowCreateDialog(true)}
+                >
+                  <Plus className="size-3.5 transition-transform duration-200 group-hover:scale-110" />
+                  <span className="font-medium">Add Custom Block</span>
+                </button>
               </div>
-            )
-          })}
-
-          {/* Add custom block */}
-          <button
-            className="w-full mt-3 py-3.5 rounded-lg border-2 border-dashed border-border/30 hover:border-primary/30 hover:bg-primary/[0.02] transition-all duration-200 flex items-center justify-center gap-2 text-[0.6875rem] text-muted-foreground hover:text-primary/60 group"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <Plus className="size-3.5 transition-transform duration-200 group-hover:scale-110" />
-            <span className="font-medium">Add Custom Block</span>
-          </button>
+            )}
+          </div>
         </div>
       </ScrollArea>
 
