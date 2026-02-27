@@ -68,7 +68,7 @@ async function librarianChatInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.chat' })
+  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'librarian.chat' })
   requestLogger.info('Resolved model', { modelId })
 
   // Create write-enabled fragment tools + enabled plugin tools
@@ -163,6 +163,7 @@ async function librarianChatInner(
     instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
     maxSteps: opts.maxSteps ?? 10,
+    temperature,
   })
 
   // Build messages: context as first user message, then conversation history

@@ -13,7 +13,7 @@ export interface StoryMeta {
     enabledPlugins: string[]
     summarizationThreshold?: number
     maxSteps?: number
-    modelOverrides?: Record<string, { providerId?: string | null; modelId?: string | null }>
+    modelOverrides?: Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }>
     // Legacy fields (backward compat)
     providerId?: string | null
     modelId?: string | null
@@ -211,6 +211,7 @@ export interface ProviderConfigSafe {
   defaultModel: string
   enabled: boolean
   customHeaders?: Record<string, string>
+  temperature?: number
   createdAt: string
 }
 

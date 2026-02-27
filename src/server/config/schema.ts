@@ -44,6 +44,7 @@ export const ProviderConfigSchema = z.object({
   defaultModel: z.string().min(1),
   enabled: z.boolean().default(true),
   customHeaders: z.record(z.string(), z.string()).optional().default({}),
+  temperature: z.number().min(0).max(2).optional(),
   createdAt: z.iso.datetime(),
 })
 

@@ -80,6 +80,7 @@ export const StoryMetaSchema = z.object({
       modelOverrides: z.record(z.string(), z.object({
         providerId: z.string().nullable().optional(),
         modelId: z.string().nullable().optional(),
+        temperature: z.number().min(0).max(2).nullable().optional(),
       })).default({}),
       // Legacy per-role fields (read for migration, no longer written)
       providerId: z.string().nullable().optional(),

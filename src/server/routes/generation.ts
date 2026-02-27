@@ -156,7 +156,7 @@ export function generationRoutes(dataDir: string) {
       requestLogger.info('BeforeContext hooks completed')
 
       // Resolve model early so modelId is available for instruction resolution
-      const { model, modelId: resolvedModelId } = await getModel(dataDir, params.storyId)
+      const { model, modelId: resolvedModelId, temperature } = await getModel(dataDir, params.storyId)
       requestLogger.info('Resolved model', { resolvedModelId })
       ctxState.modelId = resolvedModelId
 
@@ -313,6 +313,7 @@ export function generationRoutes(dataDir: string) {
               model,
               tools,
               maxSteps: writerMaxSteps,
+              temperature,
             })
             const result = await writerAgent.stream({
               messages: writerMessages,

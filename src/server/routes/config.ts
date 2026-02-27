@@ -31,6 +31,7 @@ export function configRoutes(dataDir: string) {
         defaultModel: body.defaultModel,
         enabled: true,
         customHeaders: body.customHeaders ?? {},
+        temperature: body.temperature,
         createdAt: new Date().toISOString(),
       })
       const config = await addProvider(dataDir, provider)
@@ -50,6 +51,7 @@ export function configRoutes(dataDir: string) {
         apiKey: t.String(),
         defaultModel: t.String(),
         customHeaders: t.Optional(t.Record(t.String(), t.String())),
+        temperature: t.Optional(t.Number()),
       }),
     })
 
@@ -61,6 +63,7 @@ export function configRoutes(dataDir: string) {
       if (body.defaultModel !== undefined) updates.defaultModel = body.defaultModel
       if (body.enabled !== undefined) updates.enabled = body.enabled
       if (body.customHeaders !== undefined) updates.customHeaders = body.customHeaders
+      if (body.temperature !== undefined) updates.temperature = body.temperature
       const config = await updateProviderConfig(dataDir, params.providerId, updates)
       return {
         ...config,
@@ -78,6 +81,7 @@ export function configRoutes(dataDir: string) {
         defaultModel: t.Optional(t.String()),
         enabled: t.Optional(t.Boolean()),
         customHeaders: t.Optional(t.Record(t.String(), t.String())),
+        temperature: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     })
 

@@ -129,7 +129,7 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
         : ({} as TValidated)
 
       // 3. Resolve model early (modelId needed for instruction resolution)
-      const { model, modelId } = await getModel(dataDir, storyId, { role })
+      const { model, modelId, temperature } = await getModel(dataDir, storyId, { role })
       requestLogger.info('Resolved model', { modelId })
 
       // 4. Build story context (optional)
@@ -186,6 +186,7 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
         tools: compiled.tools,
         maxSteps: maxSteps ?? defaultMaxSteps,
         toolChoice: config.toolChoice,
+        temperature,
       })
 
       // 10. Build messages

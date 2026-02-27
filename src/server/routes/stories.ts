@@ -175,6 +175,7 @@ export function storyRoutes(dataDir: string) {
         modelOverrides: t.Optional(t.Record(t.String(), t.Object({
           providerId: t.Optional(t.Union([t.String(), t.Null()])),
           modelId: t.Optional(t.Union([t.String(), t.Null()])),
+          temperature: t.Optional(t.Union([t.Number(), t.Null()])),
         }))),
         // Legacy fields (backward compat)
         providerId: t.Optional(t.Union([t.String(), t.Null()])),

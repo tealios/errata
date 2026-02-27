@@ -7,7 +7,7 @@ export const settings = {
     outputFormat?: 'plaintext' | 'markdown'
     summarizationThreshold?: number
     maxSteps?: number
-    modelOverrides?: Record<string, { providerId?: string | null; modelId?: string | null }>
+    modelOverrides?: Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }>
     // Legacy fields (backward compat)
     providerId?: string | null
     modelId?: string | null

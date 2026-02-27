@@ -92,13 +92,14 @@ async function compactSummary(
   if (normalized.length <= target) return normalized
 
   try {
-    const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
+    const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
     const agent = new ToolLoopAgent({
       model,
       instructions: instructionRegistry.resolve('librarian.summary-compaction', modelId),
       tools: {},
       toolChoice: 'none' as const,
       stopWhen: stepCountIs(1),
+      temperature,
     })
 
     let compacted = ''
@@ -212,7 +213,7 @@ async function runLibrarianInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId, providerId, config } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
+  const { model, modelId, providerId, config, temperature } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
 
   // Build agent block context
   const blockContext: AgentBlockContext = {
@@ -258,6 +259,7 @@ async function runLibrarianInner(
     instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
     maxSteps: 3,
+    temperature,
   })
 
   let fullText = ''

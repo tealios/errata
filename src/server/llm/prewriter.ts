@@ -109,7 +109,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
   const requestLogger = logger.child({ storyId })
 
   const startTime = Date.now()
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'generation.prewriter' })
+  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'generation.prewriter' })
   requestLogger.info('Prewriter model resolved', { modelId })
 
   // Build the prewriter prompt from blocks (allows user customization via block editor)
@@ -188,6 +188,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
     tools: mergedTools,
     toolChoice: 'auto',
     stopWhen: stepCountIs(maxSteps),
+    temperature,
   })
 
   let fullText = ''

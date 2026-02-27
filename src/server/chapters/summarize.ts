@@ -69,7 +69,7 @@ export async function summarizeChapter(
     proseFragments: proseContent.length,
   })
 
-  const { model, modelId } = await getModel(dataDir, storyId, { role: 'librarian' })
+  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'librarian' })
   requestLogger.info('Resolved model', { modelId })
 
   const agent = new ToolLoopAgent({
@@ -78,6 +78,7 @@ export async function summarizeChapter(
     tools: {},
     toolChoice: 'none' as const,
     stopWhen: stepCountIs(1),
+    temperature,
   })
 
   const startTime = Date.now()

@@ -202,7 +202,7 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     globalConfig={globalConfig}
                     onChange={(id) => {
                       updateMutation.mutate({
-                        modelOverrides: { ...overrides, [role.key]: { providerId: id, modelId: null } },
+                        modelOverrides: { ...overrides, [role.key]: { providerId: id, modelId: null, temperature: null } },
                       })
                     }}
                     disabled={updateMutation.isPending}
@@ -220,6 +220,26 @@ function LLMSection({ story, globalConfig, updateMutation, onManageProviders }: 
                     }}
                     disabled={updateMutation.isPending}
                     defaultLabel={isGeneration ? 'Default' : 'Inherit'}
+                  />
+                </div>
+                <div className="shrink-0 w-16">
+                  <input
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={overrides[role.key]?.temperature ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const temp = val === '' ? null : parseFloat(val)
+                      updateMutation.mutate({
+                        modelOverrides: { ...overrides, [role.key]: { ...overrides[role.key], temperature: temp } },
+                      })
+                    }}
+                    disabled={updateMutation.isPending}
+                    placeholder="Temp"
+                    title="Temperature (0–2). Leave empty to use provider default."
+                    className="w-full h-[26px] px-1.5 text-[0.6875rem] font-mono text-center bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none placeholder:text-muted-foreground/50"
                   />
                 </div>
               </div>

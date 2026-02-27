@@ -6,6 +6,7 @@ export function createToolAgent(args: {
   tools: ToolSet
   maxSteps?: number
   toolChoice?: 'auto' | 'none'
+  temperature?: number
 }): ToolLoopAgent {
   return new ToolLoopAgent({
     model: args.model,
@@ -13,5 +14,6 @@ export function createToolAgent(args: {
     tools: args.tools,
     toolChoice: args.toolChoice ?? 'auto',
     stopWhen: stepCountIs(args.maxSteps ?? 3),
+    temperature: args.temperature,
   })
 }

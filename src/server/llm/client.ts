@@ -4,6 +4,7 @@ import { getStory } from '../fragments/storage'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import type { LanguageModel } from 'ai'
+import { createLogger } from '../logging'
 
 // Normalize old camelCase modelOverrides keys to dot-separated agent names
 const OVERRIDE_KEY_ALIASES: Record<string, string> = {
@@ -16,9 +17,9 @@ const OVERRIDE_KEY_ALIASES: Record<string, string> = {
 
 /** Apply key aliases to a modelOverrides map, returning a normalized copy */
 function normalizeOverrideKeys(
-  overrides: Record<string, { providerId?: string | null; modelId?: string | null }>,
-): Record<string, { providerId?: string | null; modelId?: string | null }> {
-  const result: Record<string, { providerId?: string | null; modelId?: string | null }> = {}
+  overrides: Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }>,
+): Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }> {
+  const result: Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }> = {}
   for (const [key, value] of Object.entries(overrides)) {
     const normalizedKey = OVERRIDE_KEY_ALIASES[key] ?? key
     // Don't overwrite if the new key already exists (new-style key takes priority)
@@ -64,6 +65,7 @@ export interface ResolvedModel {
   model: LanguageModel
   providerId: string | null
   modelId: string
+  temperature?: number
   config: {
     providerName: string | null
     baseURL: string | null
@@ -88,6 +90,7 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
   // 1. Try to resolve from story settings by walking the fallback chain
   let targetProviderId: string | null = null
   let targetModelId: string | null = null
+  let targetTemperature: number | undefined = undefined
 
   if (storyId) {
     const story = await getStory(dataDir, storyId)
@@ -101,6 +104,9 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
         if (override?.providerId) {
           targetProviderId = override.providerId
           targetModelId = override.modelId ?? null
+          if (override.temperature != null) {
+            targetTemperature = override.temperature
+          }
           break
         }
         // Fall back to legacy fields
@@ -110,6 +116,17 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
           if (pid) {
             targetProviderId = pid
             targetModelId = (settings[legacy.modelId] as string | null | undefined) ?? null
+            break
+          }
+        }
+      }
+
+      // If no temperature from the matched role override, check if any role in chain has temperature set
+      if (targetTemperature === undefined) {
+        for (const r of chain) {
+          const override = overrides[r]
+          if (override?.temperature != null) {
+            targetTemperature = override.temperature
             break
           }
         }
@@ -131,16 +148,21 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
     if (provider) {
       const oai = getCachedProvider(provider.id, provider.baseURL, provider.apiKey, provider.name, provider.customHeaders)
       const modelId = targetModelId || provider.defaultModel
-      return {
+      // Story-level temperature takes precedence over provider-level
+      const temperature = targetTemperature ?? provider.temperature
+      const toReturn = {
         model: oai.chatModel(modelId),
         providerId: provider.id,
         modelId,
+        temperature,
         config: {
           providerName: provider.name,
           baseURL: provider.baseURL,
           headers: { ...(provider.customHeaders ?? {}) },
         },
       }
+      createLogger("models").debug('Resolved model', {...toReturn, model: "[hidden]"}) // Don't log the full model object to avoid spam
+      return toReturn
     }
   }
 

@@ -25,9 +25,10 @@ interface FormState {
   apiKey: string
   defaultModel: string
   customHeaders: Array<{ key: string; value: string; _id: string }>
+  temperature: string // stored as string for input; '' means unset
 }
 
-const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-chat', customHeaders: [] }
+const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-chat', customHeaders: [], temperature: '' }
 
 /**
  * Compact provider list for the settings sidebar.
@@ -86,7 +87,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['global-config'] })
 
   const addMutation = useMutation({
-    mutationFn: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string; customHeaders?: Record<string, string> }) =>
+    mutationFn: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string; customHeaders?: Record<string, string>; temperature?: number }) =>
       api.config.addProvider(data),
     onSuccess: () => { invalidate(); closeForm() },
   })
@@ -139,6 +140,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
       apiKey: '',
       defaultModel: provider.defaultModel,
       customHeaders: Object.entries(headers).map(([key, value]) => ({ key, value, _id: crypto.randomUUID() })),
+      temperature: provider.temperature != null ? String(provider.temperature) : '',
     })
     setFetchedModels([])
     setFetchError(null)
@@ -148,7 +150,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   const handlePresetChange = (preset: PresetKey) => {
     if (!form) return
     const p = PRESETS[preset]
-    setForm({ preset, name: p.name || form.name, baseURL: p.baseURL || form.baseURL, apiKey: form.apiKey, defaultModel: p.defaultModel || form.defaultModel, customHeaders: form.customHeaders })
+    setForm({ preset, name: p.name || form.name, baseURL: p.baseURL || form.baseURL, apiKey: form.apiKey, defaultModel: p.defaultModel || form.defaultModel, customHeaders: form.customHeaders, temperature: form.temperature })
     setFetchedModels([])
     setFetchError(null)
   }
@@ -221,8 +223,10 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     for (const h of form.customHeaders) {
       if (h.key.trim()) headersRecord[h.key.trim()] = h.value
     }
+    const parsedTemp = form.temperature !== '' ? parseFloat(form.temperature) : undefined
+    const temperature = parsedTemp != null && !isNaN(parsedTemp) ? parsedTemp : undefined
     if (editingId) {
-      const data: Record<string, unknown> = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord }
+      const data: Record<string, unknown> = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord, temperature: temperature ?? null }
       if (form.apiKey) data.apiKey = form.apiKey
       updateMutation.mutate({ id: editingId, data })
     } else {
@@ -233,6 +237,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
         apiKey: form.apiKey,
         defaultModel: form.defaultModel,
         customHeaders: headersRecord,
+        temperature,
       })
     }
   }
@@ -437,6 +442,35 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
               {fetchedModels.length > 0 && !fetchError && (
                 <p className="text-[0.6875rem] text-muted-foreground mt-1">{fetchedModels.length} models available</p>
               )}
+            </div>
+
+            {/* Temperature */}
+            <div>
+              <label className={labelClass}>Temperature</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={form.temperature}
+                  onChange={(e) => setForm({ ...form, temperature: e.target.value })}
+                  className={inputClass + ' w-32'}
+                  placeholder="Default"
+                />
+                {form.temperature !== '' && (
+                  <button
+                    type="button"
+                    className="text-[0.6875rem] text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setForm({ ...form, temperature: '' })}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <p className="text-[0.6875rem] text-muted-foreground mt-1">
+                Controls randomness (0 = deterministic, 2 = most creative). Leave empty for model default.
+              </p>
             </div>
 
             {/* Actions */}
