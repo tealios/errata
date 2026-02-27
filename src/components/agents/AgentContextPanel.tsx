@@ -245,7 +245,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showTools, setShowTools] = useState(false)
-  const [showModel, setShowModel] = useState(false)
+  const [showModel, setShowModel] = useState(true)
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -548,6 +548,27 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                         }}
                         disabled={modelOverrideMutation.isPending}
                         defaultLabel={isGeneration ? 'Default' : 'Inherit'}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[0.625rem] text-muted-foreground mb-1 block">Temperature</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={2}
+                        step={0.1}
+                        value={overrides[overrideKey]?.temperature ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          const temp = val === '' ? null : parseFloat(val)
+                          modelOverrideMutation.mutate({
+                            modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], temperature: temp } },
+                          })
+                        }}
+                        disabled={modelOverrideMutation.isPending}
+                        placeholder="Default"
+                        title="Temperature (0–2). Leave empty to use provider default."
+                        className="w-full h-[26px] px-1.5 text-[0.6875rem] font-mono bg-background border border-border/40 rounded-md focus:border-foreground/20 focus:outline-none placeholder:text-muted-foreground/50"
                       />
                     </div>
                   </div>

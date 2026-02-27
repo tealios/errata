@@ -9,7 +9,7 @@ interface AgentsPanelProps {
 }
 
 export function AgentsPanel({ storyId }: AgentsPanelProps) {
-  const [tab, setTab] = useState<'activity' | 'context'>('activity')
+  const [tab, setTab] = useState<'activity' | 'context'>('context')
 
   return (
     <Tabs
@@ -19,13 +19,13 @@ export function AgentsPanel({ storyId }: AgentsPanelProps) {
     >
       <div className="shrink-0 px-4 pt-3">
         <TabsList variant="line" className="w-full h-8 gap-0">
-          <TabsTrigger value="activity" className="text-[0.6875rem] gap-1.5 flex-1 px-1">
-            <Radio className="size-3" />
-            Activity
-          </TabsTrigger>
           <TabsTrigger value="context" className="text-[0.6875rem] gap-1.5 flex-1 px-1">
             <Layers className="size-3" />
             Context
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="text-[0.6875rem] gap-1.5 flex-1 px-1">
+            <Radio className="size-3" />
+            Activity
           </TabsTrigger>
         </TabsList>
       </div>
