@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { ChevronsDown, Bookmark } from 'lucide-react'
+import { Bookmark } from 'lucide-react'
 import type { Fragment } from '@/lib/api'
 
 interface ProseOutlinePanelProps {
@@ -11,7 +11,6 @@ interface ProseOutlinePanelProps {
   activeIndex: number
   open: boolean
   onJump: (index: number) => void
-  onScrollToBottom: () => void
 }
 
 export function ProseOutlinePanel({
@@ -20,7 +19,6 @@ export function ProseOutlinePanel({
   activeIndex,
   open,
   onJump,
-  onScrollToBottom,
 }: ProseOutlinePanelProps) {
   const activeRef = useRef<HTMLButtonElement>(null)
   const collapsedActiveRef = useRef<HTMLButtonElement>(null)
@@ -160,22 +158,6 @@ export function ProseOutlinePanel({
               })}
             </div>
 
-            {/* Scroll to bottom */}
-            <div className="shrink-0 px-2 pb-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onScrollToBottom}
-                    data-component-id="prose-outline-scroll-bottom"
-                    className="w-full flex items-center justify-center gap-1.5 rounded-md py-1.5 text-muted-foreground hover:text-muted-foreground hover:bg-accent/40 transition-colors"
-                  >
-                    <ChevronsDown className="size-3.5" />
-                    <span className="text-[0.625rem]">Bottom</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left">Scroll to bottom</TooltipContent>
-              </Tooltip>
-            </div>
           </>
         ) : (
           /* --- Collapsed rail view --- */
@@ -230,21 +212,6 @@ export function ProseOutlinePanel({
               })}
             </div>
 
-            {/* Scroll to bottom */}
-            <div className="shrink-0 flex justify-center pb-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onScrollToBottom}
-                    data-component-id="prose-outline-scroll-bottom"
-                    className="flex items-center justify-center w-7 h-6 rounded-md text-muted-foreground hover:text-muted-foreground hover:bg-accent/40 transition-colors"
-                  >
-                    <ChevronsDown className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left">Scroll to bottom</TooltipContent>
-              </Tooltip>
-            </div>
           </>
         )}
       </div>

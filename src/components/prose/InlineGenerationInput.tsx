@@ -3,7 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { PenLine, ChevronsDown, ArrowRight, Pause, Compass, RefreshCw, Loader2, PenSquare } from 'lucide-react'
+import { PenLine, ArrowRight, Pause, Compass, RefreshCw, Loader2, PenSquare, Type } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SuggestionDirection } from '@/lib/api/types'
 
@@ -14,13 +14,11 @@ export type ThoughtStep =
   | { type: 'tool-result'; id: string; toolName: string; result: unknown }
   | { type: 'phase'; phase: string }
 
-type InputMode = 'freeform' | 'guided'
+type InputMode = 'freeform' | 'guided' | 'compose'
 
 interface InlineGenerationInputProps {
   storyId: string
   isGenerating: boolean
-  followGeneration: boolean
-  onToggleFollowGeneration: () => void
   onGenerationStart: () => void
   onGenerationStream: (text: string) => void
   onGenerationThoughts?: (steps: ThoughtStep[]) => void
@@ -36,8 +34,6 @@ const DEFAULT_SCENE_SETTING_INSTRUCTION = "Continue the story without advancing 
 export function InlineGenerationInput({
   storyId,
   isGenerating,
-  followGeneration,
-  onToggleFollowGeneration,
   onGenerationStart,
   onGenerationStream,
   onGenerationThoughts,
@@ -46,16 +42,20 @@ export function InlineGenerationInput({
 }: InlineGenerationInputProps) {
   const queryClient = useQueryClient()
   const [input, setInput] = useState('')
+  const [composeInput, setComposeInput] = useState('')
+  const [isComposing, setIsComposing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composeTextareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Mode state with localStorage persistence
   const [mode, setMode] = useState<InputMode>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
-      return stored === 'guided' ? 'guided' : 'freeform'
+      if (stored === 'guided' || stored === 'compose') return stored
+      return 'freeform'
     } catch {
       return 'freeform'
     }
@@ -144,13 +144,20 @@ export function InlineGenerationInput({
     },
   })
 
-  // Auto-resize textarea
+  // Auto-resize textareas
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
   }, [input])
+
+  useEffect(() => {
+    const el = composeTextareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 400) + 'px'
+  }, [composeInput])
 
   const prewriterDirectionsRef = useRef<SuggestionDirection[] | null>(null)
 
@@ -262,6 +269,30 @@ export function InlineGenerationInput({
     abortRef.current?.abort()
   }
 
+  const handleCompose = async () => {
+    const content = composeInput.trim()
+    if (!content || isComposing) return
+    setIsComposing(true)
+    setError(null)
+    try {
+      const fragment = await api.fragments.create(storyId, {
+        type: 'prose',
+        name: '',
+        description: '',
+        content,
+        meta: { generationMode: 'manual' },
+      })
+      await api.proseChain.addSection(storyId, fragment.id)
+      await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      setComposeInput('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add section')
+    } finally {
+      setIsComposing(false)
+    }
+  }
+
   const handleFetchSuggestions = async () => {
     setIsFetchingSuggestions(true)
     setSuggestionError(null)
@@ -303,7 +334,7 @@ export function InlineGenerationInput({
       <div
         className={cn(
           'relative rounded-xl border transition-all duration-300',
-          mode === 'freeform' && isFocused
+          (mode === 'freeform' || mode === 'compose') && isFocused
             ? 'border-primary/25 shadow-[0_0_0_1px_var(--primary)/8%,0_2px_12px_-2px_var(--primary)/6%] bg-card/60'
             : 'border-border/30 bg-card/20 hover:border-border/50 hover:bg-card/30',
         )}
@@ -333,6 +364,18 @@ export function InlineGenerationInput({
             )}
           >
             Guided
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeChange('compose')}
+            className={cn(
+              'px-2.5 py-1 text-[0.6875rem] font-sans rounded-md transition-all duration-200',
+              mode === 'compose'
+                ? 'text-foreground/80 bg-muted/60 font-medium'
+                : 'text-muted-foreground hover:text-foreground/60 hover:bg-muted/30',
+            )}
+          >
+            Compose
           </button>
         </div>
 
@@ -488,11 +531,33 @@ export function InlineGenerationInput({
           </div>
         )}
 
+        {/* Compose mode */}
+        {mode === 'compose' && (
+          <textarea
+            ref={composeTextareaRef}
+            value={composeInput}
+            onChange={(e) => setComposeInput(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="Write your prose directly..."
+            rows={3}
+            className="w-full resize-none bg-transparent border-none outline-none px-4 pt-1.5 pb-2 font-prose text-[0.9375rem] leading-relaxed text-foreground placeholder:text-muted-foreground placeholder:italic disabled:opacity-40"
+            style={{ minHeight: '100px', maxHeight: '400px', overflowY: 'auto', scrollbarWidth: 'none' }}
+            disabled={isComposing}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault()
+                handleCompose()
+              }
+            }}
+          />
+        )}
+
         {/* Bottom toolbar */}
         <div className="flex items-center justify-between px-3 pb-2.5 pt-0.5">
-          {/* Left: Model selector + Follow toggle */}
+          {/* Left: Model selector + Follow toggle (hidden in compose mode) */}
           <div className="flex items-center gap-2">
-            {globalConfig && (
+            {mode !== 'compose' && globalConfig && (
               <div className="relative group/model">
                 <select
                   data-component-id="inline-generation-provider-select"
@@ -531,33 +596,11 @@ export function InlineGenerationInput({
                 </select>
               </div>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    'size-6 flex items-center justify-center rounded-md transition-colors duration-150',
-                    followGeneration
-                      ? 'text-foreground/60 bg-muted/50'
-                      : 'text-muted-foreground hover:text-muted-foreground',
-                  )}
-                  onClick={onToggleFollowGeneration}
-                  data-component-id="inline-generation-follow-toggle"
-                >
-                  <ChevronsDown className="size-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {followGeneration
-                  ? 'Auto-scroll on — click to pin scroll position'
-                  : 'Auto-scroll off — click to follow generation'}
-              </TooltipContent>
-            </Tooltip>
           </div>
 
-          {/* Right: Write/Stop button + shortcut hint */}
+          {/* Right: Write/Stop/Add button + shortcut hint */}
           <div className="flex items-center gap-2.5">
-            {mode === 'freeform' && !isGenerating && (
+            {(mode === 'freeform' || mode === 'compose') && !isGenerating && !isComposing && (
               <span className="text-[0.625rem] text-muted-foreground font-sans select-none hidden sm:inline">
                 Ctrl+Enter
               </span>
@@ -583,6 +626,21 @@ export function InlineGenerationInput({
               >
                 <PenLine className="size-3" />
                 Write
+              </Button>
+            ) : mode === 'compose' ? (
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1.5 rounded-lg font-medium"
+                onClick={handleCompose}
+                disabled={!composeInput.trim() || isComposing}
+                data-component-id="inline-generation-compose-submit"
+              >
+                {isComposing ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Type className="size-3" />
+                )}
+                Add Section
               </Button>
             ) : null}
           </div>

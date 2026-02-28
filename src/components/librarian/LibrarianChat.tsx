@@ -83,12 +83,29 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
     }
   }, [chatHistory, loaded, isStreaming])
 
+  const isNearBottomRef = useRef(true)
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
+  // Track whether user is near the bottom of the scroll area
   useEffect(() => {
-    scrollToBottom()
+    const scrollArea = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
+    if (!scrollArea) return
+    const handleScroll = () => {
+      const threshold = 80
+      isNearBottomRef.current = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < threshold
+    }
+    scrollArea.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollArea.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Auto-scroll only when already near the bottom
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      scrollToBottom()
+    }
   }, [messages, scrollToBottom])
 
   const handleSend = useCallback(async () => {

@@ -74,28 +74,29 @@ function StreamingSection({
   lastFragmentContent: string | undefined
   scrollAreaRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const FOLLOW_GENERATION_KEY = 'errata:follow-generation'
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamedText, setStreamedText] = useState('')
   const [thoughtSteps, setThoughtSteps] = useState<ThoughtStep[]>([])
   const [fragmentCountBeforeGeneration, setFragmentCountBeforeGeneration] = useState<number | null>(null)
-  const [followGeneration, setFollowGeneration] = useState(() => {
-    if (typeof window === 'undefined') return true
-    const saved = localStorage.getItem(FOLLOW_GENERATION_KEY)
-    if (saved === '0') return false
-    if (saved === '1') return true
-    return true
-  })
+  const isNearBottomRef = useRef(true)
   const queryClient = useQueryClient()
 
+  // Track whether user is near the bottom of the scroll area
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(FOLLOW_GENERATION_KEY, followGeneration ? '1' : '0')
-  }, [followGeneration])
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!scrollContainer) return
+    const handleScroll = () => {
+      const threshold = 80
+      isNearBottomRef.current = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < threshold
+    }
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [scrollAreaRef])
 
+  // Auto-scroll during generation only when user is near bottom
   const scrollRafRef = useRef(0)
   useEffect(() => {
-    if (followGeneration && isGenerating && (streamedText || thoughtSteps.length > 0) && scrollAreaRef.current) {
+    if (isNearBottomRef.current && isGenerating && (streamedText || thoughtSteps.length > 0) && scrollAreaRef.current) {
       cancelAnimationFrame(scrollRafRef.current)
       scrollRafRef.current = requestAnimationFrame(() => {
         const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
@@ -104,7 +105,7 @@ function StreamingSection({
         }
       })
     }
-  }, [streamedText, thoughtSteps, followGeneration, isGenerating, scrollAreaRef])
+  }, [streamedText, thoughtSteps, isGenerating, scrollAreaRef])
 
   useEffect(() => {
     if (!isGenerating && streamedText && fragmentCountBeforeGeneration !== null) {
@@ -164,8 +165,6 @@ function StreamingSection({
         onGenerationThoughts={setThoughtSteps}
         onGenerationComplete={() => setIsGenerating(false)}
         onGenerationError={() => setIsGenerating(false)}
-        followGeneration={followGeneration}
-        onToggleFollowGeneration={() => setFollowGeneration((value) => !value)}
       />
     </>
   )
@@ -482,12 +481,6 @@ export function ProseChainView({
     })
   }, [storyId, onSelectFragment])
 
-  const scrollToBottom = useCallback(() => {
-    const viewport = getViewport()
-    if (!viewport) return
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
-  }, [getViewport])
-
   return (
     <div className="flex flex-1 min-h-0 relative" data-component-id="prose-chain-root">
       <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0" data-component-id="prose-chain-scroll">
@@ -646,7 +639,6 @@ export function ProseChainView({
             activeIndex={activeIndex}
             open={outlineOpen ?? true}
             onJump={scrollToIndex}
-            onScrollToBottom={scrollToBottom}
           />
         </div>
       )}

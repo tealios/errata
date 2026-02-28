@@ -72,13 +72,28 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
 
   const selectedCharacter = characters.find((c) => c.id === characterId)
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages (only if already near bottom)
+  const isNearBottomRef = useRef(true)
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
+    const scrollArea = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
+    if (!scrollArea) return
+    const handleScroll = () => {
+      const threshold = 80
+      isNearBottomRef.current = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < threshold
+    }
+    scrollArea.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollArea.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      scrollToBottom()
+    }
   }, [messages, scrollToBottom])
 
   // Handle character change — reset conversation
