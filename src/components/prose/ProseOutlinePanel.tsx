@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, ArrowUpDown, GripVertical } from 'lucide-react'
 import type { Fragment } from '@/lib/api'
 
 interface ProseOutlinePanelProps {
@@ -23,6 +23,75 @@ export function ProseOutlinePanel({
   const activeRef = useRef<HTMLButtonElement>(null)
   const collapsedActiveRef = useRef<HTMLButtonElement>(null)
   const queryClient = useQueryClient()
+  const [editMode, setEditMode] = useState(false)
+
+  // Drag state — edits accumulate in editOrder, saved only on exit
+  const dragItem = useRef<number | null>(null)
+  const [editOrder, setEditOrder] = useState<Fragment[] | null>(null)
+  const [dragDisplayOrder, setDragDisplayOrder] = useState<Fragment[] | null>(null)
+
+  const reorderMutation = useMutation({
+    mutationFn: (order: number[]) => api.proseChain.reorder(storyId, order),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+    },
+  })
+
+  const fragmentsRef = useRef(fragments)
+  fragmentsRef.current = fragments
+
+  const editOrderRef = useRef(editOrder)
+  editOrderRef.current = editOrder
+
+  const toggleEditMode = useCallback(() => {
+    const currentOrder = editOrderRef.current
+    if (currentOrder) {
+      // Exiting edit mode — save if order changed
+      const original = fragmentsRef.current
+      const order = currentOrder.map((f) => original.findIndex((o) => o.id === f.id))
+      const changed = order.some((oldIdx, newIdx) => oldIdx !== newIdx)
+      if (changed) {
+        reorderMutation.mutate(order)
+      }
+      setEditOrder(null)
+      setDragDisplayOrder(null)
+      setEditMode(false)
+    } else {
+      // Entering edit mode — snapshot current order
+      const snapshot = [...fragmentsRef.current]
+      editOrderRef.current = snapshot
+      setEditOrder(snapshot)
+      setEditMode(true)
+    }
+  }, [reorderMutation])
+
+  const handleDragStart = useCallback((index: number, e: React.DragEvent) => {
+    dragItem.current = index
+    setDragDisplayOrder(editOrderRef.current ? [...editOrderRef.current] : null)
+    e.dataTransfer.effectAllowed = 'move'
+  }, [])
+
+  const handleDragEnter = useCallback((index: number) => {
+    if (dragItem.current === null || dragItem.current === index) return
+    const fromIndex = dragItem.current
+    dragItem.current = index
+    const update = (prev: Fragment[] | null) => {
+      if (!prev) return prev
+      const reordered = [...prev]
+      const [removed] = reordered.splice(fromIndex, 1)
+      reordered.splice(index, 0, removed)
+      return reordered
+    }
+    setDragDisplayOrder(update)
+    setEditOrder(update)
+    editOrderRef.current = update(editOrderRef.current)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    dragItem.current = null
+    setDragDisplayOrder(null)
+  }, [])
 
   const addChapterMutation = useMutation({
     mutationFn: () =>
@@ -72,25 +141,45 @@ export function ProseOutlinePanel({
               <h3 className="text-[0.625rem] uppercase tracking-[0.15em] text-muted-foreground font-medium">
                 Passages
               </h3>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => addChapterMutation.mutate()}
-                    disabled={addChapterMutation.isPending}
-                    className="flex items-center justify-center size-5 rounded text-amber-500/40 hover:text-amber-400 hover:bg-amber-500/10 transition-colors duration-200"
-                  >
-                    <Bookmark className="size-3" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="text-[0.625rem]">Add chapter</TooltipContent>
-              </Tooltip>
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={toggleEditMode}
+                      className={`flex items-center justify-center size-5 rounded transition-colors duration-200 ${
+                        editMode
+                          ? 'text-primary bg-accent/70'
+                          : 'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/40'
+                      }`}
+                    >
+                      <ArrowUpDown className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="text-[0.625rem]">
+                    {editMode ? 'Exit reorder mode' : 'Reorder sections'}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => addChapterMutation.mutate()}
+                      disabled={addChapterMutation.isPending}
+                      className="flex items-center justify-center size-5 rounded text-amber-500/40 hover:text-amber-400 hover:bg-amber-500/10 transition-colors duration-200"
+                    >
+                      <Bookmark className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="text-[0.625rem]">Add chapter</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
 
             {/* Scrollable list */}
             <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 px-2 pb-2">
-              {fragments.map((fragment, idx) => {
+              {(dragDisplayOrder ?? editOrder ?? fragments).map((fragment, idx) => {
                 const isActive = idx === activeIndex
                 const isMarker = fragment.type === 'marker'
+                const isDragging = editMode && dragItem.current === idx
 
                 if (isMarker) {
                   return (
@@ -98,14 +187,22 @@ export function ProseOutlinePanel({
                       key={fragment.id}
                       ref={isActive ? activeRef : undefined}
                       data-component-id={`prose-outline-chapter-${idx}`}
-                      onClick={() => onJump(idx)}
+                      draggable={editMode}
+                      onDragStart={editMode ? (e) => handleDragStart(idx, e) : undefined}
+                      onDragEnter={editMode ? () => handleDragEnter(idx) : undefined}
+                      onDragEnd={editMode ? handleDragEnd : undefined}
+                      onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+                      onClick={editMode ? undefined : () => onJump(idx)}
                       className={`w-full text-left rounded-md px-2.5 py-2 mt-2 mb-0.5 transition-colors duration-100 group/item ${
                         isActive
                           ? 'bg-amber-500/10'
                           : 'hover:bg-amber-500/5'
-                      }`}
+                      } ${isDragging ? 'opacity-40 scale-[0.97]' : ''} ${editMode ? 'cursor-grab' : ''}`}
                     >
                       <div className="flex items-center gap-1.5">
+                        {editMode && (
+                          <GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
+                        )}
                         <Bookmark className="size-2.5 text-amber-500/50 shrink-0" />
                         <span className={`text-[0.625rem] font-medium tracking-wide truncate ${
                           isActive ? 'text-amber-400/80' : 'text-amber-500/40 group-hover/item:text-amber-400/60'
@@ -125,34 +222,46 @@ export function ProseOutlinePanel({
                     key={fragment.id}
                     ref={isActive ? activeRef : undefined}
                     data-component-id={`prose-outline-item-${idx}`}
-                    onClick={() => onJump(idx)}
+                    draggable={editMode}
+                    onDragStart={editMode ? (e) => handleDragStart(idx, e) : undefined}
+                    onDragEnter={editMode ? () => handleDragEnter(idx) : undefined}
+                    onDragEnd={editMode ? handleDragEnd : undefined}
+                    onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+                    onClick={editMode ? undefined : () => onJump(idx)}
                     className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition-colors duration-100 group/item ${
                       isActive
                         ? 'bg-accent/70'
                         : 'hover:bg-accent/40'
-                    }`}
+                    } ${isDragging ? 'opacity-40 scale-[0.97]' : ''} ${editMode ? 'cursor-grab' : ''}`}
                   >
-                    <span className={`block text-[0.625rem] font-mono mb-0.5 ${
-                      isActive ? 'text-primary/70' : 'text-muted-foreground'
-                    }`}>
-                      {currentProseNumber}
-                    </span>
-                    {fragment.description && (
-                      <span className={`block text-[0.625rem] italic truncate mb-0.5 ${
-                        isActive
-                          ? 'text-muted-foreground'
-                          : 'text-muted-foreground group-hover/item:text-muted-foreground'
-                      }`}>
-                        {fragment.description.slice(0, 50)}{fragment.description.length > 50 ? '...' : ''}
-                      </span>
-                    )}
-                    <span className={`block text-[0.6875rem] leading-snug font-prose ${
-                      isActive
-                        ? 'text-foreground/80'
-                        : 'text-muted-foreground group-hover/item:text-muted-foreground'
-                    }`}>
-                      {preview(fragment.content)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {editMode && (
+                        <GripVertical className="size-3 text-muted-foreground/40 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className={`block text-[0.625rem] font-mono mb-0.5 ${
+                          isActive ? 'text-primary/70' : 'text-muted-foreground'
+                        }`}>
+                          {currentProseNumber}
+                        </span>
+                        {fragment.description && (
+                          <span className={`block text-[0.625rem] italic truncate mb-0.5 ${
+                            isActive
+                              ? 'text-muted-foreground'
+                              : 'text-muted-foreground group-hover/item:text-muted-foreground'
+                          }`}>
+                            {fragment.description.slice(0, 50)}{fragment.description.length > 50 ? '...' : ''}
+                          </span>
+                        )}
+                        <span className={`block text-[0.6875rem] leading-snug font-prose ${
+                          isActive
+                            ? 'text-foreground/80'
+                            : 'text-muted-foreground group-hover/item:text-muted-foreground'
+                        }`}>
+                          {preview(fragment.content)}
+                        </span>
+                      </div>
+                    </div>
                   </button>
                 )
               })}

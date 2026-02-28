@@ -18,4 +18,9 @@ export const proseChain = {
     apiFetch<{ ok: boolean; archivedFragmentIds: string[] }>(`/stories/${storyId}/prose-chain/${sectionIndex}`, {
       method: 'DELETE',
     }),
+  reorder: (storyId: string, order: number[]) =>
+    apiFetch<{ ok: boolean }>(`/stories/${storyId}/prose-chain/reorder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    }),
 }

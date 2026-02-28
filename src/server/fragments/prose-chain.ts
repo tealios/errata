@@ -207,6 +207,39 @@ export async function removeProseSection(
 }
 
 /**
+ * Reorder sections in the prose chain.
+ * Takes an array of indices representing the new order
+ * (e.g. [2, 0, 1] means old index 2 becomes first).
+ */
+export async function reorderProseSections(
+  dataDir: string,
+  storyId: string,
+  newOrder: number[],
+): Promise<void> {
+  const chain = await getProseChain(dataDir, storyId)
+  if (!chain) {
+    throw new Error(`No prose chain found for story ${storyId}`)
+  }
+
+  const len = chain.entries.length
+  if (newOrder.length !== len) {
+    throw new Error(`Order array length ${newOrder.length} does not match chain length ${len}`)
+  }
+
+  // Validate all indices are present exactly once
+  const sorted = [...newOrder].sort((a, b) => a - b)
+  for (let i = 0; i < len; i++) {
+    if (sorted[i] !== i) {
+      throw new Error(`Invalid order array: must contain each index 0..${len - 1} exactly once`)
+    }
+  }
+
+  const oldEntries = chain.entries
+  chain.entries = newOrder.map(i => oldEntries[i])
+  await saveProseChain(dataDir, storyId, chain)
+}
+
+/**
  * Find the section index for a given fragment ID.
  * Returns -1 if not found.
  */

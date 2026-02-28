@@ -11,6 +11,7 @@ import {
   getFullProseChain,
   switchActiveProse,
   removeProseSection,
+  reorderProseSections,
 } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { invokeAgent } from '../agents'
@@ -137,6 +138,27 @@ export function proseChainRoutes(dataDir: string) {
       }
     }, {
       detail: { summary: 'Remove a section and archive its fragments' },
+    })
+
+    .patch('/stories/:storyId/prose-chain/reorder', async ({ params, body, set }) => {
+      const story = await getStory(dataDir, params.storyId)
+      if (!story) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
+
+      try {
+        await reorderProseSections(dataDir, params.storyId, body.order)
+        return { ok: true }
+      } catch (err) {
+        set.status = 400
+        return { error: err instanceof Error ? err.message : 'Failed to reorder prose sections' }
+      }
+    }, {
+      body: t.Object({
+        order: t.Array(t.Number()),
+      }),
+      detail: { summary: 'Reorder prose chain sections' },
     })
 
     // --- Chapters (marker fragments in prose chain) ---
