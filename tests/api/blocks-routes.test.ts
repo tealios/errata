@@ -168,6 +168,9 @@ describe('Block API routes', () => {
     const ids = data.builtinBlocks.map((b: { id: string }) => b.id)
     expect(ids).toContain('instructions')
     expect(ids).toContain('author-input')
+    expect(data.builtinBlocks[0].content).toBeTypeOf('string')
+    expect(data.builtinBlocks[0].content.length).toBeGreaterThan(0)
+    expect(data.builtinBlocks[0].contentPreview).toBe(data.builtinBlocks[0].content.slice(0, 200))
   })
 
   it('GET /blocks returns 404 for missing story', async () => {

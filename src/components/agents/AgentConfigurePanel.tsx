@@ -43,6 +43,7 @@ type MergedBlock = {
   order: number
   source: 'builtin' | 'custom'
   enabled: boolean
+  content: string
   contentPreview: string
   customDef?: CustomBlockDefinition
   override?: BlockOverride
@@ -337,6 +338,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
         order: orderMap.get(b.id) ?? b.order,
         source: 'builtin',
         enabled: override?.enabled !== false,
+        content: b.content,
         contentPreview: b.contentPreview,
         override,
       })
@@ -351,6 +353,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
         order: orderMap.get(cb.id) ?? cb.order,
         source: 'custom',
         enabled: (override?.enabled !== false) && cb.enabled,
+        content: cb.content,
         contentPreview: cb.content.slice(0, 200),
         customDef: cb,
         override,
@@ -374,10 +377,27 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   }, [configMutation])
 
   const handleContentModeChange = useCallback((blockId: string, mode: 'override' | 'prepend' | 'append' | null) => {
+    const block = mergedBlocks.find((item) => item.id === blockId)
+    const existingOverride = block?.override
+    const shouldSeedDefault =
+      mode === 'override'
+      && block?.source === 'builtin'
+      && !existingOverride?.customContent
+    const shouldClearSeededDefault =
+      (mode === 'prepend' || mode === 'append')
+      && block?.source === 'builtin'
+      && existingOverride?.customContent === block.content
+
     configMutation.mutate({
-      overrides: { [blockId]: { contentMode: mode } },
+      overrides: {
+        [blockId]: {
+          contentMode: mode,
+          ...(shouldSeedDefault ? { customContent: block.content } : {}),
+          ...(shouldClearSeededDefault ? { customContent: '' } : {}),
+        },
+      },
     })
-  }, [configMutation])
+  }, [configMutation, mergedBlocks])
 
   const handleCustomContentChange = useCallback((blockId: string, content: string) => {
     configMutation.mutate({
@@ -862,13 +882,13 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                   )
                 })}
 
-                {/* Add custom block */}
+                {/* Add Context Block */}
                 <button
                   className="w-full mt-3 py-3.5 rounded-lg border-2 border-dashed border-border/30 hover:border-primary/30 hover:bg-primary/[0.02] transition-all duration-200 flex items-center justify-center gap-2 text-[0.6875rem] text-muted-foreground hover:text-primary/60 group"
                   onClick={() => setShowCreateDialog(true)}
                 >
                   <Plus className="size-3.5 transition-transform duration-200 group-hover:scale-110" />
-                  <span className="font-medium">Add Custom Block</span>
+                  <span className="font-medium">Add Context Block</span>
                 </button>
               </div>
             )}

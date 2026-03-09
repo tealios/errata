@@ -66,6 +66,7 @@ export function agentBlockRoutes(dataDir: string) {
         role: b.role,
         order: b.order,
         source: b.source,
+        content: b.content,
         contentPreview: b.content.slice(0, 200),
       }))
 

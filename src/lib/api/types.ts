@@ -307,6 +307,7 @@ export interface BuiltinBlockMeta {
   role: 'system' | 'user'
   order: number
   source: string
+  content: string
   contentPreview: string
 }
 
