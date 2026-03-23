@@ -49,6 +49,7 @@ export type SidebarSection =
   | 'archive'
   | 'branches'
   | 'context-order'
+  | 'blocks'
   | 'agents'
   | 'settings'
   | 'agent-activity'
@@ -253,6 +254,21 @@ export function StorySidebar({
                   >
                     <ArrowUpDown className="size-4" />
                     <span>Fragment Order</span>
+                    <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
+              {story?.settings.contextOrderMode === 'advanced' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeSection === 'blocks'}
+                    onClick={() => handleToggle('blocks')}
+                    tooltip="Block Editor"
+                    data-component-id="sidebar-section-blocks"
+                  >
+                    <Wrench className="size-4" />
+                    <span>Block Editor</span>
                     <ChevronRight className="ml-auto size-3.5 text-muted-foreground" />
                   </SidebarMenuButton>
                 </SidebarMenuItem>

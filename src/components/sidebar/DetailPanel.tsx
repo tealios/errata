@@ -9,6 +9,7 @@ import { AgentsPanel } from '@/components/agents/AgentsPanel'
 import { StoryInfoPanel } from './StoryInfoPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { LibrarianPanel } from './LibrarianPanel'
+import { BlockEditorPanel } from '@/components/blocks/BlockEditorPanel'
 import { ArchivePanel } from './ArchivePanel'
 import { TimelineManagerPanel } from './TimelineManagerPanel'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,7 @@ const SECTION_TITLES: Record<string, string> = {
   archive: 'Archive',
   branches: 'Timelines',
   'context-order': 'Fragment Order',
+  blocks: 'Block Editor',
   agents: 'Agents',
   settings: 'Settings',
   'agent-activity': 'Librarian',
@@ -165,6 +167,10 @@ export function DetailPanel({
 
       {activeSection === 'agents' && (
         <AgentsPanel storyId={storyId} />
+      )}
+
+      {activeSection === 'blocks' && (
+        <BlockEditorPanel storyId={storyId} />
       )}
 
       {activeSection === 'context-order' && (
