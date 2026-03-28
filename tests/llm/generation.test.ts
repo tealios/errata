@@ -73,6 +73,13 @@ function extractText(content: string | Array<{ type: string; text: string }>): s
   return content.map(p => p.text).join('')
 }
 
+function extractMessageText(messages: Array<{ role: string; content: string | Array<{ type: string; text: string }> }>, role: string): string {
+  return messages
+    .filter(message => message.role === role)
+    .map(message => extractText(message.content))
+    .join('\n\n')
+}
+
 function createMockStreamResult(text: string) {
   // Create a minimal mock that mimics the streamText result
   const encoder = new TextEncoder()
@@ -175,6 +182,78 @@ describe('generation endpoint', () => {
     const userText = extractText(msg!.content)
     expect(userText).toContain('Dark gothic style.')
     expect(userText).toContain('Continue the story')
+  })
+
+  it('POST /stories/:storyId/generate applies writer instruction replacement from agent config', async () => {
+    await saveAgentBlockConfig(dataDir, storyId, 'generation.writer', {
+      customBlocks: [],
+      overrides: {
+        instructions: {
+          contentMode: 'override',
+          customContent: 'You are a haiku-only writing engine.',
+        },
+      },
+      blockOrder: [],
+      disabledTools: [],
+    })
+
+    mockAgentStream.mockResolvedValue(
+      createMockStreamResult('Generated text.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Write something',
+        saveResult: false,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+
+    const callArgs = mockAgentStream.mock.calls[0][0] as any
+    const systemText = extractMessageText(callArgs.messages, 'system')
+    expect(systemText).toContain('You are a haiku-only writing engine.')
+    expect(systemText).not.toContain('You are a creative writing assistant. Your task is to write prose that continues the story based on the author\'s direction.')
+  })
+
+  it('POST /stories/:storyId/generate applies writer instruction prepend and append from agent config', async () => {
+    await saveAgentBlockConfig(dataDir, storyId, 'generation.writer', {
+      customBlocks: [],
+      overrides: {
+        instructions: {
+          contentMode: 'prepend',
+          customContent: 'BEGIN WITH SPARE, CLIPPED SENTENCES.',
+        },
+        tools: {
+          contentMode: 'append',
+          customContent: 'Do not call tools unless continuity depends on it.',
+        },
+      },
+      blockOrder: [],
+      disabledTools: [],
+    })
+
+    mockAgentStream.mockResolvedValue(
+      createMockStreamResult('Generated text.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Write something',
+        saveResult: false,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+
+    const callArgs = mockAgentStream.mock.calls[0][0] as any
+    const systemText = extractMessageText(callArgs.messages, 'system')
+    expect(systemText).toContain('BEGIN WITH SPARE, CLIPPED SENTENCES.')
+    expect(systemText).toContain('Do not call tools unless continuity depends on it.')
   })
 
   it('POST /stories/:storyId/generate includes fragment tools', async () => {

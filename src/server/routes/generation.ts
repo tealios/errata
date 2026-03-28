@@ -11,7 +11,6 @@ import {
 } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { buildContextState, createDefaultBlocks, compileBlocks, addCacheBreakpoints, expandMessagesFragmentTags } from '../llm/context-builder'
-import { getBlockConfig } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
 import { createScriptHelpers } from '../blocks/script-context'
 import { createFragmentTools } from '../llm/tools'
@@ -164,6 +163,13 @@ export function generationRoutes(dataDir: string) {
       const fragmentTools = createFragmentTools(dataDir, params.storyId, { readOnly: true })
       const { tools: pluginTools, origins: pluginToolOrigins } = collectPluginToolsWithOrigin(enabledPlugins, dataDir, params.storyId)
       const allTools = { ...fragmentTools, ...pluginTools }
+      // Extract plugin tool descriptions for context (fragment tools are listed from registry)
+      const extraTools = Object.entries(pluginTools).map(([name, t]) => ({
+        name,
+        description: (t as { description?: string }).description ?? '',
+        pluginName: pluginToolOrigins[name],
+      }))
+
       const agentConfig = await getAgentBlockConfig(dataDir, params.storyId, 'generation.writer')
       const disabledTools = new Set(agentConfig.disabledTools ?? [])
       const tools: Record<string, (typeof allTools)[string]> = {}
@@ -172,22 +178,13 @@ export function generationRoutes(dataDir: string) {
       }
       requestLogger.info('Tools prepared', { toolCount: Object.keys(tools).length })
 
-      // Extract plugin tool descriptions for context (fragment tools are listed from registry)
-      const extraTools = Object.entries(pluginTools).map(([name, t]) => ({
-        name,
-        description: (t as { description?: string }).description ?? '',
-        pluginName: pluginToolOrigins[name],
-      }))
-
       let blocks = createDefaultBlocks(ctxState, extraTools.length > 0 ? { extraTools } : undefined)
-      const blockConfig = await getBlockConfig(dataDir, params.storyId)
-      blocks = await applyBlockConfig(blocks, blockConfig, {
+      blocks = await applyBlockConfig(blocks, agentConfig, {
         ...ctxState,
         ...createScriptHelpers(dataDir, params.storyId),
       })
       blocks = await runBeforeBlocks(enabledPlugins, blocks)
       let messages = compileBlocks(blocks)
-      messages = await expandMessagesFragmentTags(messages, dataDir, params.storyId)
       messages = await runBeforeGeneration(enabledPlugins, messages)
       requestLogger.info('BeforeGeneration hooks completed', { messageCount: messages.length })
 
