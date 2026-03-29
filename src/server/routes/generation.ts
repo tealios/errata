@@ -92,6 +92,7 @@ export function generationRoutes(dataDir: string) {
       }
 
       const mode = body.mode ?? 'generate'
+      const disableLibrarianAutoAnalysis = story.settings.disableLibrarianAutoAnalysis ?? false
       const modeLabel = mode === 'regenerate'
         ? 'Regenerate'
         : mode === 'refine'
@@ -155,7 +156,7 @@ export function generationRoutes(dataDir: string) {
       requestLogger.info('BeforeContext hooks completed')
 
       // Resolve model early so modelId is available for instruction resolution
-      const { model, modelId: resolvedModelId, temperature } = await getModel(dataDir, params.storyId, { role: 'generation.writer' })
+      const { model, modelId: resolvedModelId } = await getModel(dataDir, params.storyId, { role: 'generation.writer' })
       requestLogger.info('Resolved model', { resolvedModelId })
       ctxState.modelId = resolvedModelId
 
@@ -310,7 +311,6 @@ export function generationRoutes(dataDir: string) {
               model,
               tools,
               maxSteps: writerMaxSteps,
-              temperature,
             })
             const result = await writerAgent.stream({
               messages: writerMessages,
@@ -465,11 +465,14 @@ export function generationRoutes(dataDir: string) {
                 await runAfterSave(enabledPlugins, fragment, params.storyId)
                 requestLogger.info('AfterSave hooks completed')
 
-                // Trigger librarian analysis (fire-and-forget)
-                triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
-                  requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
-                })
-                requestLogger.info('Librarian analysis triggered')
+                if (!disableLibrarianAutoAnalysis) {
+                  triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
+                    requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
+                  })
+                  requestLogger.info('Librarian analysis triggered')
+                } else {
+                  requestLogger.info('Librarian auto analysis disabled; skipping trigger')
+                }
               } else {
                 // Create new fragment (default generate mode)
                 const id = generateFragmentId('prose')
@@ -502,11 +505,14 @@ export function generationRoutes(dataDir: string) {
                 await runAfterSave(enabledPlugins, fragment, params.storyId)
                 requestLogger.info('AfterSave hooks completed')
 
-                // Trigger librarian analysis (fire-and-forget)
-                triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
-                  requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
-                })
-                requestLogger.info('Librarian analysis triggered')
+                if (!disableLibrarianAutoAnalysis) {
+                  triggerLibrarian(dataDir, params.storyId, fragment).catch((err) => {
+                    requestLogger.error('triggerLibrarian failed', { error: err instanceof Error ? err.message : String(err) })
+                  })
+                  requestLogger.info('Librarian analysis triggered')
+                } else {
+                  requestLogger.info('Librarian auto analysis disabled; skipping trigger')
+                }
               }
 
               // Capture finish reason, step count, and token usage

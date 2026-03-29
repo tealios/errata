@@ -17,6 +17,7 @@ export function makeTestSettings(overrides?: Partial<StorySettings>): StorySetti
     maxSteps: 10,
     modelOverrides: {},
     generationMode: 'standard' as const,
+    disableLibrarianAutoAnalysis: false,
     autoApplyLibrarianSuggestions: false,
     disableLibrarianDirections: false,
     disableLibrarianSuggestions: false,

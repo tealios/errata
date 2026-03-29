@@ -12,6 +12,7 @@ export const settings = {
     providerId?: string | null
     modelId?: string | null
     generationMode?: 'standard' | 'prewriter'
+    disableLibrarianAutoAnalysis?: boolean
     autoApplyLibrarianSuggestions?: boolean
     disableLibrarianDirections?: boolean
     disableLibrarianSuggestions?: boolean

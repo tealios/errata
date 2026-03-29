@@ -5,8 +5,10 @@ import {
   createFragment,
   getFragment,
   listFragments,
+  updateStory,
 } from '@/server/fragments/storage'
 import { saveAgentBlockConfig } from '@/server/agents/agent-block-storage'
+import { clearPending, getPendingCount } from '@/server/librarian/scheduler'
 import type { StoryMeta, Fragment } from '@/server/fragments/schema'
 
 const { mockAgentCtor, mockAgentStream } = vi.hoisted(() => ({
@@ -33,7 +35,7 @@ vi.mock('ai', async () => {
 
 import { createApp } from '@/server/api'
 
-function makeStory(): StoryMeta {
+function makeStory(settingsOverrides?: Partial<StoryMeta['settings']>): StoryMeta {
   const now = new Date().toISOString()
   return {
     id: 'story-test',
@@ -43,7 +45,7 @@ function makeStory(): StoryMeta {
     summary: '',
     createdAt: now,
     updatedAt: now,
-    settings: makeTestSettings(),
+    settings: makeTestSettings(settingsOverrides),
   }
 }
 
@@ -136,6 +138,7 @@ describe('generation endpoint', () => {
   }
 
   beforeEach(async () => {
+    clearPending()
     const tmp = await createTempDir()
     dataDir = tmp.path
     cleanup = tmp.cleanup
@@ -146,6 +149,7 @@ describe('generation endpoint', () => {
   })
 
   afterEach(async () => {
+    clearPending()
     await cleanup()
   })
 
@@ -359,6 +363,52 @@ describe('generation endpoint', () => {
     expect(fragments.length).toBe(1)
     expect(fragments[0].content).toBe('The dragon roared.')
     expect(fragments[0].type).toBe('prose')
+  })
+
+  it('POST /stories/:storyId/generate schedules librarian analysis by default after save', async () => {
+    mockAgentStream.mockResolvedValue(
+      createMockStreamResult('The dragon roared.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Add a dragon scene',
+        saveResult: true,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    await res.text()
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(getPendingCount()).toBe(1)
+  })
+
+  it('POST /stories/:storyId/generate skips librarian analysis when auto analysis is disabled', async () => {
+    clearPending()
+    const story = makeStory({ disableLibrarianAutoAnalysis: true })
+    await updateStory(dataDir, story)
+
+    mockAgentStream.mockResolvedValue(
+      createMockStreamResult('The dragon roared.') as any,
+    )
+
+    const res = await api(`/stories/${storyId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: 'Add a dragon scene',
+        saveResult: true,
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    await res.text()
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(getPendingCount()).toBe(0)
   })
 
   it('returns 404 for non-existent story', async () => {

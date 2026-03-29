@@ -85,6 +85,19 @@ describe('Story API routes', () => {
     expect(data.name).toBe('Updated')
   })
 
+  it('PATCH /api/stories/:id/settings updates disableLibrarianAutoAnalysis', async () => {
+    const created = await (await apiJson('/stories', story)).json()
+    const res = await apiJson(
+      `/stories/${created.id}/settings`,
+      { disableLibrarianAutoAnalysis: true },
+      'PATCH'
+    )
+
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.settings.disableLibrarianAutoAnalysis).toBe(true)
+  })
+
   it('DELETE /api/stories/:id deletes a story', async () => {
     const created = await (await apiJson('/stories', story)).json()
     const res = await api(`/stories/${created.id}`, { method: 'DELETE' })

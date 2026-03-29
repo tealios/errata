@@ -763,6 +763,14 @@ export function SettingsPanel({
               label="Toggle auto-apply suggestions"
             />
           </SettingRow>
+          <SettingRow label="Disable auto analysis" description="Do not run the librarian automatically after prose generation">
+            <ToggleSwitch
+              on={story.settings.disableLibrarianAutoAnalysis ?? false}
+              onToggle={() => updateMutation.mutate({ disableLibrarianAutoAnalysis: !(story.settings.disableLibrarianAutoAnalysis ?? false) })}
+              disabled={updateMutation.isPending}
+              label="Toggle disable auto analysis"
+            />
+          </SettingRow>
           <SettingRow label="Disable directions" description="Skip story direction suggestions during analysis">
             <ToggleSwitch
               on={story.settings.disableLibrarianDirections ?? false}
