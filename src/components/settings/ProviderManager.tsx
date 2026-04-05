@@ -226,7 +226,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     const parsedTemp = form.temperature !== '' ? parseFloat(form.temperature) : undefined
     const temperature = parsedTemp != null && !isNaN(parsedTemp) ? parsedTemp : undefined
     if (editingId) {
-      const data: Record<string, unknown> = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord, temperature: temperature ?? null }
+      const data: Record<string, unknown> = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord, temperature }
       if (form.apiKey) data.apiKey = form.apiKey
       updateMutation.mutate({ id: editingId, data })
     } else {
