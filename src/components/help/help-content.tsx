@@ -226,6 +226,31 @@ export const HELP_SECTIONS: HelpSection[] = [
         ),
       },
       {
+        id: 'generation-mode',
+        title: 'Generation mode',
+        content: (
+          <>
+            <P>
+              The <strong className="text-foreground/75">Generation mode</strong> setting controls
+              how Errata prepares a prose run before the writer model starts producing text.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Standard</strong> sends your assembled story
+              context and author input straight to the writer model.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Prewriter</strong> adds a planning pass first.
+              A helper model can sketch a brief, pacing, or directions before the final writer pass,
+              which can improve structure when you want more guided output.
+            </P>
+            <Tip>
+              Use Standard for direct continuation. Use Prewriter when you want the model to think
+              through the next move before drafting prose.
+            </Tip>
+          </>
+        ),
+      },
+      {
         id: 'max-steps',
         title: 'Max steps',
         content: (
@@ -237,6 +262,27 @@ export const HELP_SECTIONS: HelpSection[] = [
             <Tip>
               If the model is calling too many tools before writing, lower this number.
               If it seems to cut off tool lookups prematurely, increase it.
+            </Tip>
+          </>
+        ),
+      },
+      {
+        id: 'disable-thinking',
+        title: 'Disable thinking',
+        content: (
+          <>
+            <P>
+              Some OpenAI-compatible models support extended reasoning or thinking modes. When
+              <strong className="text-foreground/75"> Disable thinking</strong> is enabled, Errata
+              asks supported providers to suppress that mode.
+            </P>
+            <P>
+              This can reduce hidden reasoning overhead, make responses feel more direct, and help
+              align behavior across providers that expose different reasoning features.
+            </P>
+            <Tip>
+              Turn this on if a model feels too slow, too expensive, or too verbose in its internal
+              reasoning behavior. Leave it off if you want the provider's default reasoning mode.
             </Tip>
           </>
         ),
@@ -903,6 +949,10 @@ return rules.map(r => r.content).join('\\n')`}</div>
               you've written so far. It's your story's memory, catching things you might miss as
               the narrative grows.
             </P>
+            <P>
+              You can disable automatic post-generation analysis in Settings if you want generation
+              to save prose without immediately running the librarian.
+            </P>
           </>
         ),
       },
@@ -950,6 +1000,24 @@ return rules.map(r => r.content).join('\\n')`}</div>
               <strong className="text-foreground/75">Timeline</strong> — a chronological list of
               events the librarian has extracted from your prose, linked back to the fragments
               they came from.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'manual-analysis',
+        title: 'Manual analysis',
+        content: (
+          <>
+            <P>
+              Prose blocks can be analyzed on demand from the block action menu using
+              <strong className="text-foreground/75"> Analyze</strong>. This is useful when you edit
+              prose manually, disable automatic analysis, or want to re-run the librarian on a
+              specific passage.
+            </P>
+            <P>
+              An analyzed prose block shows a small green dot in the prose view so you can quickly
+              see which passages already have librarian analysis attached.
             </P>
           </>
         ),
@@ -1034,6 +1102,26 @@ return rules.map(r => r.content).join('\\n')`}</div>
               your story's knowledge base without manual intervention. Auto-applied suggestions
               are marked with an "Auto" badge so you can review what changed.
             </Tip>
+          </>
+        ),
+      },
+      {
+        id: 'analysis-controls',
+        title: 'Analysis controls',
+        content: (
+          <>
+            <P>
+              The Generation settings include several librarian follow-up controls.
+              <strong className="text-foreground/75"> Disable auto analysis</strong> stops the
+              librarian from running automatically after prose generation.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Disable directions</strong> turns off story
+              direction suggestions during analysis, while
+              <strong className="text-foreground/75"> Disable suggestions</strong> turns off fragment
+              create/update suggestions. These let you keep summary and contradiction tracking while
+              reducing proactive librarian output.
+            </P>
           </>
         ),
       },

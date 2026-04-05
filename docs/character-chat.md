@@ -5,9 +5,11 @@ Character Chat lets you talk to a character as if they were in-world, constraine
 ## Overview
 
 - Conversations are stored per-story on disk and can be listed, resumed, or deleted.
+- Storage is branch-aware, so each timeline has its own character-chat history.
 - Chat responses stream as NDJSON events (`text`, `reasoning`, `tool-call`, `tool-result`, `finish`).
 - The chat agent uses read-only fragment tools so it can look things up without mutating story data.
-- Model routing supports character-chat-specific provider/model settings with fallback to story defaults.
+- Model routing supports character-chat-specific provider/model settings with fallback to namespace and story defaults.
+- The UI is conversation-first: you can start a new chat, resume older chats, switch persona modes, and set a story-point cutoff.
 
 ## Data Model
 
@@ -38,22 +40,37 @@ interface CharacterChatConversation {
 }
 ```
 
+```ts
+interface CharacterChatConversationSummary {
+  id: string
+  characterId: string
+  persona: PersonaMode
+  storyPointFragmentId: string | null
+  title: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+}
+```
+
 ## Storage Layout
 
-Character chat data is stored under the active content root:
+Character chat data is stored under the active branch content root:
 
 ```text
 data/stories/<storyId>/
-  character-chat/
-    conversations/
-      cc-<timestamp>-<random>.json
+  branches/
+    <branchId>/
+      character-chat/
+        conversations/
+          cc-<timestamp>-<random>.json
 ```
 
 `storyPointFragmentId` acts as a context cutoff. The agent only sees story context up to that point.
 
 ## API
 
-Routes are defined in `src/server/api.ts`.
+Routes are defined in `src/server/routes/character-chat.ts`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -90,26 +107,33 @@ Example events from `/chat` stream:
 
 ```json
 {"type":"text","text":"I remember smoke before I saw flames..."}
-{"type":"tool-call","id":"...","toolName":"fragmentGet","args":{"id":"pr-ab12"}}
-{"type":"tool-result","id":"...","toolName":"fragmentGet","result":{"ok":true}}
+{"type":"tool-call","id":"...","toolName":"getFragment","args":{"id":"pr-ab12"}}
+{"type":"tool-result","id":"...","toolName":"getFragment","result":{"ok":true}}
 {"type":"finish","finishReason":"stop","stepCount":2}
 ```
 
 ## Provider/Model Selection
 
-Character chat resolves models with role `character-chat` (`src/server/llm/client.ts`) using this preference order:
+Character chat resolves models with role `character-chat.chat` (`src/server/llm/client.ts`) using the shared fallback chain system:
 
-1. `story.settings.characterChatProviderId` + `story.settings.characterChatModelId`
-2. Fallback to story generation defaults: `providerId` + `modelId`
+1. `story.settings.modelOverrides['character-chat.chat']`
+2. `story.settings.modelOverrides['character-chat']`
+3. `story.settings.modelOverrides['generation']`
+4. Legacy `characterChatProviderId` / `characterChatModelId` fields, then legacy generation fields
+5. Global default provider
+
+Temperature follows the same fallback chain, so character chat can inherit or override provider/model temperature independently of prose generation.
 
 ## Frontend Integration
 
 - Main UI: `src/components/character-chat/CharacterChatView.tsx`
+- Config bar: `src/components/character-chat/ChatConfig.tsx`
+- Conversation browser: `src/components/character-chat/ConversationList.tsx`
 - Shared message rendering: `src/components/chat/ChatMessageParts.tsx`
 - Client API wrapper: `src/lib/api/character-chat.ts`
 - Story route toggle: `src/routes/story.$storyId.tsx`
 
-The Character Chat view is mounted from the story route, and the view toggle is hidden while the user is inside chat mode.
+The Character Chat view is mounted from the story route. The composer auto-resizes, conversations can be resumed from the list, and portraits are shown when the character fragment references an image or icon fragment.
 
 ## Context Assembly
 

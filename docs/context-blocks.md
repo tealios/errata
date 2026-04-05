@@ -7,7 +7,7 @@ The context block system provides a structured, manipulable representation of th
 The generation pipeline works in stages:
 
 ```
-buildContextState() → beforeContext hooks → createDefaultBlocks() → applyBlockConfig() → beforeBlocks hooks → compileBlocks() → beforeGeneration hooks → streamText()
+buildContextState() → beforeContext hooks → createDefaultBlocks() → applyBlockConfig() → beforeBlocks hooks → compileBlocks() → expandMessagesFragmentTags() → beforeGeneration hooks → streamText()
 ```
 
 1. **`buildContextState()`** loads fragments from storage into a typed state object.
@@ -16,7 +16,8 @@ buildContextState() → beforeContext hooks → createDefaultBlocks() → applyB
 4. **`applyBlockConfig()`** applies the user's block configuration — custom blocks, content overrides, reordering, and disabling.
 5. **`beforeBlocks`** hooks let plugins manipulate individual blocks (replace instructions, inject sections, reorder).
 6. **`compileBlocks()`** prepends `[@block=id]` markers, groups blocks by role, sorts by order, and joins into `ContextMessage[]`.
-7. **`beforeGeneration`** hooks operate on the final message strings.
+7. **`expandMessagesFragmentTags()`** expands fragment reference tags inside compiled message content.
+8. **`beforeGeneration`** hooks operate on the final message strings.
 
 ## ContextBlock
 
@@ -361,13 +362,20 @@ All endpoints are under `/api/stories/:storyId/blocks`.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/blocks` | Returns the block config and builtin block metadata (id, role, order, source, content preview) |
+| `GET` | `/blocks` | Returns the block config and builtin block metadata (id, role, order, source, full content, content preview) |
 | `GET` | `/blocks/preview` | Compiles the full context with config applied and returns the resulting messages |
 | `POST` | `/blocks/custom` | Creates a new custom block (body: `CustomBlockDefinition`) |
 | `PUT` | `/blocks/custom/:blockId` | Updates a custom block (body: partial fields) |
 | `DELETE` | `/blocks/custom/:blockId` | Deletes a custom block and cleans up its overrides/ordering |
 | `PATCH` | `/blocks/config` | Updates overrides and/or block order (body: `{ overrides?, blockOrder? }`) |
 | `POST` | `/blocks/eval-script` | Evaluates a script block body against current story data and returns `{ result, error }` |
+
+Story-wide config sharing endpoints live at `/api/stories/:storyId`:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/export-configs` | Export generation block config plus any non-empty agent block configs |
+| `POST` | `/import-configs` | Import and replace generation/agent block configs from a JSON payload |
 
 ### GET /blocks response
 
@@ -379,8 +387,8 @@ All endpoints are under `/api/stories/:storyId/blocks`.
     "blockOrder": ["tools", "instructions", ...]
   },
   "builtinBlocks": [
-    { "id": "instructions", "role": "system", "order": 100, "source": "builtin", "contentPreview": "You are a creative..." },
-    { "id": "tools", "role": "system", "order": 200, "source": "builtin", "contentPreview": "## Available Tools..." },
+    { "id": "instructions", "role": "system", "order": 100, "source": "builtin", "content": "You are a creative writing assistant...", "contentPreview": "You are a creative..." },
+    { "id": "tools", "role": "system", "order": 200, "source": "builtin", "content": "## Available Tools...", "contentPreview": "## Available Tools..." },
     ...
   ]
 }
@@ -405,7 +413,7 @@ The preview endpoint builds the full context using `(preview)` as the author inp
 Block configuration is stored at:
 
 ```
-data/stories/<storyId>/block-config.json
+data/stories/<storyId>/branches/<branchId>/block-config.json
 ```
 
 The file is created on first write. If it doesn't exist, all functions return an empty default config (`{ customBlocks: [], overrides: {}, blockOrder: [] }`), meaning no modifications are applied and the default blocks pass through unchanged.
@@ -673,10 +681,13 @@ The Settings panel exposes **four namespace-level roles** for model selection. T
 Agent block configs are stored at:
 
 ```
-data/stories/<storyId>/agent-blocks/<agentName>.json
+data/stories/<storyId>/branches/<branchId>/agent-blocks/<agentName>.json
 ```
 
-Each config file follows the same `BlockConfig` schema (custom blocks, overrides, block order) plus an additional `disabledTools` array for filtering which tools the agent can use.
+Each config file follows the same `BlockConfig` schema (custom blocks, overrides, block order) plus:
+
+- `disabledTools: string[]` — filters which tools the agent can use
+- `disableAutoAnalysis?: boolean` — currently used by `librarian.analyze` to suppress automatic post-generation analysis
 
 ## API Endpoints
 
@@ -685,16 +696,18 @@ All endpoints are under `/api/stories/:storyId/agent-blocks`.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/agent-blocks` | List all registered agents with their block definitions |
+| `GET` | `/agent-blocks/:agentName/export-config` | Export one agent's config in a shareable JSON envelope |
+| `POST` | `/agent-blocks/:agentName/import-config` | Import and replace one agent's config |
 | `GET` | `/agent-blocks/:agentName` | Get agent block config, builtin blocks, and available tools |
 | `GET` | `/agent-blocks/:agentName/preview` | Compile and preview the agent's full context |
-| `PATCH` | `/agent-blocks/:agentName/config` | Update agent block config (overrides, blockOrder, disabledTools) |
+| `PATCH` | `/agent-blocks/:agentName/config` | Update agent block config (overrides, blockOrder, disabledTools, `disableAutoAnalysis`) |
 | `POST` | `/agent-blocks/:agentName/custom` | Create a custom block for an agent |
 | `PUT` | `/agent-blocks/:agentName/custom/:blockId` | Update a custom block |
 | `DELETE` | `/agent-blocks/:agentName/custom/:blockId` | Delete a custom block |
 
 ## UI
 
-The **Agent Context** panel is accessible from the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It allows browsing registered agents, viewing their compiled context, and customizing block overrides.
+The **Agent Configure** panel is accessible from the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It allows browsing registered agents, viewing their compiled context, exporting/importing configs, changing provider/model/temperature per agent, toggling tools, and customizing block overrides.
 
 ## File Reference
 
@@ -711,7 +724,7 @@ The **Agent Context** panel is accessible from the sidebar under **Management** 
 | `src/server/character-chat/blocks.ts` | Block definitions for character chat |
 | `src/server/routes/agent-blocks.ts` | API routes |
 | `src/lib/api/agent-blocks.ts` | Frontend API client |
-| `src/components/agents/AgentContextPanel.tsx` | UI panel |
+| `src/components/agents/AgentConfigurePanel.tsx` | UI panel |
 | `tests/agents/agent-block-storage.test.ts` | Storage tests |
 | `tests/agents/agent-blocks.test.ts` | Block registration tests |
 | `tests/agents/compile-agent-context.test.ts` | Context compilation tests |

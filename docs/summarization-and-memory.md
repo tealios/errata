@@ -8,7 +8,7 @@ Errata uses a rolling `story.summary` string as memory for prose that has fallen
 
 The pipeline is:
 
-1. A prose fragment is generated/saved.
+1. A prose fragment is generated/saved or manually re-analyzed.
 2. Librarian analyzes that fragment and produces `summaryUpdate` and optional `structuredSummary` signals.
 3. Deferred summary application appends eligible `summaryUpdate` entries into `story.summary`.
 4. Summary compaction runs when needed to keep `story.summary` bounded.
@@ -23,6 +23,10 @@ Key implementation files:
 Story settings now include:
 
 ```ts
+disableLibrarianAutoAnalysis: boolean
+disableLibrarianDirections: boolean
+disableLibrarianSuggestions: boolean
+enableHierarchicalSummary: boolean
 summaryCompact: {
   maxCharacters: number
   targetCharacters: number
@@ -33,6 +37,10 @@ Defaults:
 
 - `maxCharacters: 12000`
 - `targetCharacters: 9000`
+- `disableLibrarianAutoAnalysis: false`
+- `disableLibrarianDirections: false`
+- `disableLibrarianSuggestions: false`
+- `enableHierarchicalSummary: false`
 
 Schema source:
 
@@ -108,6 +116,24 @@ If none are applicable:
 - no summary append
 - watermark unchanged
 
+## Analysis Triggers and Controls
+
+Librarian analysis can start in three ways:
+
+1. automatically after prose generation
+2. manually from the prose block `Analyze` action
+3. indirectly after material prose edits that re-trigger analysis
+
+Automatic post-generation analysis is disabled when either of these flags is set:
+
+- `story.settings.disableLibrarianAutoAnalysis`
+- `agent-blocks/librarian.analyze.json` with `disableAutoAnalysis: true`
+
+Analysis behavior can also be narrowed without disabling memory entirely:
+
+- `disableLibrarianDirections` keeps summary/continuity analysis but skips direction cards
+- `disableLibrarianSuggestions` keeps summary/continuity analysis but skips fragment create/update suggestions
+
 ## Summary Compaction
 
 Compaction function:
@@ -141,6 +167,17 @@ When building `summaryBeforeFragmentId`, context rebuild also uses the same late
 Relevant file:
 
 - `src/server/llm/context-builder.ts`
+
+When `enableHierarchicalSummary` is on, chapter marker summaries are also included as an intermediate memory layer between the rolling summary and the recent prose window.
+
+## Analysis Index
+
+The prose view uses a lightweight fragment-to-analysis index to track which prose fragments have current librarian analysis.
+
+- Route: `GET /stories/:storyId/librarian/analysis-index`
+- Manual trigger: `POST /stories/:storyId/librarian/analyze`
+
+This powers the analyzed-dot indicator on prose blocks and the manual `Analyze` action in the prose block menu.
 
 ## Tests
 
@@ -197,4 +234,4 @@ The librarian's analysis tools use `fragmentSuggestions` (renamed from `knowledg
 
 - LLM compaction quality depends on the configured librarian model and prompt adherence.
 - Structured summary signals are optional and quality depends on model/tool-call discipline.
-- Hierarchical summaries (micro/meso/macro) are not yet implemented.
+- Chapter summaries must be created on marker fragments before hierarchical summary mode adds value.

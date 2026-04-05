@@ -1,6 +1,6 @@
 # Prose Writing Panel
 
-The Prose Writing Panel is a focused long-form editor for prose fragments, with inline AI selection transforms.
+The Prose Writing Panel is a focused long-form editor for prose fragments, paired with a prose chain view that supports inline generation, variations, librarian actions, and timeline forking.
 
 ## Overview
 
@@ -8,6 +8,7 @@ The Prose Writing Panel is a focused long-form editor for prose fragments, with 
 - Uses Tiptap (`@tiptap/react` + `@tiptap/starter-kit`) for rich editing ergonomics while saving plain prose text.
 - Supports quick passage switching from a sidebar, including chapter markers for context.
 - Auto-saves on close/escape and when switching to another passage.
+- The surrounding prose chain view is virtualized for long stories and preserves scroll position per story.
 
 ## Keyboard Shortcuts
 
@@ -95,16 +96,39 @@ Generation can be aborted mid-stream. The `InlineGenerationInput` component prov
 
 ## Guided Mode
 
-The generation input supports two modes, toggled via a compass icon:
+The inline generation input supports three modes:
 
 - **Freeform** — standard text input for custom author directions.
 - **Guided** — displays direction suggestion cards from the librarian's latest analysis. Clicking a card fills the generation input with its instruction. A refresh button requests new suggestions on demand.
+- **Compose** — bypasses generation and lets you write a new prose section directly into the chain.
+
+Guided mode also includes quick actions for:
+
+- **Continue** — advance the plot naturally
+- **Scene-setting** — focus on atmosphere and character moments
 
 Mode preference is persisted in `localStorage`.
+
+## Inline Prose Actions
+
+Each prose block in the chain view exposes an action menu with operations around the writing panel:
+
+- **Edit** — opens the full Prose Writing Panel
+- **Redo** — regenerate from the original prompt/description
+- **Ask / Refine** — open the librarian with the fragment prefilled
+- **Analyze** — trigger librarian analysis manually for that prose fragment
+- **Split from here** — create a new timeline fork from that section
+- **Variation switching** — move between alternate versions of the same section
+
+When a prose fragment already has librarian analysis, the block shows a small green dot in the top-right corner.
 
 ## Cover Image Banner
 
 When a story has a cover image set, `ProseChainView` renders a banner at the top of the scroll area above the prose chain. The banner displays the cover image with a gradient overlay fading into the background. The cover image is passed to the component via the `coverImage` prop from the story route.
+
+## Outline and Reordering
+
+The prose outline panel mirrors the current chain and can enter a reorder mode. Reordering updates the prose chain itself, so subsequent reading, generation context, and timeline forking all use the new section order.
 
 ## Data Flow
 
@@ -118,9 +142,11 @@ When a story has a cover image set, `ProseChainView` renders a banner at the top
 ## Component/Route Map
 
 - `src/components/prose/ProseWritingPanel.tsx`
+- `src/components/prose/InlineGenerationInput.tsx`
 - `src/components/tiptap/FloatingElement.tsx`
 - `src/components/prose/ProseBlock.tsx` (entry action)
 - `src/components/prose/ProseChainView.tsx` (panel handoff)
+- `src/components/prose/ProseOutlinePanel.tsx`
 - `src/routes/story.$storyId.tsx` (overlay mount)
 - `src/lib/api/librarian.ts` (client API)
 - `src/server/librarian/prose-transform.ts` (agent implementation)

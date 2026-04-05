@@ -6,7 +6,7 @@ Internally, timelines are called "branches". The user-facing term is "Timelines"
 
 ## Overview
 
-Every story starts with a single timeline called **Main**. When you create a new timeline, Errata copies the entire content directory of the parent timeline into a new directory. From that point on, the two timelines are fully independent — edits, generations, and librarian analyses in one timeline never affect another.
+Every story starts with a single timeline called **Main**. When you create a new timeline, Errata copies the entire branch content directory of the parent timeline into a new directory. From that point on, the two timelines are fully independent — edits, generations, librarian analyses, character chats, and branch-scoped prompt configs in one timeline never affect another.
 
 The active timeline determines which content is loaded for all operations. Switching timelines swaps the active content root, and all subsequent reads, writes, and generations use that timeline's data.
 
@@ -19,12 +19,18 @@ data/stories/{storyId}/
   branches/
     main/
       prose-chain.json
+      block-config.json
+      agent-blocks/
+      character-chat/
       fragments/
       associations.json
       generation-logs/
       librarian/
     {branchId}/
       prose-chain.json
+      block-config.json
+      agent-blocks/
+      character-chat/
       fragments/
       associations.json
       generation-logs/
@@ -79,7 +85,8 @@ Content items that are migrated:
 - `associations.json`
 - `generation-logs/`
 - `librarian/`
-- `block-config.json`
+
+Branch-scoped files like `block-config.json`, `agent-blocks/`, and `character-chat/` are created inside a branch on first use and are inherited automatically when later branches are copied.
 
 ## Creating a Timeline
 
@@ -91,11 +98,11 @@ Content items that are migrated:
 4. Writes the new branch metadata to `branches.json`
 5. Sets the new branch as active
 
-The `forkAfterIndex` parameter enables forking mid-story. For example, if the prose chain has 5 sections and you fork at index 2, the new timeline gets sections 0-2 and you can write an alternate continuation from that point.
+The `forkAfterIndex` parameter enables forking mid-story. For example, if the prose chain has 5 sections and you fork at index 2, the new timeline gets sections 0-2 and you can write an alternate continuation from that point. Because the whole branch directory is copied first, the fork also inherits the parent branch's librarian data, generation logs, character chat history, and branch-scoped block/agent configs up to that point.
 
 ## Forking from Prose
 
-Each prose section in the chain view has a **Timeline** button (git-branch icon). Clicking it:
+Each prose section in the chain view has a **Split from here** action (git-branch icon). Clicking it:
 
 1. Prompts for a timeline name
 2. Calls `createBranch()` with `forkAfterIndex` set to that section's index
@@ -149,9 +156,11 @@ A horizontal tab bar at the top of the prose editor. Only visible when more than
 - `+` button to create a new timeline from the current one
 - Eye-off button to hide the bar (re-show via settings)
 
+Visibility is controlled by the UI preference exposed as **Settings > Interface > Timeline bar**.
+
 ### TimelineManagerPanel
 
-A sidebar panel with a full list of timelines, showing parentage info ("from Main at section 2") and action buttons. Provides the same operations as TimelineTabs in a more detailed layout.
+A sidebar panel with a full list of timelines, showing parentage info ("from Main at section 2") and action buttons. Provides the same operations as TimelineTabs in a more detailed layout and is available from the story sidebar's Management area.
 
 ## File Reference
 
@@ -164,6 +173,6 @@ A sidebar panel with a full list of timelines, showing parentage info ("from Mai
 | `src/lib/fragment-ids.ts` | `generateBranchId()` |
 | `src/components/prose/TimelineTabs.tsx` | Top bar tab component |
 | `src/components/sidebar/TimelineManagerPanel.tsx` | Sidebar management panel |
-| `src/components/prose/ProseBlock.tsx` | "Timeline" button on prose sections |
+| `src/components/prose/ProseBlock.tsx` | "Split from here" action on prose sections |
 | `src/routes/story.$storyId.tsx` | Route integration, query hooks, visibility state |
 | `tests/fragments/branches.test.ts` | Branch CRUD and isolation tests |

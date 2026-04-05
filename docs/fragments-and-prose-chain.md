@@ -142,6 +142,13 @@ entry[2].active → "They arrived at the castle..."
 
 When the author generates new prose, a new entry is appended. When they regenerate an existing section, a new fragment is created and added as a variation to that entry (the new fragment becomes `active`). The author can switch between variations using `switchActiveProse`.
 
+The prose UI also supports:
+
+- quick variation switching between prior regenerations
+- inline manual analysis of a prose fragment by the librarian
+- timeline forking from any prose section
+- outline-panel reordering of sections
+
 ### Marker entries
 
 Chapter markers (type `marker`) are also entries in the prose chain. They appear at a position in the chain like any prose section, but their fragments render no text. They delimit chapters for organizational and summarization purposes.
@@ -172,7 +179,6 @@ data/
 └── stories/
     └── {storyId}/
         ├── meta.json                        # Story metadata (StoryMeta)
-        ├── block-config.json                # Block editor config (optional)
         ├── branches.json                    # Branch index
         └── branches/
             └── {branchId}/                  # "main" is the default branch
@@ -185,6 +191,11 @@ data/
                 │   └── ...
                 ├── generation-logs/
                 │   └── gen-xxxxx.json
+                ├── block-config.json        # Branch-scoped generation block config
+                ├── agent-blocks/
+                │   └── generation.writer.json
+                ├── character-chat/
+                │   └── conversations/
                 └── librarian/
                     ├── state.json
                     └── analyses/
@@ -194,7 +205,7 @@ data/
 ### Key details
 
 - **Story IDs** are URL-safe slugs derived from the story name, suffixed with a timestamp: `my-story-lk5abc`.
-- **Branch-aware paths**: Content (fragments, prose chain, associations, librarian data) lives under `branches/{branchId}/`. The default branch is always `main`. The `branches.json` file tracks which branch is active.
+- **Branch-aware paths**: Content (fragments, prose chain, associations, librarian data, block config, agent block config, character chat) lives under `branches/{branchId}/`. The default branch is always `main`. The `branches.json` file tracks which branch is active.
 - **Fragment files** are named `{fragmentId}.json` and contain the full fragment object.
 - **`prose-chain.json`** stores the chain for the active branch.
 - **`meta.json`** and `branches.json` live at the story root (not branch-scoped).
@@ -265,6 +276,20 @@ All endpoints are prefixed with `/api`. Request/response bodies are JSON.
 | `PUT` | `/stories/:storyId` | `{ name, description, summary?, coverImage? }` | `StoryMeta` |
 | `DELETE` | `/stories/:storyId` | — | `{ ok: true }` |
 | `PATCH` | `/stories/:storyId/settings` | Partial settings object | `StoryMeta` |
+
+Important story settings for prose generation and memory include:
+
+- `generationMode: 'standard' | 'prewriter'`
+- `maxSteps`
+- `disableThinking`
+- `contextCompact: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters', value }`
+- `summarizationThreshold`
+- `summaryCompact: { maxCharacters, targetCharacters }`
+- `enableHierarchicalSummary`
+- `disableLibrarianAutoAnalysis`
+- `autoApplyLibrarianSuggestions`
+- `disableLibrarianDirections`
+- `disableLibrarianSuggestions`
 
 ### Fragments
 
@@ -339,6 +364,30 @@ Deletion requires the fragment to be archived first (422 error otherwise).
 | `POST` | `/stories/:storyId/prose-chain` | `{ fragmentId }` | `{ ok: true }` (append section) |
 | `POST` | `/stories/:storyId/prose-chain/:sectionIndex/switch` | `{ fragmentId }` | `{ ok: true }` (switch active variation) |
 | `DELETE` | `/stories/:storyId/prose-chain/:sectionIndex` | — | `{ ok: true, archivedFragmentIds }` (removes section, archives fragments) |
+
+### Generation
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `POST` | `/stories/:storyId/generate` | `{ input, saveResult?, mode?, fragmentId? }` | Streaming NDJSON/text response with `text`, `reasoning`, `tool-call`, `tool-result`, `phase`, `finish`, and optional prewriter events |
+| `POST` | `/stories/:storyId/suggest-directions` | `{ count? }` | `{ suggestions }` |
+
+Generation modes:
+
+- `generate` — append a new prose section
+- `regenerate` — add a new variation to an existing section
+- `refine` — rewrite an existing prose fragment using refinement instructions
+
+Automatic post-generation librarian analysis can be disabled either via story settings (`disableLibrarianAutoAnalysis`) or via the `librarian.analyze` agent config's `disableAutoAnalysis` flag.
+
+### Librarian follow-up endpoints used by the prose view
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/stories/:storyId/librarian/analysis-index` | — | `{ [fragmentId]: analysisId }` |
+| `POST` | `/stories/:storyId/librarian/analyze` | `{ fragmentId }` | `{ ok: true, fragmentId }` |
+
+The prose chain view uses these endpoints to show whether a prose block already has analysis and to trigger manual re-analysis from the block action menu.
 
 ### Chapters
 
