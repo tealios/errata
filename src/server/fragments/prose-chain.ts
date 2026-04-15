@@ -173,16 +173,6 @@ export async function getActiveProseIds(
 }
 
 /**
- * Get the full prose chain with all variations.
- */
-export async function getFullProseChain(
-  dataDir: string,
-  storyId: string,
-): Promise<ProseChain | null> {
-  return getProseChain(dataDir, storyId)
-}
-
-/**
  * Remove a section from the prose chain by index.
  * Returns the fragment IDs that were in that section.
  */
