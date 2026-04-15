@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { ToolLoopAgent, stepCountIs } from 'ai'
 import {
   getStory,
   createFragment,
@@ -16,7 +17,6 @@ import { getBlockConfig } from '../blocks/storage'
 import { applyBlockConfig } from '../blocks/apply'
 import { createFragmentTools } from '../llm/tools'
 import { getModel } from '../llm/client'
-import { createWriterAgent } from '../llm/writer-agent'
 import {
   saveGenerationLog,
   type GenerationLog,
@@ -151,10 +151,11 @@ export function generationRoutes(dataDir: string) {
       requestLogger.info('Starting LLM stream...')
       const { model, modelId: resolvedModelId } = await getModel(dataDir, params.storyId)
       requestLogger.info('Resolved model', { resolvedModelId })
-      const writerAgent = createWriterAgent({
+      const writerAgent = new ToolLoopAgent({
         model,
         tools,
-        maxSteps: story.settings.maxSteps ?? 10,
+        toolChoice: 'auto',
+        stopWhen: stepCountIs(story.settings.maxSteps ?? 10),
       })
       const result = await writerAgent.stream({
         messages: modelMessages,

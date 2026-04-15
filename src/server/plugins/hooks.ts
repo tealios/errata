@@ -1,103 +1,74 @@
-import type { WritingPlugin, GenerationResult } from './types'
+import type { WritingPlugin, PluginHooks, GenerationResult } from './types'
 import type { ContextBuildState, ContextBlock, ContextMessage } from '../llm/context-builder'
-import { createLogger } from '../logging'
+import { createLogger, type Logger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 
 const logger = createLogger('plugin-hooks')
+
+/**
+ * Generic plugin hook runner. Iterates enabled plugins, invokes the named hook
+ * if present, times it, and logs. Returns the final accumulated value.
+ *
+ * Callers: the five public wrappers below.
+ */
+async function runHook<K extends keyof PluginHooks, T>(
+  hookName: K,
+  plugins: WritingPlugin[],
+  initial: T,
+  invoke: (hook: NonNullable<PluginHooks[K]>, value: T) => T | Promise<T>,
+  log: Logger = logger,
+): Promise<T> {
+  if (plugins.length === 0) return initial
+
+  log.info(`Running ${hookName} hooks for ${plugins.length} plugin(s)`)
+
+  let result = initial
+  for (const plugin of plugins) {
+    const hook = plugin.hooks?.[hookName]
+    if (!hook) continue
+    const startTime = Date.now()
+    log.debug(`Running ${hookName} for plugin: ${plugin.manifest.name}`)
+    result = await invoke(hook as NonNullable<PluginHooks[K]>, result)
+    const durationMs = Date.now() - startTime
+    log.debug(`${hookName} completed for plugin: ${plugin.manifest.name}`, { durationMs })
+  }
+  return result
+}
 
 export async function runBeforeContext(
   plugins: WritingPlugin[],
   ctx: ContextBuildState,
 ): Promise<ContextBuildState> {
-  if (plugins.length === 0) {
-    return ctx
-  }
-
-  const requestLogger = logger.child({ storyId: ctx.story.id })
-  requestLogger.info(`Running beforeContext hooks for ${plugins.length} plugin(s)`)
-
-  let result = ctx
-  for (const plugin of plugins) {
-    if (plugin.hooks?.beforeContext) {
-      const startTime = Date.now()
-      requestLogger.debug(`Running beforeContext for plugin: ${plugin.manifest.name}`)
-      // Cast needed: plugin SDK's ContextBuildState has a narrower StorySettings type
-      // than the local one, but plugins pass through the full object unchanged.
-      result = await plugin.hooks.beforeContext(result as Parameters<NonNullable<NonNullable<WritingPlugin['hooks']>['beforeContext']>>[0]) as ContextBuildState
-      const durationMs = Date.now() - startTime
-      requestLogger.debug(`beforeContext completed for plugin: ${plugin.manifest.name}`, { durationMs })
-    }
-  }
-  return result
+  return runHook(
+    'beforeContext',
+    plugins,
+    ctx,
+    // Cast needed: plugin SDK's ContextBuildState has a narrower StorySettings type
+    // than the local one, but plugins pass through the full object unchanged.
+    (hook, state) => hook(state as Parameters<typeof hook>[0]) as ContextBuildState | Promise<ContextBuildState>,
+    logger.child({ storyId: ctx.story.id }),
+  )
 }
 
 export async function runBeforeBlocks(
   plugins: WritingPlugin[],
   blocks: ContextBlock[],
 ): Promise<ContextBlock[]> {
-  if (plugins.length === 0) {
-    return blocks
-  }
-
-  logger.info(`Running beforeBlocks hooks for ${plugins.length} plugin(s)`)
-
-  let result = blocks
-  for (const plugin of plugins) {
-    if (plugin.hooks?.beforeBlocks) {
-      const startTime = Date.now()
-      logger.debug(`Running beforeBlocks for plugin: ${plugin.manifest.name}`)
-      result = await plugin.hooks.beforeBlocks(result)
-      const durationMs = Date.now() - startTime
-      logger.debug(`beforeBlocks completed for plugin: ${plugin.manifest.name}`, { durationMs })
-    }
-  }
-  return result
+  return runHook('beforeBlocks', plugins, blocks, (hook, value) => hook(value))
 }
 
 export async function runBeforeGeneration(
   plugins: WritingPlugin[],
   messages: ContextMessage[],
 ): Promise<ContextMessage[]> {
-  if (plugins.length === 0) {
-    return messages
-  }
-
-  logger.info(`Running beforeGeneration hooks for ${plugins.length} plugin(s)`)
-
-  let result = messages
-  for (const plugin of plugins) {
-    if (plugin.hooks?.beforeGeneration) {
-      const startTime = Date.now()
-      logger.debug(`Running beforeGeneration for plugin: ${plugin.manifest.name}`)
-      result = await plugin.hooks.beforeGeneration(result)
-      const durationMs = Date.now() - startTime
-      logger.debug(`beforeGeneration completed for plugin: ${plugin.manifest.name}`, { durationMs })
-    }
-  }
-  return result
+  return runHook('beforeGeneration', plugins, messages, (hook, value) => hook(value))
 }
 
 export async function runAfterGeneration(
   plugins: WritingPlugin[],
   genResult: GenerationResult,
 ): Promise<GenerationResult> {
-  if (plugins.length === 0) {
-    return genResult
-  }
-
-  logger.info(`Running afterGeneration hooks for ${plugins.length} plugin(s)`)
-
-  let result = genResult
-  for (const plugin of plugins) {
-    if (plugin.hooks?.afterGeneration) {
-      const startTime = Date.now()
-      logger.debug(`Running afterGeneration for plugin: ${plugin.manifest.name}`)
-      result = await plugin.hooks.afterGeneration(result)
-      const durationMs = Date.now() - startTime
-      logger.debug(`afterGeneration completed for plugin: ${plugin.manifest.name}`, { durationMs })
-    }
-  }
-  return result
+  return runHook('afterGeneration', plugins, genResult, (hook, value) => hook(value))
 }
 
 export async function runAfterSave(
@@ -105,20 +76,14 @@ export async function runAfterSave(
   fragment: Fragment,
   storyId: string,
 ): Promise<void> {
-  if (plugins.length === 0) {
-    return
-  }
-
-  const requestLogger = logger.child({ storyId })
-  requestLogger.info(`Running afterSave hooks for ${plugins.length} plugin(s)`, { fragmentId: fragment.id })
-
-  for (const plugin of plugins) {
-    if (plugin.hooks?.afterSave) {
-      const startTime = Date.now()
-      requestLogger.debug(`Running afterSave for plugin: ${plugin.manifest.name}`)
-      await plugin.hooks.afterSave(fragment, storyId)
-      const durationMs = Date.now() - startTime
-      requestLogger.debug(`afterSave completed for plugin: ${plugin.manifest.name}`, { durationMs })
-    }
-  }
+  await runHook<'afterSave', null>(
+    'afterSave',
+    plugins,
+    null,
+    async (hook) => {
+      await hook(fragment, storyId)
+      return null
+    },
+    logger.child({ storyId }),
+  )
 }
