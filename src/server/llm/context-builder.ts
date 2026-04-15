@@ -1,7 +1,7 @@
 import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
-import { getActiveProseIds, findSectionIndex, getFullProseChain } from '../fragments/prose-chain'
+import { getActiveProseIds, findSectionIndex, getProseChain } from '../fragments/prose-chain'
 import { getAnalysis, getLatestAnalysisIdsByFragment } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 import type { ModelMessage } from 'ai'
@@ -274,7 +274,7 @@ export async function buildContextState(
 
   let chapterSummaries: Array<{ markerId: string; name: string; summary: string }> = []
   if (story.settings.enableHierarchicalSummary && activeProseIds.length > 0 && recentProse.length > 0) {
-    const chain = await getFullProseChain(dataDir, storyId)
+    const chain = await getProseChain(dataDir, storyId)
     if (chain) {
       const sectionByFragmentId = new Map(activeProseIds.map((id, idx) => [id, idx]))
       const recentSectionIndexes = recentProse
