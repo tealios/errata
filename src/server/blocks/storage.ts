@@ -10,19 +10,15 @@ async function blockConfigPath(dataDir: string, storyId: string): Promise<string
   return join(root, 'block-config.json')
 }
 
-function emptyConfig(): BlockConfig {
-  return { customBlocks: [], overrides: {}, blockOrder: [] }
-}
-
 export async function getBlockConfig(dataDir: string, storyId: string): Promise<BlockConfig> {
   const path = await blockConfigPath(dataDir, storyId)
-  if (!existsSync(path)) return emptyConfig()
+  if (!existsSync(path)) return { customBlocks: [], overrides: {}, blockOrder: [] }
 
   try {
     const raw = await readFile(path, 'utf-8')
     return BlockConfigSchema.parse(JSON.parse(raw))
   } catch {
-    return emptyConfig()
+    return { customBlocks: [], overrides: {}, blockOrder: [] }
   }
 }
 
