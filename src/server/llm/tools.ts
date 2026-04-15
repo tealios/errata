@@ -16,6 +16,7 @@ import { createLogger } from '../logging'
 import type { Fragment } from '../fragments/schema'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { checkFragmentWrite, isFragmentLocked } from '../fragments/protection'
+import { capitalize, pluralize } from './agents'
 
 const logger = createLogger('llm-tools')
 const TOOL_LOG_MAX_CHARS = 1200
@@ -72,16 +73,6 @@ function withToolLogging<TInput, TResult>(
       throw error
     }
   }
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function pluralize(name: string): string {
-  const massNouns = ['prose', 'knowledge']
-  if (massNouns.includes(name.toLowerCase())) return name
-  return name + 's'
 }
 
 export interface FragmentToolsOptions {

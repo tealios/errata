@@ -11,11 +11,11 @@ import {
   WRITER_BRIEF_TOOLS_SUFFIX,
 } from './instruction-texts'
 
-function capitalize(s: string): string {
+export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function pluralize(name: string): string {
+export function pluralize(name: string): string {
   const massNouns = ['prose', 'knowledge']
   return massNouns.includes(name.toLowerCase()) ? name : name + 's'
 }
