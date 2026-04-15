@@ -9,7 +9,6 @@ import {
   Layers,
   Sparkles,
   Puzzle,
-  ArrowLeft,
   RefreshCw,
   Loader2,
   Zap,
@@ -18,6 +17,8 @@ import {
   BookOpen,
   GitBranch,
 } from 'lucide-react'
+import { Hint, Caption } from '@/components/ui/prose-text'
+import { Wizard } from '@/components/ui/wizard'
 
 // ── Guilloche background ─────────────────────────────
 
@@ -186,39 +187,49 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   return (
     <div className="fixed inset-0 bg-background z-50" data-component-id="onboarding-root">
       <GuillocheBackground />
-      <div className="relative z-10 flex items-center justify-center h-full overflow-auto">
-        {step === 'theme' && (
-          <ThemeStep
-            onNext={() => setStep('typography')}
-          />
-        )}
-        {step === 'typography' && (
-          <TypographyStep
-            onNext={() => setStep('welcome')}
-            onBack={() => setStep('theme')}
-          />
-        )}
-        {step === 'welcome' && (
-          <WelcomeStep
-            onNext={() => setStep('provider-select')}
-          />
-        )}
-        {step === 'provider-select' && (
-          <ProviderSelectStep
-            onSelect={(preset) => {
-              setSelectedPreset(preset)
-              setStep('provider-setup')
-            }}
-            onBack={() => setStep('welcome')}
-          />
-        )}
-        {step === 'provider-setup' && selectedPreset && (
-          <ProviderSetupStep
-            preset={selectedPreset}
-            onComplete={onComplete}
-            onBack={() => setStep('provider-select')}
-          />
-        )}
+      <div className="relative z-10 h-full overflow-auto">
+        <Wizard step={step}>
+          <Wizard.Step stepKey="theme" transition="fade">
+            <div className="flex items-center justify-center min-h-full">
+              <ThemeStep onNext={() => setStep('typography')} />
+            </div>
+          </Wizard.Step>
+          <Wizard.Step stepKey="typography" transition="fade">
+            <div className="flex items-center justify-center min-h-full">
+              <TypographyStep
+                onNext={() => setStep('welcome')}
+                onBack={() => setStep('theme')}
+              />
+            </div>
+          </Wizard.Step>
+          <Wizard.Step stepKey="welcome" transition="fade">
+            <div className="flex items-center justify-center min-h-full">
+              <WelcomeStep onNext={() => setStep('provider-select')} />
+            </div>
+          </Wizard.Step>
+          <Wizard.Step stepKey="provider-select" transition="fade">
+            <div className="flex items-center justify-center min-h-full">
+              <ProviderSelectStep
+                onSelect={(preset) => {
+                  setSelectedPreset(preset)
+                  setStep('provider-setup')
+                }}
+                onBack={() => setStep('welcome')}
+              />
+            </div>
+          </Wizard.Step>
+          <Wizard.Step stepKey="provider-setup" transition="fade">
+            {selectedPreset && (
+              <div className="flex items-center justify-center min-h-full">
+                <ProviderSetupStep
+                  preset={selectedPreset}
+                  onComplete={onComplete}
+                  onBack={() => setStep('provider-select')}
+                />
+              </div>
+            )}
+          </Wizard.Step>
+        </Wizard>
       </div>
     </div>
   )
@@ -331,9 +342,9 @@ function TypographyStep({
     <div className="max-w-xl mx-auto px-6">
       <div className="text-center mb-10 animate-onboarding-fade-up">
         <h2 className="font-display text-3xl italic mb-2">Choose your typeface</h2>
-        <p className="text-sm text-muted-foreground">
+        <Caption size="sm">
           The reading font shapes your entire writing experience.
-        </p>
+        </Caption>
       </div>
 
       {/* Prose fonts — the main event */}
@@ -440,12 +451,7 @@ function TypographyStep({
           Continue
         </Button>
         <div className="mt-4">
-          <button
-            onClick={onBack}
-            className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors flex items-center gap-1"
-          >
-            <ArrowLeft className="size-3" /> Back
-          </button>
+          <Wizard.BackButton tone="link" onBack={onBack} />
         </div>
       </div>
     </div>
@@ -489,10 +495,10 @@ function WelcomeStep({
             <BookOpen className="size-5 text-primary" />
           </div>
           <p className="text-sm font-medium mb-1">The Librarian</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <Hint className="leading-relaxed">
             A background AI reads every generation &mdash; tracking characters,
             contradictions, and world details into a living story reference.
-          </p>
+          </Hint>
         </div>
         <div
           className="text-left p-5 rounded-xl border border-primary/15 bg-primary/[0.03] animate-onboarding-fade-up"
@@ -502,10 +508,10 @@ function WelcomeStep({
             <GitBranch className="size-5 text-primary" />
           </div>
           <p className="text-sm font-medium mb-1">Timelines</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <Hint className="leading-relaxed">
             Fork at any point to explore alternate paths. Each timeline
             carries its own fragments, prose, and accumulated knowledge.
-          </p>
+          </Hint>
         </div>
       </div>
 
@@ -526,7 +532,7 @@ function WelcomeStep({
             </div>
             <div>
               <p className="text-sm font-medium mb-0.5">{f.title}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
+              <Hint className="leading-relaxed">{f.desc}</Hint>
             </div>
           </div>
         ))}
@@ -559,9 +565,9 @@ function ProviderSelectStep({
     <div className="max-w-2xl mx-auto px-6">
       <div className="text-center mb-8 animate-onboarding-fade-up">
         <h2 className="font-display text-3xl italic mb-2">Choose your provider</h2>
-        <p className="text-sm text-muted-foreground">
+        <Caption size="sm">
           Pick an LLM provider to power your writing. You can always add more later.
-        </p>
+        </Caption>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -592,9 +598,9 @@ function ProviderSelectStep({
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
+                  <Hint className="leading-relaxed">
                     {card.description}
-                  </p>
+                  </Hint>
                 </div>
               </div>
             </button>
@@ -606,12 +612,7 @@ function ProviderSelectStep({
         className="flex items-center justify-center mt-8 animate-onboarding-fade-up"
         style={{ animationDelay: '500ms' }}
       >
-        <button
-          onClick={onBack}
-          className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors flex items-center gap-1"
-        >
-          <ArrowLeft className="size-3" /> Back
-        </button>
+        <Wizard.BackButton tone="link" onBack={onBack} />
       </div>
     </div>
   )
@@ -745,13 +746,14 @@ function ProviderSetupStep({
         >
           You're all set!
         </h2>
-        <p
-          className="text-sm text-muted-foreground mb-8 animate-onboarding-fade-up"
+        <Caption
+          size="sm"
+          className="mb-8 animate-onboarding-fade-up"
           style={{ animationDelay: '350ms' }}
         >
           {card.name || name} is configured and ready to go. You can manage providers anytime in
           settings.
-        </p>
+        </Caption>
         <div className="animate-onboarding-fade-up" style={{ animationDelay: '500ms' }}>
           <Button onClick={onComplete} className="px-8">
             Start Writing
@@ -773,9 +775,9 @@ function ProviderSetupStep({
             {preset === 'custom' ? 'Custom Provider' : card.name}
           </h2>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <Caption size="sm">
           Enter your credentials to get started.
-        </p>
+        </Caption>
       </div>
 
       <div
@@ -928,12 +930,7 @@ function ProviderSetupStep({
         className="flex items-center justify-center mt-8 animate-onboarding-fade-up"
         style={{ animationDelay: '250ms' }}
       >
-        <button
-          onClick={onBack}
-          className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors flex items-center gap-1"
-        >
-          <ArrowLeft className="size-3" /> Back
-        </button>
+        <Wizard.BackButton tone="link" onBack={onBack} />
       </div>
     </div>
   )

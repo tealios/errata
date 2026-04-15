@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Sparkles, Square, ChevronLeft, ChevronRight,
+  Sparkles, Square,
   Plus, Trash2, Check, Pen, Bot, Users, PenLine,
   RefreshCw, BookOpen, Layers, Eye, Zap,
 } from 'lucide-react'
+import { Hint, Caption, EmptyHint } from '@/components/ui/prose-text'
+import { Wizard } from '@/components/ui/wizard'
 
 // ── Types ──────────────────────────────────────────────
 
@@ -18,8 +20,6 @@ interface StoryWizardProps {
 }
 
 type WizardStep = 'concept' | 'guideline' | 'world' | 'characters' | 'preferences' | 'prose' | 'complete'
-
-const STEPS: WizardStep[] = ['concept', 'guideline', 'world', 'characters', 'preferences', 'prose', 'complete']
 
 const STEP_QUESTIONS: Record<WizardStep, { question: string; subtitle: string }> = {
   concept:     { question: 'Begin your story',            subtitle: 'Give it a name and a spark of inspiration.' },
@@ -91,64 +91,30 @@ function useGenerate(storyId: string) {
   return { text, setText, isStreaming, error, generate, stop, clear }
 }
 
-// ── WizardShell ──────────────────────────────────────────
+// ── StepShell ─────────────────────────────────────────
+//
+// Header + body composition shared by every story-wizard step. The surrounding
+// <Wizard.Step> in the root handles transition and key switching.
 
-function WizardShell({
+/** How many steps we count toward the progress indicator (excludes concept + complete). */
+const COUNTED_STEPS: WizardStep[] = ['guideline', 'world', 'characters', 'preferences', 'prose']
+
+function StepShell({
   step,
-  onSkip,
   children,
 }: {
   step: WizardStep
-  onSkip: () => void
   children: React.ReactNode
 }) {
-  const stepIndex = STEPS.indexOf(step)
-  const progress = stepIndex / (STEPS.length - 1)
   const q = STEP_QUESTIONS[step]
-  const showStepCount = step !== 'concept' && step !== 'complete'
-
   return (
-    <div className="flex flex-col h-full" data-component-id="wizard-root">
-      {/* Progress bar */}
-      <div className="h-0.5 bg-border/20">
-        <div
-          className="h-full bg-primary/50 transition-all duration-500 ease-out"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3">
-        <span className="text-[0.625rem] text-muted-foreground uppercase tracking-widest">
-          {showStepCount ? `Step ${stepIndex} of ${STEPS.length - 2}` : '\u00a0'}
-        </span>
-        <button
-          onClick={onSkip}
-          className="text-[0.6875rem] text-muted-foreground hover:text-muted-foreground transition-colors"
-          data-component-id="wizard-skip"
-        >
-          Skip setup
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto" key={step}>
-        <div className="animate-wizard-step-enter max-w-xl mx-auto px-5 py-4 sm:px-8 sm:py-8">
-          {/* Question heading */}
-          <div className="mb-8">
-            <h2 className="font-display text-2xl sm:text-3xl italic leading-tight">
-              {q.question}
-            </h2>
-            {q.subtitle && (
-              <p className="font-prose text-sm text-muted-foreground mt-2 leading-relaxed">
-                {q.subtitle}
-              </p>
-            )}
-          </div>
-          {children}
-        </div>
-      </div>
-    </div>
+    <Wizard.StepBody width="narrow">
+      <Wizard.StepHeader>
+        <Wizard.StepTitle>{q.question}</Wizard.StepTitle>
+        {q.subtitle && <Wizard.StepDescription>{q.subtitle}</Wizard.StepDescription>}
+      </Wizard.StepHeader>
+      {children}
+    </Wizard.StepBody>
   )
 }
 
@@ -251,26 +217,14 @@ function StepNav({
   showBack?: boolean
 }) {
   return (
-    <div className="flex items-center justify-between mt-10 pt-4 border-t border-border/20">
+    <Wizard.StepFooter>
       {showBack && onBack ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-muted-foreground"
-          onClick={onBack}
-        >
-          <ChevronLeft className="size-3.5" /> Back
-        </Button>
+        <Wizard.BackButton onBack={onBack} />
       ) : <div />}
-      <Button
-        size="sm"
-        className="gap-1.5"
-        onClick={onContinue}
-        disabled={!canContinue}
-      >
-        {continueLabel} <ChevronRight className="size-3.5" />
-      </Button>
-    </div>
+      <Wizard.NextButton onAdvance={onContinue} disabled={!canContinue}>
+        {continueLabel}
+      </Wizard.NextButton>
+    </Wizard.StepFooter>
   )
 }
 
@@ -283,7 +237,6 @@ function ConceptStep({
   storyDesc,
   setStoryDesc,
   onContinue,
-  onSkip,
 }: {
   storyId: string
   storyName: string
@@ -291,7 +244,6 @@ function ConceptStep({
   storyDesc: string
   setStoryDesc: (v: string) => void
   onContinue: () => void
-  onSkip: () => void
 }) {
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
@@ -335,7 +287,7 @@ function ConceptStep({
   }
 
   return (
-    <WizardShell step="concept" onSkip={onSkip}>
+    <StepShell step="concept">
       <div className="space-y-6">
         <div>
           <Input
@@ -347,9 +299,11 @@ function ConceptStep({
         </div>
 
         <div>
-          <label className="text-xs text-muted-foreground mb-2 block font-prose">
-            A theme, a world, a feeling &mdash; this guides AI generation throughout.
-          </label>
+          <Hint asChild className="mb-2 block font-prose">
+            <label>
+              A theme, a world, a feeling &mdash; this guides AI generation throughout.
+            </label>
+          </Hint>
           <Textarea
             value={storyDesc}
             onChange={e => setStoryDesc(e.target.value)}
@@ -360,9 +314,11 @@ function ConceptStep({
 
         {showProviderPicker && globalConfig && (
           <div>
-            <label className="text-xs text-muted-foreground mb-2 block font-prose">
-              Model provider for generation
-            </label>
+            <Hint asChild className="mb-2 block font-prose">
+              <label>
+                Model provider for generation
+              </label>
+            </Hint>
             <div className="flex items-center gap-2 p-2.5 rounded-xl border border-border/40 bg-card/30">
               <Bot className="size-4 text-muted-foreground shrink-0" />
               <select
@@ -411,7 +367,7 @@ function ConceptStep({
         canContinue={!saving}
         showBack={false}
       />
-    </WizardShell>
+    </StepShell>
   )
 }
 
@@ -427,7 +383,6 @@ function ContentStep({
   fragmentId,
   onContinue,
   onBack,
-  onSkip,
   onSaved,
   storyDesc,
 }: {
@@ -438,7 +393,6 @@ function ContentStep({
   fragmentId: string | null
   onContinue: () => void
   onBack: () => void
-  onSkip: () => void
   onSaved: (id: string) => void
   storyDesc: string
 }) {
@@ -561,7 +515,7 @@ function ContentStep({
   const charLimit = step === 'guideline' ? { min: 500, max: 2000 } : undefined
 
   return (
-    <WizardShell step={step} onSkip={onSkip}>
+    <StepShell step={step}>
       {/* Phase: Choose */}
       {phase === 'choose' && (
         <div className="space-y-3">
@@ -572,9 +526,9 @@ function ContentStep({
             >
               <Sparkles className="size-5 text-primary/60 mb-3" />
               <div className="font-display text-base italic">Generate</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              <Hint className="mt-1 leading-relaxed">
                 Let AI create it based on your story concept
-              </p>
+              </Hint>
             </button>
             <button
               onClick={() => setPhase('write')}
@@ -582,9 +536,9 @@ function ContentStep({
             >
               <PenLine className="size-5 text-muted-foreground mb-3" />
               <div className="font-display text-base italic">Write</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              <Hint className="mt-1 leading-relaxed">
                 Write it yourself from scratch
-              </p>
+              </Hint>
             </button>
           </div>
         </div>
@@ -677,7 +631,7 @@ function ContentStep({
         canContinue={!saving && !gen.isStreaming}
         continueLabel={saving ? 'Saving...' : 'Continue'}
       />
-    </WizardShell>
+    </StepShell>
   )
 }
 
@@ -709,7 +663,6 @@ function CharactersStep({
   setCharacters,
   onContinue,
   onBack,
-  onSkip,
   storyDesc,
 }: {
   storyId: string
@@ -717,7 +670,6 @@ function CharactersStep({
   setCharacters: (chars: CharData[]) => void
   onContinue: () => void
   onBack: () => void
-  onSkip: () => void
   storyDesc: string
 }) {
   const queryClient = useQueryClient()
@@ -893,7 +845,7 @@ function CharactersStep({
   const isBusy = castGen.isStreaming || saving
 
   return (
-    <WizardShell step="characters" onSkip={onSkip}>
+    <StepShell step="characters">
       <div className="space-y-5">
 
         {/* Character list */}
@@ -963,9 +915,9 @@ function CharactersStep({
                         )}
                       </div>
                       {char.description && char.description !== char.name && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 font-prose">
+                        <Caption className="mt-0.5 line-clamp-2">
                           {char.description}
-                        </p>
+                        </Caption>
                       )}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -1004,9 +956,9 @@ function CharactersStep({
             >
               <Users className="size-5 text-primary/60 mb-3" />
               <div className="font-display text-base italic">Generate a Cast</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              <Hint className="mt-1 leading-relaxed">
                 Let AI suggest characters that fit your story
-              </p>
+              </Hint>
             </button>
             <button
               onClick={() => setPhase('manual')}
@@ -1014,9 +966,9 @@ function CharactersStep({
             >
               <Plus className="size-5 text-muted-foreground mb-3" />
               <div className="font-display text-base italic">Add One by One</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              <Hint className="mt-1 leading-relaxed">
                 Create characters manually with name and description
-              </p>
+              </Hint>
             </button>
           </div>
         )}
@@ -1072,9 +1024,9 @@ function CharactersStep({
                     />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium">{char.name}</span>
-                      <p className="text-xs text-muted-foreground mt-0.5 font-prose">
+                      <Caption className="mt-0.5">
                         {char.description}
-                      </p>
+                      </Caption>
                     </div>
                   </label>
                 ))}
@@ -1179,7 +1131,7 @@ function CharactersStep({
         onContinue={onContinue}
         canContinue={!isBusy && editingIndex === null && !showCastPreview}
       />
-    </WizardShell>
+    </StepShell>
   )
 }
 
@@ -1189,12 +1141,10 @@ function PreferencesStep({
   storyId,
   onContinue,
   onBack,
-  onSkip,
 }: {
   storyId: string
   onContinue: () => void
   onBack: () => void
-  onSkip: () => void
 }) {
   const queryClient = useQueryClient()
   const { data: story } = useQuery({
@@ -1216,7 +1166,7 @@ function PreferencesStep({
   const hierarchicalSummary = story?.settings.enableHierarchicalSummary ?? true
 
   return (
-    <WizardShell step="preferences" onSkip={onSkip}>
+    <StepShell step="preferences">
       <div className="space-y-8">
 
         {/* ── Librarian ── */}
@@ -1226,11 +1176,11 @@ function PreferencesStep({
               <BookOpen className="size-4 text-primary/50" />
               <h3 className="text-sm font-medium text-foreground/80">The Librarian</h3>
             </div>
-            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+            <Hint className="font-prose leading-relaxed">
               After each generation, a background AI reads what was written and tracks
               characters, locations, plot points, and contradictions &mdash; building
               a living reference for your world.
-            </p>
+            </Hint>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1274,10 +1224,10 @@ function PreferencesStep({
               <Layers className="size-4 text-primary/50" />
               <h3 className="text-sm font-medium text-foreground/80">Context management</h3>
             </div>
-            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+            <Hint className="font-prose leading-relaxed">
               Controls how your fragments, prose, and instructions are assembled
               into the prompt that the AI sees when generating.
-            </p>
+            </Hint>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1321,10 +1271,10 @@ function PreferencesStep({
               <PenLine className="size-4 text-primary/50" />
               <h3 className="text-sm font-medium text-foreground/80">Generation mode</h3>
             </div>
-            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+            <Hint className="font-prose leading-relaxed">
               The prewriter analyzes your full context first and creates a focused
               brief for the writer &mdash; better character voices, pacing, and continuity.
-            </p>
+            </Hint>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1368,10 +1318,10 @@ function PreferencesStep({
               <Layers className="size-4 text-primary/50" />
               <h3 className="text-sm font-medium text-foreground/80">Hierarchical summaries</h3>
             </div>
-            <p className="font-prose text-xs text-muted-foreground leading-relaxed">
+            <Hint className="font-prose leading-relaxed">
               Older prose is progressively summarized so the AI can remember more of
               your story without running out of context space.
-            </p>
+            </Hint>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1417,7 +1367,7 @@ function PreferencesStep({
         onBack={onBack}
         onContinue={onContinue}
       />
-    </WizardShell>
+    </StepShell>
   )
 }
 
@@ -1430,7 +1380,6 @@ function CompleteStep({
   proseId,
   onComplete,
   onBack,
-  onSkip,
 }: {
   guidelineId: string | null
   worldId: string | null
@@ -1438,7 +1387,6 @@ function CompleteStep({
   proseId: string | null
   onComplete: () => void
   onBack: () => void
-  onSkip: () => void
 }) {
   const savedCharacters = characters.filter(c => c.fragmentId)
   const items = [
@@ -1449,7 +1397,7 @@ function CompleteStep({
   ].filter(Boolean) as { label: string; type: string }[]
 
   return (
-    <WizardShell step="complete" onSkip={onSkip}>
+    <StepShell step="complete">
       <div className="space-y-6">
         {items.length > 0 ? (
           <div className="space-y-2">
@@ -1467,9 +1415,9 @@ function CompleteStep({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground font-prose italic">
+          <EmptyHint size="sm" className="font-prose">
             No fragments created yet &mdash; you can always add them later from the sidebar.
-          </p>
+          </EmptyHint>
         )}
 
       </div>
@@ -1479,7 +1427,7 @@ function CompleteStep({
         onContinue={onComplete}
         continueLabel="Start Writing"
       />
-    </WizardShell>
+    </StepShell>
   )
 }
 
@@ -1554,9 +1502,22 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
 
   const goTo = (s: WizardStep) => setStep(s)
 
-  switch (step) {
-    case 'concept':
-      return (
+  // Progress indicator counts only content-producing steps.
+  const countedIndex = COUNTED_STEPS.indexOf(step as (typeof COUNTED_STEPS)[number])
+  const showProgress = countedIndex >= 0
+
+  return (
+    <Wizard step={step} total={COUNTED_STEPS.length} onClose={onComplete}>
+      <Wizard.Toolbar>
+        {showProgress ? (
+          <Wizard.Progress current={countedIndex + 1} total={COUNTED_STEPS.length} />
+        ) : (
+          <span />
+        )}
+        <Wizard.SkipButton onClick={onComplete} />
+      </Wizard.Toolbar>
+
+      <Wizard.Step stepKey="concept">
         <ConceptStep
           storyId={storyId}
           storyName={storyName}
@@ -1564,12 +1525,10 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
           storyDesc={storyDesc}
           setStoryDesc={setStoryDesc}
           onContinue={() => goTo('guideline')}
-          onSkip={onComplete}
         />
-      )
+      </Wizard.Step>
 
-    case 'guideline':
-      return (
+      <Wizard.Step stepKey="guideline">
         <ContentStep
           key="guideline"
           storyId={storyId}
@@ -1580,13 +1539,11 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
           onSaved={id => setGuidelineId(id)}
           onContinue={() => goTo('world')}
           onBack={() => goTo('concept')}
-          onSkip={onComplete}
           storyDesc={storyDesc}
         />
-      )
+      </Wizard.Step>
 
-    case 'world':
-      return (
+      <Wizard.Step stepKey="world">
         <ContentStep
           key="world"
           storyId={storyId}
@@ -1597,36 +1554,30 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
           onSaved={id => setWorldId(id)}
           onContinue={() => goTo('characters')}
           onBack={() => goTo('guideline')}
-          onSkip={onComplete}
           storyDesc={storyDesc}
         />
-      )
+      </Wizard.Step>
 
-    case 'characters':
-      return (
+      <Wizard.Step stepKey="characters">
         <CharactersStep
           storyId={storyId}
           characters={characters}
           setCharacters={setCharacters}
           onContinue={() => goTo('preferences')}
           onBack={() => goTo('world')}
-          onSkip={onComplete}
           storyDesc={storyDesc}
         />
-      )
+      </Wizard.Step>
 
-    case 'preferences':
-      return (
+      <Wizard.Step stepKey="preferences">
         <PreferencesStep
           storyId={storyId}
           onContinue={() => goTo('prose')}
           onBack={() => goTo('characters')}
-          onSkip={onComplete}
         />
-      )
+      </Wizard.Step>
 
-    case 'prose':
-      return (
+      <Wizard.Step stepKey="prose">
         <ContentStep
           key="prose"
           storyId={storyId}
@@ -1637,13 +1588,11 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
           onSaved={id => setProseId(id)}
           onContinue={() => goTo('complete')}
           onBack={() => goTo('characters')}
-          onSkip={onComplete}
           storyDesc={storyDesc}
         />
-      )
+      </Wizard.Step>
 
-    case 'complete':
-      return (
+      <Wizard.Step stepKey="complete">
         <CompleteStep
           guidelineId={guidelineId}
           worldId={worldId}
@@ -1651,8 +1600,8 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
           proseId={proseId}
           onComplete={onComplete}
           onBack={() => goTo('prose')}
-          onSkip={onComplete}
         />
-      )
-  }
+      </Wizard.Step>
+    </Wizard>
+  )
 }
