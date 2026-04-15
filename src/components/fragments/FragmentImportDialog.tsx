@@ -16,15 +16,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Clipboard, FileJson, AlertCircle, ImageIcon, Upload, Package, Settings2 } from 'lucide-react'
+import { FileDropDialog } from '@/components/ui/file-drop-dialog'
+import { Caption } from '@/components/ui/prose-text'
+import { Clipboard, FileJson, ImageIcon, Upload, Package, Settings2 } from 'lucide-react'
 
 interface FragmentImportDialogProps {
   storyId: string
@@ -58,7 +52,6 @@ export function FragmentImportDialog({
   const [importBlockConfig, setImportBlockConfig] = useState(true)
   const [importAgentConfigs, setImportAgentConfigs] = useState<Set<string>>(new Set())
 
-  // Detect available configs in parsed bundle
   const bundleConfigs = useMemo(() => {
     if (!parsed || !isBundle(parsed)) return null
     const hasBlockConfig = !!parsed.blockConfig && !isBlockConfigEmpty(parsed.blockConfig)
@@ -91,7 +84,6 @@ export function FragmentImportDialog({
     }
   }, [parsed, importBlockConfig, importAgentConfigs])
 
-  // Manage dialog state on open/close
   useEffect(() => {
     if (!open) {
       setJsonText('')
@@ -112,7 +104,6 @@ export function FragmentImportDialog({
         initConfigSelections(initialData)
       }
     } else {
-      // Try reading clipboard automatically
       navigator.clipboard.readText().then((text) => {
         const result = parseErrataExport(text)
         if (result) {
@@ -211,21 +202,18 @@ export function FragmentImportDialog({
   const importMutation = useMutation({
     mutationFn: async (data: ErrataExportData) => {
       if (isSingleFragment(data)) {
-        // Legacy single-fragment format: merge attachments into entry
         const entry: FragmentExportEntry = {
           ...data.fragment,
           attachments: data.attachments,
         }
         return [await importFragmentEntry(storyId, entry)]
       } else {
-        // Bundle format: import selected fragments
         const entries = data.fragments.filter((_, i) => selectedIndices.has(i))
         const results = []
         for (const entry of entries) {
           results.push(await importFragmentEntry(storyId, entry))
         }
 
-        // Import configs if any are selected
         const hasConfigsToImport =
           (importBlockConfig && data.blockConfig) ||
           importAgentConfigs.size > 0
@@ -267,127 +255,120 @@ export function FragmentImportDialog({
     : 0
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileJson className="size-4 text-muted-foreground" />
-            Import Fragments
-          </DialogTitle>
-          <DialogDescription>
-            Paste fragment JSON, drop a file, or load from clipboard.
-          </DialogDescription>
-        </DialogHeader>
+    <FileDropDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <FileJson className="size-4 text-muted-foreground" aria-hidden="true" />
+          Import Fragments
+        </span>
+      }
+      description="Paste fragment JSON, drop a file, or load from clipboard."
+      contentClassName="max-w-lg"
+      showCloseButton
+    >
+      {!parsed && (
+        <>
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={handlePasteFromClipboard}
+            >
+              <Clipboard className="size-3" />
+              Paste from clipboard
+            </Button>
+            <label className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-border/40 text-xs cursor-pointer transition-colors hover:bg-accent/50">
+              <Upload className="size-3" />
+              Load file
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleFileInput}
+              />
+            </label>
+          </div>
 
-        <div className="space-y-3 overflow-y-auto min-h-0 flex-1">
-          {/* Input area - shown when nothing parsed yet */}
-          {!parsed && (
-            <>
-              <div className="flex gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1.5"
-                  onClick={handlePasteFromClipboard}
-                >
-                  <Clipboard className="size-3" />
-                  Paste from clipboard
-                </Button>
-                <label className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-border/40 text-xs cursor-pointer transition-colors hover:bg-accent/50">
-                  <Upload className="size-3" />
-                  Load file
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    className="hidden"
-                    onChange={handleFileInput}
-                  />
-                </label>
-              </div>
-
-              {/* Drop zone / textarea combo */}
-              <div
-                className="relative"
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleFileDrop}
-              >
-                <Textarea
-                  value={jsonText}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  placeholder='Paste JSON or drop a .json file here...'
-                  className={`min-h-[140px] resize-none font-mono text-xs bg-transparent transition-colors ${
-                    dragOver ? 'border-primary/50 bg-primary/5' : ''
-                  }`}
-                />
-                {dragOver && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-primary/5 pointer-events-none">
-                    <div className="text-center">
-                      <Upload className="size-5 text-primary/50 mx-auto mb-1" />
-                      <p className="text-xs text-primary/60">Drop file here</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Error */}
-          {parseError && (
-            <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-md px-3 py-2">
-              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>{parseError}</span>
-            </div>
-          )}
-
-          {/* Single fragment preview */}
-          {parsed && isSingleFragment(parsed) && (
-            <SingleFragmentPreview data={parsed} onClear={() => { setParsed(null); setJsonText('') }} />
-          )}
-
-          {/* Bundle preview */}
-          {parsed && isBundle(parsed) && (
-            <BundlePreview
-              data={parsed}
-              selectedIndices={selectedIndices}
-              onToggle={toggleBundleItem}
-              onSelectAll={() => setSelectedIndices(new Set(parsed.fragments.map((_, i) => i)))}
-              onDeselectAll={() => setSelectedIndices(new Set())}
-              onClear={() => { setParsed(null); setJsonText(''); setSelectedIndices(new Set()) }}
-              bundleConfigs={bundleConfigs}
-              importBlockConfig={importBlockConfig}
-              onToggleBlockConfig={() => setImportBlockConfig((v) => !v)}
-              importAgentConfigs={importAgentConfigs}
-              onToggleAgentConfig={(name) => {
-                setImportAgentConfigs((prev) => {
-                  const next = new Set(prev)
-                  if (next.has(name)) next.delete(name)
-                  else next.add(name)
-                  return next
-                })
-              }}
-              scriptImportWarning={scriptImportWarning}
-            />
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!parsed || importCount === 0 || importMutation.isPending}
-            onClick={() => parsed && importMutation.mutate(parsed)}
+          {/* Drop zone / textarea combo — textarea-first, drop-to-parse */}
+          <div
+            className="relative"
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleFileDrop}
           >
-            {importMutation.isPending
-              ? 'Importing...'
-              : `Import${importCount > 1 ? ` ${importCount} fragments` : ''}`
-            }
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Textarea
+              value={jsonText}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder='Paste JSON or drop a .json file here...'
+              className={`min-h-[140px] resize-none font-mono text-xs bg-transparent transition-colors ${
+                dragOver ? 'border-primary/50 bg-primary/5' : ''
+              }`}
+            />
+            {dragOver && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-primary/5 pointer-events-none">
+                <div className="text-center">
+                  <Upload className="size-5 text-primary/50 mx-auto mb-1" aria-hidden="true" />
+                  <p className="text-xs text-primary/60 italic font-display">Drop file here</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <FileDropDialog.Errors>{parseError}</FileDropDialog.Errors>
+
+      {parsed && isSingleFragment(parsed) && (
+        <FileDropDialog.Preview>
+          <SingleFragmentPreview data={parsed} onClear={() => { setParsed(null); setJsonText('') }} />
+        </FileDropDialog.Preview>
+      )}
+
+      {parsed && isBundle(parsed) && (
+        <FileDropDialog.Preview>
+          <BundlePreview
+            data={parsed}
+            selectedIndices={selectedIndices}
+            onToggle={toggleBundleItem}
+            onSelectAll={() => setSelectedIndices(new Set(parsed.fragments.map((_, i) => i)))}
+            onDeselectAll={() => setSelectedIndices(new Set())}
+            onClear={() => { setParsed(null); setJsonText(''); setSelectedIndices(new Set()) }}
+            bundleConfigs={bundleConfigs}
+            importBlockConfig={importBlockConfig}
+            onToggleBlockConfig={() => setImportBlockConfig((v) => !v)}
+            importAgentConfigs={importAgentConfigs}
+            onToggleAgentConfig={(name) => {
+              setImportAgentConfigs((prev) => {
+                const next = new Set(prev)
+                if (next.has(name)) next.delete(name)
+                else next.add(name)
+                return next
+              })
+            }}
+            scriptImportWarning={scriptImportWarning}
+          />
+        </FileDropDialog.Preview>
+      )}
+
+      <FileDropDialog.Actions>
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          disabled={!parsed || importCount === 0 || importMutation.isPending}
+          onClick={() => parsed && importMutation.mutate(parsed)}
+        >
+          {importMutation.isPending
+            ? 'Importing...'
+            : `Import${importCount > 1 ? ` ${importCount} fragments` : ''}`
+          }
+        </Button>
+      </FileDropDialog.Actions>
+    </FileDropDialog>
   )
 }
 
@@ -414,7 +395,7 @@ export function SingleFragmentPreview({
         <div>
           <p className="font-display text-base leading-tight">{f.name}</p>
           {f.description && (
-            <p className="text-xs text-muted-foreground mt-0.5">{f.description}</p>
+            <Caption className="mt-0.5">{f.description}</Caption>
           )}
         </div>
         {f.content && (
@@ -494,7 +475,6 @@ export function BundlePreview({
 }) {
   const allSelected = data.fragments.length === selectedIndices.size
 
-  // Group by type for display
   const groupedEntries = data.fragments.reduce<Record<string, Array<{ entry: FragmentExportEntry; index: number }>>>((acc, entry, index) => {
     const type = entry.type
     if (!acc[type]) acc[type] = []
@@ -504,7 +484,6 @@ export function BundlePreview({
 
   return (
     <div className="rounded-lg border border-border/50 bg-accent/20 overflow-hidden">
-      {/* Bundle header */}
       <div className="px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Package className="size-3.5 text-muted-foreground" />
@@ -531,7 +510,6 @@ export function BundlePreview({
         </div>
       </div>
 
-      {/* Fragment list */}
       <div className="max-h-64 overflow-y-auto">
         {Object.entries(groupedEntries).map(([type, items]) => (
           <div key={type}>
@@ -574,7 +552,6 @@ export function BundlePreview({
         ))}
       </div>
 
-      {/* Context configuration section */}
       {bundleConfigs && (
         <div className="border-t border-border/30">
           <div className="px-4 py-2 bg-background/30 border-b border-border/20">
@@ -637,7 +614,6 @@ export function BundlePreview({
         </div>
       )}
 
-      {/* Clear */}
       <div className="border-t border-border/30 px-4 py-2">
         <button
           onClick={onClear}

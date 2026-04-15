@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -8,22 +8,16 @@ import {
   parseCardJson,
   type ParsedCharacterCard,
 } from '@/lib/importers/tavern-card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { FileDropDialog } from '@/components/ui/file-drop-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/async-view'
 import {
   Upload,
   Link as LinkIcon,
   FileArchive,
   FileJson,
   Image,
-  Loader2,
-  AlertCircle,
 } from 'lucide-react'
 
 interface ImportDialogProps {
@@ -39,15 +33,12 @@ type ImportStatus =
 export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [dragOver, setDragOver] = useState(false)
   const [url, setUrl] = useState('')
   const [status, setStatus] = useState<ImportStatus>({ type: 'idle' })
 
   const reset = useCallback(() => {
     setUrl('')
     setStatus({ type: 'idle' })
-    setDragOver(false)
   }, [])
 
   const handleOpenChange = useCallback((v: boolean) => {
@@ -65,7 +56,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       description: parsed.card.description.slice(0, 250) || 'Imported from character card',
     })
 
-    // Rebuild raw card JSON for the story page to re-parse
     const cardJson = JSON.stringify({
       data: {
         name: parsed.card.name,
@@ -106,11 +96,9 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     navigate({ to: '/story/$storyId', params: { storyId: newStory.id } })
   }, [navigate, queryClient, handleOpenChange])
 
-  /** Process a single file based on its type */
   const processFile = useCallback(async (file: File) => {
     const name = file.name.toLowerCase()
 
-    // ZIP → story import
     if (name.endsWith('.zip') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
       setStatus({ type: 'processing', message: 'Importing story archive...' })
       try {
@@ -124,7 +112,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       return
     }
 
-    // PNG → character card
     if (name.endsWith('.png') || file.type === 'image/png') {
       setStatus({ type: 'processing', message: 'Reading character card image...' })
       try {
@@ -138,7 +125,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           setStatus({ type: 'error', message: 'Could not parse the character card data from this PNG.' })
           return
         }
-        // Build image data URL for the import dialog
         const bytes = new Uint8Array(buffer)
         let binary = ''
         for (let j = 0; j < bytes.length; j++) {
@@ -152,7 +138,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       return
     }
 
-    // JSON → try character card first, then fail
     if (name.endsWith('.json') || file.type === 'application/json') {
       setStatus({ type: 'processing', message: 'Parsing JSON file...' })
       try {
@@ -172,7 +157,11 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     setStatus({ type: 'error', message: `Unsupported file type. Accepted: .zip, .json, .png` })
   }, [importCharacterCard, navigate, queryClient, handleOpenChange])
 
-  /** Fetch from URL */
+  const handleFiles = useCallback(async (files: File[]) => {
+    const file = files[0]
+    if (file) await processFile(file)
+  }, [processFile])
+
   const handleUrlFetch = useCallback(async () => {
     const trimmed = url.trim()
     if (!trimmed) return
@@ -188,14 +177,12 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       const contentType = res.headers.get('content-type') ?? ''
       const text = await res.text()
 
-      // Try as character card JSON
       const parsed = parseCardJson(text)
       if (parsed) {
         await importCharacterCard(parsed)
         return
       }
 
-      // If content-type suggests JSON but it's not a card
       if (contentType.includes('json') || trimmed.endsWith('.json')) {
         setStatus({ type: 'error', message: 'The fetched JSON is not a recognized character card format (V2/V3).' })
         return
@@ -207,128 +194,90 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     }
   }, [url, importCharacterCard])
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) await processFile(file)
-  }, [processFile])
-
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) await processFile(file)
-    e.target.value = ''
-  }, [processFile])
-
   const isProcessing = status.type === 'processing'
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display text-lg">Import</DialogTitle>
-        </DialogHeader>
+    <FileDropDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Import"
+      contentClassName="max-w-md"
+      showCloseButton
+    >
+      <FileDropDialog.Dropzone
+        onFiles={handleFiles}
+        accept=".zip,.json,.png,image/png,application/json,application/zip"
+        disabled={isProcessing}
+        icon={<Upload className="size-6" aria-hidden="true" />}
+        label={
+          isProcessing
+            ? status.message
+            : 'Drag a file here, or click to pick one.'
+        }
+        hint={
+          !isProcessing ? (
+            <span className="inline-flex items-center justify-center gap-3">
+              <span className="inline-flex items-center gap-1">
+                <FileArchive className="size-3" />.zip
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <FileJson className="size-3" />.json
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Image className="size-3" />.png
+              </span>
+            </span>
+          ) : undefined
+        }
+      >
+        {isProcessing ? (
+          <div className="flex flex-col items-center gap-2 py-3">
+            <Spinner size="md" />
+            <p className="text-xs text-muted-foreground italic">{status.message}</p>
+          </div>
+        ) : undefined}
+      </FileDropDialog.Dropzone>
 
-        <div className="space-y-4 mt-1">
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); if (!isProcessing) setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => !isProcessing && fileInputRef.current?.click()}
-            className={`
-              relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed
-              px-6 py-8 cursor-pointer transition-all duration-150
-              ${dragOver
-                ? 'border-primary/50 bg-primary/5'
-                : 'border-border/40 hover:border-border/70 hover:bg-muted/30'
-              }
-              ${isProcessing ? 'pointer-events-none opacity-60' : ''}
-            `}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="size-6 text-muted-foreground animate-spin" />
-                <p className="text-sm text-muted-foreground">{status.message}</p>
-              </>
-            ) : (
-              <>
-                <Upload className="size-6 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Drop a file or <span className="text-foreground/70 underline underline-offset-2">browse</span>
-                  </p>
-                  <div className="flex items-center justify-center gap-3 mt-2">
-                    <span className="flex items-center gap-1 text-[0.6875rem] text-muted-foreground">
-                      <FileArchive className="size-3" />.zip
-                    </span>
-                    <span className="flex items-center gap-1 text-[0.6875rem] text-muted-foreground">
-                      <FileJson className="size-3" />.json
-                    </span>
-                    <span className="flex items-center gap-1 text-[0.6875rem] text-muted-foreground">
-                      <Image className="size-3" />.png
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".zip,.json,.png,image/png,application/json,application/zip"
-              className="hidden"
-              onChange={handleFileInput}
+      {/* URL input */}
+      <div className="space-y-1.5">
+        <label className="text-[0.6875rem] font-medium text-muted-foreground uppercase tracking-wider">
+          Or import from URL
+        </label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleUrlFetch() } }}
+              placeholder="https://..."
+              className="pl-8 text-sm h-9"
+              disabled={isProcessing}
             />
           </div>
-
-          {/* URL input */}
-          <div className="space-y-1.5">
-            <label className="text-[0.6875rem] font-medium text-muted-foreground uppercase tracking-wider">
-              Or import from URL
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-                <Input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleUrlFetch() } }}
-                  placeholder="https://..."
-                  className="pl-8 text-sm h-9"
-                  disabled={isProcessing}
-                />
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9 px-3"
-                disabled={isProcessing || !url.trim()}
-                onClick={handleUrlFetch}
-              >
-                {isProcessing ? <Loader2 className="size-3.5 animate-spin" /> : 'Fetch'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Error message */}
-          {status.type === 'error' && (
-            <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-md px-3 py-2.5">
-              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>{status.message}</span>
-            </div>
-          )}
-
-          {/* Help text */}
-          <p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
-            <strong className="text-muted-foreground">.zip</strong> — Errata story export
-            {' · '}
-            <strong className="text-muted-foreground">.json</strong> — SillyTavern / TavernAI character card (V2/V3)
-            {' · '}
-            <strong className="text-muted-foreground">.png</strong> — Character card with embedded data
-          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 px-3"
+            disabled={isProcessing || !url.trim()}
+            onClick={handleUrlFetch}
+          >
+            {isProcessing ? <Spinner size="sm" /> : 'Fetch'}
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      <FileDropDialog.Errors>
+        {status.type === 'error' ? status.message : undefined}
+      </FileDropDialog.Errors>
+
+      <p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
+        <strong className="text-muted-foreground">.zip</strong> — Errata story export
+        {' · '}
+        <strong className="text-muted-foreground">.json</strong> — SillyTavern / TavernAI character card (V2/V3)
+        {' · '}
+        <strong className="text-muted-foreground">.png</strong> — Character card with embedded data
+      </p>
+    </FileDropDialog>
   )
 }

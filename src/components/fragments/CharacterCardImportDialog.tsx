@@ -12,11 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { FileDropDialog } from '@/components/ui/file-drop-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +29,6 @@ import {
   Pin,
   ChevronDown,
   Loader2,
-  AlertCircle,
   Link as LinkIcon,
 } from 'lucide-react'
 
@@ -79,13 +74,11 @@ export function CharacterCardImportDialog({
   onImported,
 }: CharacterCardImportDialogProps) {
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
 
   const [cardData, setCardData] = useState<ParsedCharacterCard | null>(null)
   const [itemStates, setItemStates] = useState<Map<string, ItemState>>(new Map())
   const [parseError, setParseError] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState(false)
   const [urlFetching, setUrlFetching] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
 
@@ -95,7 +88,6 @@ export function CharacterCardImportDialog({
       setCardData(null)
       setItemStates(new Map())
       setParseError(null)
-      setDragOver(false)
       setUrlFetching(false)
       setUrlError(null)
       return
@@ -116,28 +108,8 @@ export function CharacterCardImportDialog({
     setItemStates(states)
   }, [])
 
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const text = await file.text()
-      const parsed = parseCardJson(text)
-      if (parsed) {
-        loadCard(parsed)
-      } else {
-        setParseError('This file does not contain a recognized character card format.')
-      }
-    } catch {
-      setParseError('Could not read file.')
-    }
-    e.target.value = ''
-  }, [loadCard])
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
+  const handleFiles = useCallback(async (files: File[]) => {
+    const file = files[0]
     if (!file) return
     try {
       const text = await file.text()
@@ -238,17 +210,14 @@ export function CharacterCardImportDialog({
           meta: item.meta,
         })
 
-        // Set sticky if needed (via separate API call)
         if (item.sticky) {
           await api.fragments.toggleSticky(storyId, fragment.id, true)
         }
 
-        // Set placement if system
         if (item.placement === 'system') {
           await api.fragments.setPlacement(storyId, fragment.id, 'system')
         }
 
-        // Add prose to chain
         if (item.finalType === 'prose') {
           await api.proseChain.addSection(storyId, fragment.id)
         }
@@ -285,280 +254,191 @@ export function CharacterCardImportDialog({
 
   const hasCard = cardData !== null
 
+  const description = hasCard ? (
+    <span className="flex items-center gap-2">
+      <span className="font-medium text-foreground/70">{cardData.card.name}</span>
+      {cardData.card.spec && (
+        <Badge variant="outline" className="text-[0.5625rem] h-4 px-1.5 border-border/40 text-muted-foreground">
+          {cardData.card.spec}
+        </Badge>
+      )}
+      {cardData.card.creator && (
+        <span className="text-muted-foreground">by {cardData.card.creator}</span>
+      )}
+      <span className="text-muted-foreground ml-auto tabular-nums">
+        {totalCount} {totalCount === 1 ? 'entry' : 'entries'}
+      </span>
+    </span>
+  ) : (
+    'JSON character card with optional lorebook entries'
+  )
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className={`max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0 border-border/60 bg-card transition-[max-width] duration-300 ${
-          hasCard ? 'max-w-2xl' : 'max-w-[480px]'
-        }`}
-      >
-        {/* ── Header ── */}
-        <div className="px-6 pt-6 pb-4">
-          <p className="font-display text-xl tracking-tight">
-            {hasCard ? 'Import Character Card' : 'Import Character Card'}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {hasCard ? (
-              <span className="flex items-center gap-2">
-                <span className="font-medium text-foreground/70">{cardData.card.name}</span>
-                {cardData.card.spec && (
-                  <Badge variant="outline" className="text-[0.5625rem] h-4 px-1.5 border-border/40 text-muted-foreground">
-                    {cardData.card.spec}
-                  </Badge>
-                )}
-                {cardData.card.creator && (
-                  <span className="text-muted-foreground">by {cardData.card.creator}</span>
-                )}
-                <span className="text-muted-foreground ml-auto tabular-nums">
-                  {totalCount} {totalCount === 1 ? 'entry' : 'entries'}
-                </span>
-              </span>
-            ) : (
-              'JSON character card with optional lorebook entries'
-            )}
-          </p>
-        </div>
+    <FileDropDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Import Character Card"
+      description={description}
+      contentClassName={`transition-[max-width] duration-300 ${hasCard ? 'max-w-2xl' : 'max-w-[480px]'}`}
+    >
+      {!hasCard && (
+        <>
+          <FileDropDialog.Dropzone
+            onFiles={handleFiles}
+            accept=".json,application/json"
+            label="Drop character card JSON"
+            hint="V2 or V3 character card .json files"
+            icon={<BookOpen className="size-7" aria-hidden="true" />}
+          />
 
-        <div className="flex-1 overflow-hidden min-h-0 px-5 pb-4 flex flex-col gap-3">
-          {/* ── Empty state: drop zone + URL input ── */}
-          {!hasCard && (
-            <>
-              <div
-                className={`relative group rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${
-                  dragOver ? 'scale-[0.98]' : 'hover:scale-[0.995]'
-                }`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-                  <rect
-                    x="1" y="1"
-                    width="calc(100% - 2px)" height="calc(100% - 2px)"
-                    rx="11" ry="11"
-                    fill="none"
-                    className={`transition-all duration-300 ${
-                      dragOver ? 'stroke-primary/50' : 'stroke-border/60 group-hover:stroke-border'
-                    }`}
-                    strokeWidth="1.5"
-                    strokeDasharray="6 6"
-                    style={{ animation: 'tavern-dropzone-dash 1.5s linear infinite' }}
-                  />
-                </svg>
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-border/30" />
+            <span className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">or paste URL</span>
+            <div className="h-px flex-1 bg-border/30" />
+          </div>
 
-                <div className={`relative flex flex-col items-center justify-center py-12 px-8 transition-colors duration-300 ${
-                  dragOver ? 'bg-primary/[0.04]' : 'bg-muted/30'
-                }`}>
-                  <div className={`relative mb-4 transition-all duration-300 ${
-                    dragOver ? 'scale-110' : 'group-hover:scale-105'
-                  }`}>
-                    <div className="w-14 h-16 rounded-lg bg-gradient-to-b from-muted-foreground/[0.07] to-muted-foreground/[0.03] flex items-center justify-center overflow-hidden">
-                      <BookOpen className={`size-7 transition-colors duration-300 ${
-                        dragOver ? 'text-primary/40' : 'text-muted-foreground group-hover:text-muted-foreground'
-                      }`} />
-                    </div>
-                    {dragOver && (
-                      <div
-                        className="absolute -inset-3 rounded-2xl bg-primary/10 blur-lg"
-                        style={{ animation: 'tavern-dropzone-glow 2s ease-in-out infinite' }}
-                      />
-                    )}
-                  </div>
-
-                  <p className={`font-display text-base tracking-tight transition-colors duration-200 ${
-                    dragOver ? 'text-primary' : 'text-foreground/70 group-hover:text-foreground/80'
-                  }`}>
-                    Drop character card JSON
-                  </p>
-                  <p className="text-[0.6875rem] text-muted-foreground mt-1.5">
-                    V2 or V3 character card .json files
-                  </p>
-                </div>
-              </div>
-
-              {/* URL input */}
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border/30" />
-                <span className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">or paste URL</span>
-                <div className="h-px flex-1 bg-border/30" />
-              </div>
-
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-                  <Input
-                    ref={urlInputRef}
-                    placeholder="https://example.com/card.json"
-                    className="pl-8 h-9 text-sm bg-muted/20"
-                    onKeyDown={handleUrlKeyDown}
-                    disabled={urlFetching}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUrlFetch}
-                  disabled={urlFetching}
-                  className="gap-1.5 shrink-0"
-                >
-                  {urlFetching ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Globe className="size-3.5" />
-                  )}
-                  Fetch
-                </Button>
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json,application/json"
-                className="hidden"
-                onChange={handleFileInput}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                ref={urlInputRef}
+                placeholder="https://example.com/card.json"
+                className="pl-8 h-9 text-sm bg-muted/20"
+                onKeyDown={handleUrlKeyDown}
+                disabled={urlFetching}
               />
-            </>
-          )}
-
-          {/* ── Card loaded: item list ── */}
-          {hasCard && (
-            <>
-              {/* Optional image thumbnail */}
-              {imageDataUrl && (
-                <div className="flex items-center gap-3 mb-1">
-                  <img
-                    src={imageDataUrl}
-                    alt=""
-                    className="size-12 rounded-lg object-cover object-top border border-border/40"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{cardData.card.name}</p>
-                    {cardData.card.description && (
-                      <p className="text-[0.6875rem] text-muted-foreground line-clamp-1">
-                        {cardData.card.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Select controls */}
-              <div className="flex items-center gap-3 text-[0.6875rem]">
-                <button
-                  onClick={selectAll}
-                  className="text-primary/60 hover:text-primary transition-colors"
-                >
-                  Select all
-                </button>
-                <span className="text-border/60">/</span>
-                <button
-                  onClick={deselectAll}
-                  className="text-muted-foreground hover:text-muted-foreground transition-colors"
-                >
-                  Deselect all
-                </button>
-                <span className="ml-auto text-muted-foreground tabular-nums">
-                  {selectedCount} selected
-                </span>
-              </div>
-
-              {/* Grouped item list */}
-              <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
-                <div className="space-y-3 pb-1">
-                  {SOURCE_GROUPS.map((group) => {
-                    const groupItems = cardData.items.filter((item) =>
-                      (group.sources as readonly string[]).includes(item.source),
-                    )
-                    if (groupItems.length === 0) return null
-
-                    return (
-                      <div key={group.key}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                            {group.label}
-                          </span>
-                          <div className="h-px flex-1 bg-border/20" />
-                          {group.key === 'lorebook' && (
-                            <span className="text-[0.625rem] text-muted-foreground tabular-nums">
-                              {groupItems.length}
-                            </span>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          {groupItems.map((item) => (
-                            <ItemRow
-                              key={item.key}
-                              item={item}
-                              state={itemStates.get(item.key) ?? { enabled: false, typeOverride: null }}
-                              onToggle={() => toggleItem(item.key)}
-                              onTypeChange={(type) => setItemType(item.key, type)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </ScrollArea>
-            </>
-          )}
-
-          {/* Error messages */}
-          {(parseError || urlError) && (
-            <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-lg px-3 py-2.5">
-              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>{parseError || urlError}</span>
             </div>
-          )}
-
-          {importMutation.isError && (
-            <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-lg px-3 py-2.5">
-              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>Import failed. Please try again.</span>
-            </div>
-          )}
-        </div>
-
-        {/* ── Ornamental divider ── */}
-        <div className="px-6">
-          <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
-        </div>
-
-        {/* ── Footer ── */}
-        <DialogFooter className="px-5 py-3.5 flex-row items-center">
-          {hasCard && (
-            <span className="text-[0.6875rem] text-muted-foreground mr-auto tabular-nums">
-              {selectedCount} of {totalCount} selected
-            </span>
-          )}
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          {hasCard && (
             <Button
+              variant="outline"
               size="sm"
-              disabled={selectedCount === 0 || importMutation.isPending}
-              onClick={handleImport}
-              className="gap-1.5"
+              onClick={handleUrlFetch}
+              disabled={urlFetching}
+              className="gap-1.5 shrink-0"
             >
-              {importMutation.isPending ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Importing…
-                </>
+              {urlFetching ? (
+                <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <>
-                  <Check className="size-3.5" />
-                  Import {selectedCount} {selectedCount === 1 ? 'Entry' : 'Entries'}
-                </>
+                <Globe className="size-3.5" />
               )}
+              Fetch
             </Button>
+          </div>
+        </>
+      )}
+
+      {hasCard && (
+        <FileDropDialog.Preview>
+          {imageDataUrl && (
+            <div className="flex items-center gap-3 mb-1">
+              <img
+                src={imageDataUrl}
+                alt=""
+                className="size-12 rounded-lg object-cover object-top border border-border/40"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{cardData.card.name}</p>
+                {cardData.card.description && (
+                  <p className="text-[0.6875rem] text-muted-foreground line-clamp-1">
+                    {cardData.card.description}
+                  </p>
+                )}
+              </div>
+            </div>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          <div className="flex items-center gap-3 text-[0.6875rem]">
+            <button
+              onClick={selectAll}
+              className="text-primary/60 hover:text-primary transition-colors"
+            >
+              Select all
+            </button>
+            <span className="text-border/60">/</span>
+            <button
+              onClick={deselectAll}
+              className="text-muted-foreground hover:text-muted-foreground transition-colors"
+            >
+              Deselect all
+            </button>
+            <span className="ml-auto text-muted-foreground tabular-nums">
+              {selectedCount} selected
+            </span>
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
+            <div className="space-y-3 pb-1">
+              {SOURCE_GROUPS.map((group) => {
+                const groupItems = cardData.items.filter((item) =>
+                  (group.sources as readonly string[]).includes(item.source),
+                )
+                if (groupItems.length === 0) return null
+
+                return (
+                  <div key={group.key}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+                        {group.label}
+                      </span>
+                      <div className="h-px flex-1 bg-border/20" />
+                      {group.key === 'lorebook' && (
+                        <span className="text-[0.625rem] text-muted-foreground tabular-nums">
+                          {groupItems.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {groupItems.map((item) => (
+                        <ItemRow
+                          key={item.key}
+                          item={item}
+                          state={itemStates.get(item.key) ?? { enabled: false, typeOverride: null }}
+                          onToggle={() => toggleItem(item.key)}
+                          onTypeChange={(type) => setItemType(item.key, type)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </ScrollArea>
+        </FileDropDialog.Preview>
+      )}
+
+      <FileDropDialog.Errors>{parseError || urlError}</FileDropDialog.Errors>
+
+      {importMutation.isError && (
+        <FileDropDialog.Errors>Import failed. Please try again.</FileDropDialog.Errors>
+      )}
+
+      <FileDropDialog.Actions
+        meta={hasCard ? `${selectedCount} of ${totalCount} selected` : undefined}
+      >
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        {hasCard && (
+          <Button
+            size="sm"
+            disabled={selectedCount === 0 || importMutation.isPending}
+            onClick={handleImport}
+            className="gap-1.5"
+          >
+            {importMutation.isPending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Importing…
+              </>
+            ) : (
+              <>
+                <Check className="size-3.5" />
+                Import {selectedCount} {selectedCount === 1 ? 'Entry' : 'Entries'}
+              </>
+            )}
+          </Button>
+        )}
+      </FileDropDialog.Actions>
+    </FileDropDialog>
   )
 }
 
@@ -588,7 +468,6 @@ function ItemRow({
       }`}
       onClick={onToggle}
     >
-      {/* Checkbox */}
       <Checkbox
         checked={state.enabled}
         onClick={(e) => e.stopPropagation()}
@@ -596,7 +475,6 @@ function ItemRow({
         className="mt-0.5 shrink-0"
       />
 
-      {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-sm font-medium truncate leading-tight">
@@ -607,12 +485,10 @@ function ItemRow({
           )}
         </div>
 
-        {/* Content preview */}
         <p className="text-[0.6875rem] text-muted-foreground line-clamp-1 leading-relaxed">
           {item.content.slice(0, 120)}
         </p>
 
-        {/* Tags */}
         {item.tags.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {item.tags.slice(0, 4).map((tag) => (
@@ -632,7 +508,6 @@ function ItemRow({
         )}
       </div>
 
-      {/* Type badge / dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

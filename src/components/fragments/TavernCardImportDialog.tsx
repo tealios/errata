@@ -1,15 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { importTavernCard, isTavernCardPng, parseCardJson, type ImportedCharacter, type ParsedCharacterCard } from '@/lib/importers/tavern-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { AlertCircle, Check, Plus } from 'lucide-react'
+import { FileDropDialog, FileDropzone } from '@/components/ui/file-drop-dialog'
+import { Check, Plus } from 'lucide-react'
 
 function arrayBufferToDataUrl(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
@@ -45,18 +41,15 @@ export function TavernCardImportDialog({
   onJsonCardDetected,
 }: TavernCardImportDialogProps) {
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [cards, setCards] = useState<ParsedCard[]>([])
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [parseError, setParseError] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setCards([])
       setSelected(new Set())
       setParseError(null)
-      setDragOver(false)
       return
     }
     if (initialBuffers && initialBuffers.length > 0) {
@@ -90,7 +83,6 @@ export function TavernCardImportDialog({
     }
     setCards((prev) => {
       const next = [...prev, ...parsed]
-      // Auto-select newly added cards
       setSelected((prevSel) => {
         const s = new Set(prevSel)
         for (let i = prev.length; i < next.length; i++) s.add(i)
@@ -105,19 +97,14 @@ export function TavernCardImportDialog({
     )
   }, [])
 
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
+  const handleFiles = useCallback(async (files: File[]) => {
     // Check if any file is JSON — route to CharacterCardImportDialog
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+    for (const file of files) {
       if (file.name.toLowerCase().endsWith('.json') || file.type === 'application/json') {
         try {
           const text = await file.text()
           const parsed = parseCardJson(text)
           if (parsed && onJsonCardDetected) {
-            e.target.value = ''
             onJsonCardDetected(parsed)
             return
           }
@@ -126,29 +113,13 @@ export function TavernCardImportDialog({
     }
 
     const buffers: ArrayBuffer[] = []
-    for (let i = 0; i < files.length; i++) {
+    for (const file of files) {
       try {
-        buffers.push(await files[i].arrayBuffer())
+        buffers.push(await file.arrayBuffer())
       } catch { /* skip unreadable */ }
     }
     if (buffers.length > 0) parseBuffers(buffers)
-    e.target.value = ''
   }, [parseBuffers, onJsonCardDetected])
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOver(false)
-    const files = e.dataTransfer.files
-    if (!files || files.length === 0) return
-    const buffers: ArrayBuffer[] = []
-    for (let i = 0; i < files.length; i++) {
-      try {
-        buffers.push(await files[i].arrayBuffer())
-      } catch { /* skip */ }
-    }
-    if (buffers.length > 0) parseBuffers(buffers)
-  }, [parseBuffers])
 
   const toggleCard = useCallback((index: number) => {
     setSelected((prev) => {
@@ -210,198 +181,90 @@ export function TavernCardImportDialog({
   const hasCards = cards.length > 0
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className={`max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0 border-border/60 bg-card transition-[max-width] duration-300 ${
-          hasCards ? 'max-w-2xl' : 'max-w-[440px]'
-        }`}
-      >
-        {/* ── Header ── */}
-        <div className="px-6 pt-6 pb-4">
-          <p className="font-display text-xl tracking-tight">
-            Import Character Card{hasCards && cards.length > 1 ? 's' : ''}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            TavernAI &amp; SillyTavern character card PNGs
-          </p>
-        </div>
+    <FileDropDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Import Character Card${hasCards && cards.length > 1 ? 's' : ''}`}
+      description="TavernAI & SillyTavern character card PNGs"
+      contentClassName={`transition-[max-width] duration-300 ${hasCards ? 'max-w-2xl' : 'max-w-[440px]'}`}
+    >
+      {!hasCards && (
+        <FileDropDialog.Dropzone
+          onFiles={handleFiles}
+          accept="image/png,.png,.json,application/json"
+          multiple
+          label="Drop character cards here"
+          hint="one or multiple .png files"
+          icon={
+            <svg viewBox="0 0 48 56" className="w-12 h-14" aria-hidden="true">
+              <circle cx="24" cy="16" r="8" fill="currentColor" />
+              <ellipse cx="24" cy="48" rx="16" ry="14" fill="currentColor" />
+            </svg>
+          }
+        />
+      )}
 
-        <div className="flex-1 overflow-y-auto min-h-0 px-5 pb-4 space-y-3">
-          {/* ── Drop zone — always visible when no cards, compact "add more" when cards exist ── */}
-          {!hasCards && (
-            <div
-              className={`relative group rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${
-                dragOver ? 'scale-[0.98]' : 'hover:scale-[0.995]'
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {/* Animated dashed border */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-                <rect
-                  x="1" y="1"
-                  width="calc(100% - 2px)" height="calc(100% - 2px)"
-                  rx="11" ry="11"
-                  fill="none"
-                  className={`transition-all duration-300 ${
-                    dragOver ? 'stroke-primary/50' : 'stroke-border/60 group-hover:stroke-border'
-                  }`}
-                  strokeWidth="1.5"
-                  strokeDasharray="6 6"
-                  style={{ animation: 'tavern-dropzone-dash 1.5s linear infinite' }}
-                />
-              </svg>
-
-              <div className={`relative flex flex-col items-center justify-center py-14 px-8 transition-colors duration-300 ${
-                dragOver ? 'bg-primary/[0.04]' : 'bg-muted/30'
-              }`}>
-                <div className={`relative mb-5 transition-all duration-300 ${
-                  dragOver ? 'scale-110' : 'group-hover:scale-105'
-                }`}>
-                  <div className="w-16 h-20 rounded-lg bg-gradient-to-b from-muted-foreground/[0.07] to-muted-foreground/[0.03] flex items-end justify-center overflow-hidden">
-                    <svg viewBox="0 0 48 56" className={`w-12 h-14 transition-colors duration-300 ${
-                      dragOver ? 'text-primary/30' : 'text-muted-foreground group-hover:text-muted-foreground'
-                    }`}>
-                      <circle cx="24" cy="16" r="8" fill="currentColor" />
-                      <ellipse cx="24" cy="48" rx="16" ry="14" fill="currentColor" />
-                    </svg>
-                  </div>
-                  {dragOver && (
-                    <div
-                      className="absolute -inset-3 rounded-2xl bg-primary/10 blur-lg"
-                      style={{ animation: 'tavern-dropzone-glow 2s ease-in-out infinite' }}
-                    />
-                  )}
-                </div>
-
-                <p className={`font-display text-base tracking-tight transition-colors duration-200 ${
-                  dragOver ? 'text-primary' : 'text-foreground/70 group-hover:text-foreground/80'
-                }`}>
-                  Drop character cards here
-                </p>
-                <p className="text-[0.6875rem] text-muted-foreground mt-1.5">
-                  one or multiple .png files
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Card grid ── */}
-          {hasCards && (
-            <div
-              className={`grid gap-3 ${cards.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-            >
-              {cards.map((card, index) => (
-                <div
-                  key={`${card.character.name}-${index}`}
-                  className="animate-tavern-card-reveal"
-                  style={{ animationDelay: `${index * 60}ms` }}
-                >
-                  <CharacterCard
-                    card={card}
-                    selected={selected.has(index)}
-                    onToggle={() => toggleCard(index)}
-                    onRemove={() => removeCard(index)}
-                    large={cards.length === 1}
-                  />
-                </div>
-              ))}
-
-              {/* Add more zone */}
+      {hasCards && (
+        <FileDropDialog.Preview>
+          <div className={`grid gap-3 ${cards.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {cards.map((card, index) => (
               <div
-                className={`relative group rounded-xl overflow-hidden cursor-pointer transition-all duration-200 min-h-40 ${
-                  dragOver ? 'scale-[0.97]' : 'hover:scale-[0.99]'
-                } ${cards.length === 1 ? 'col-span-1' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
+                key={`${card.character.name}-${index}`}
+                className="animate-tavern-card-reveal"
+                style={{ animationDelay: `${index * 60}ms` }}
               >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-                  <rect
-                    x="1" y="1"
-                    width="calc(100% - 2px)" height="calc(100% - 2px)"
-                    rx="11" ry="11"
-                    fill="none"
-                    className={`transition-all duration-300 ${
-                      dragOver ? 'stroke-primary/40' : 'stroke-border/40 group-hover:stroke-border/60'
-                    }`}
-                    strokeWidth="1.5"
-                    strokeDasharray="4 4"
-                    style={{ animation: 'tavern-dropzone-dash 1.5s linear infinite' }}
-                  />
-                </svg>
-                <div className={`h-full flex flex-col items-center justify-center gap-2 py-8 transition-colors ${
-                  dragOver ? 'bg-primary/[0.04]' : 'bg-muted/20'
-                }`}>
-                  <Plus className={`size-5 transition-colors ${
-                    dragOver ? 'text-primary/40' : 'text-muted-foreground group-hover:text-muted-foreground'
-                  }`} />
-                  <p className="text-[0.6875rem] text-muted-foreground group-hover:text-muted-foreground transition-colors">
-                    Add more cards
-                  </p>
-                </div>
+                <CharacterCard
+                  card={card}
+                  selected={selected.has(index)}
+                  onToggle={() => toggleCard(index)}
+                  onRemove={() => removeCard(index)}
+                  large={cards.length === 1}
+                />
               </div>
-            </div>
-          )}
+            ))}
 
-          {/* Hidden file input — always present */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,.png,.json,application/json"
-            multiple
-            className="hidden"
-            onChange={handleFileInput}
-          />
-
-          {/* Error / warning */}
-          {parseError && (
-            <div className="flex items-start gap-2 text-xs text-destructive/80 bg-destructive/5 rounded-lg px-3 py-2.5">
-              <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-              <span>{parseError}</span>
-            </div>
-          )}
-        </div>
-
-        {/* ── Ornamental divider ── */}
-        <div className="px-6">
-          <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
-        </div>
-
-        {/* ── Footer ── */}
-        <DialogFooter className="px-5 py-3.5 flex-row items-center">
-          {hasCards && (
-            <span className="text-[0.6875rem] text-muted-foreground mr-auto tabular-nums">
-              {selected.size} of {cards.length} selected
-            </span>
-          )}
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          {hasCards && (
-            <Button
-              size="sm"
-              disabled={selected.size === 0 || importMutation.isPending}
-              onClick={() => importMutation.mutate(selectedCards)}
-              className="gap-1.5"
+            <FileDropzone
+              onFiles={handleFiles}
+              accept="image/png,.png,.json,application/json"
+              multiple
+              className={`min-h-40 ${cards.length === 1 ? 'col-span-1' : ''}`}
             >
-              {importMutation.isPending ? (
-                'Importing\u2026'
-              ) : (
-                <>
-                  <Check className="size-3.5" />
-                  Import{selected.size > 1 ? ` ${selected.size} Characters` : ' Character'}
-                </>
-              )}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              <div className="flex flex-col items-center justify-center gap-2 py-4 text-muted-foreground">
+                <Plus className="size-5" aria-hidden="true" />
+                <p className="text-[0.6875rem]">Add more cards</p>
+              </div>
+            </FileDropzone>
+          </div>
+        </FileDropDialog.Preview>
+      )}
+
+      <FileDropDialog.Errors>{parseError}</FileDropDialog.Errors>
+
+      <FileDropDialog.Actions
+        meta={hasCards ? `${selected.size} of ${cards.length} selected` : undefined}
+      >
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        {hasCards && (
+          <Button
+            size="sm"
+            disabled={selected.size === 0 || importMutation.isPending}
+            onClick={() => importMutation.mutate(selectedCards)}
+            className="gap-1.5"
+          >
+            {importMutation.isPending ? (
+              'Importing\u2026'
+            ) : (
+              <>
+                <Check className="size-3.5" />
+                Import{selected.size > 1 ? ` ${selected.size} Characters` : ' Character'}
+              </>
+            )}
+          </Button>
+        )}
+      </FileDropDialog.Actions>
+    </FileDropDialog>
   )
 }
 
