@@ -1,7 +1,7 @@
 import { getStory, listFragments, getFragment } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
-import { getActiveProseIds, findSectionIndex, getFullProseChain } from '../fragments/prose-chain'
+import { getActiveProseIds, findSectionIndex, getProseChain } from '../fragments/prose-chain'
 import { getAnalysis, getLatestAnalysisIdsByFragment } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 import type { ModelMessage } from 'ai'
@@ -274,7 +274,7 @@ export async function buildContextState(
 
   let chapterSummaries: Array<{ markerId: string; name: string; summary: string }> = []
   if (story.settings.enableHierarchicalSummary && activeProseIds.length > 0 && recentProse.length > 0) {
-    const chain = await getFullProseChain(dataDir, storyId)
+    const chain = await getProseChain(dataDir, storyId)
     if (chain) {
       const sectionByFragmentId = new Map(activeProseIds.map((id, idx) => [id, idx]))
       const recentSectionIndexes = recentProse
@@ -659,13 +659,6 @@ export function createDefaultBlocks(state: ContextBuildState, opts: AssembleOpti
 }
 
 /**
- * Renders a single block: prepends the [@block=id] marker to its content.
- */
-function renderBlock(block: ContextBlock): string {
-  return `[@block=${block.id}]\n${block.content}`
-}
-
-/**
  * Compiles context blocks into LLM messages.
  * Groups blocks by role, sorts by order, prepends [@block=id] markers,
  * and joins with blank-line separators.
@@ -675,18 +668,19 @@ export function compileBlocks(blocks: ContextBlock[]): ContextMessage[] {
   const userBlocks = blocks.filter(b => b.role === 'user').sort((a, b) => a.order - b.order)
 
   const messages: ContextMessage[] = []
+  const render = (b: ContextBlock) => `[@block=${b.id}]\n${b.content}`
 
   if (systemBlocks.length > 0) {
     messages.push({
       role: 'system',
-      content: systemBlocks.map(renderBlock).join('\n\n'),
+      content: systemBlocks.map(render).join('\n\n'),
     })
   }
 
   if (userBlocks.length > 0) {
     messages.push({
       role: 'user',
-      content: userBlocks.map(renderBlock).join('\n\n'),
+      content: userBlocks.map(render).join('\n\n'),
     })
   }
 
