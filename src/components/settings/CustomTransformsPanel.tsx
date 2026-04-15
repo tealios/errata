@@ -1,7 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { X, RotateCcw, Plus, Trash2, ChevronDown, ChevronRight, GripVertical } from 'lucide-react'
+import { Hint } from '@/components/ui/prose-text'
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelHeader,
+  PanelHeaderText,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { useWritingTransforms, type WritingTransform } from '@/lib/theme'
 
 interface CustomTransformsPanelProps {
@@ -71,22 +79,24 @@ export function CustomTransformsPanel({ onClose }: CustomTransformsPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full" data-component-id="custom-transforms-panel-root">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-        <div className="flex items-center gap-2">
-          <h2 className="font-display text-lg">Selection Transforms</h2>
+    <Panel data-component-id="custom-transforms-panel-root">
+      <PanelHeader>
+        <PanelHeaderText className="flex-row items-center gap-2">
+          <PanelTitle>Selection Transforms</PanelTitle>
           <span className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">Writing</span>
-        </div>
-        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
-      </div>
+        </PanelHeaderText>
+        <PanelActions>
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </PanelActions>
+      </PanelHeader>
 
-      <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto p-6 space-y-4">
-          <p className="text-sm text-muted-foreground">
+      <PanelBody className="px-6 py-6">
+        <div className="max-w-3xl w-full mx-auto space-y-4">
+          <Hint size="sm">
             Custom transforms appear in the floating toolbar when you select text in the writing panel. Drag to reorder, toggle to show/hide.
-          </p>
+          </Hint>
 
           <div className="space-y-1">
             {transforms.map((t, index) => {
@@ -185,7 +195,7 @@ export function CustomTransformsPanel({ onClose }: CustomTransformsPanelProps) {
             </Button>
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </PanelBody>
+    </Panel>
   )
 }

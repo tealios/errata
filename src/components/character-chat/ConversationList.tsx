@@ -2,7 +2,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import type { CharacterChatConversationSummary, PersonaMode } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner, EmptyState } from '@/components/ui/async-view'
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelHeader,
+  PanelHeaderText,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { X, Plus, Trash2, MessageSquare, User, Users, Sparkles } from 'lucide-react'
 import { resolveFragmentVisual } from '@/lib/fragment-visuals'
 
@@ -80,14 +88,15 @@ export function ConversationList({
   }
 
   return (
-    <div
-      className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm flex flex-col"
+    <Panel
+      className="absolute inset-0 z-20 bg-background/95 backdrop-blur-sm"
       data-component-id="character-chat-conversation-list"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
-        <h3 className="font-display text-lg tracking-tight">Conversations</h3>
-        <div className="flex items-center gap-2">
+      <PanelHeader className="px-4 py-3">
+        <PanelHeaderText>
+          <PanelTitle>Conversations</PanelTitle>
+        </PanelHeaderText>
+        <PanelActions className="gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -105,23 +114,22 @@ export function ConversationList({
           >
             <X className="size-3.5" />
           </Button>
-        </div>
-      </div>
+        </PanelActions>
+      </PanelHeader>
 
-      {/* List */}
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-3 space-y-1">
+      <PanelBody className="p-3 gap-1">
           {isLoading && (
-            <p className="text-xs text-muted-foreground italic text-center py-8">Loading...</p>
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="sm" />
+            </div>
           )}
 
           {!isLoading && (!conversations || conversations.length === 0) && (
-            <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-              <MessageSquare className="size-8 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground italic max-w-[200px]">
-                No conversations yet. Start one to talk with your characters.
-              </p>
-            </div>
+            <EmptyState
+              icon={<MessageSquare className="size-5" />}
+              title="No conversations yet"
+              hint="Start one to talk with your characters."
+            />
           )}
 
           {[...grouped.entries()].map(([charId, convs]) => {
@@ -201,8 +209,7 @@ export function ConversationList({
               </div>
             )
           })}
-        </div>
-      </ScrollArea>
-    </div>
+      </PanelBody>
+    </Panel>
   )
 }

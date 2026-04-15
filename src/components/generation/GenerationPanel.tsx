@@ -4,6 +4,13 @@ import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { StreamMarkdown } from '@/components/ui/stream-markdown'
+import {
+  Panel,
+  PanelActions,
+  PanelHeader,
+  PanelHeaderText,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { DebugPanel } from './DebugPanel'
 import { Send, Eye, Square, Bug, ArrowLeft } from 'lucide-react'
 
@@ -80,10 +87,12 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
   }, [])
 
   return (
-    <div className="flex flex-col h-full" data-component-id="generation-panel-root">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-        <h2 className="font-display text-lg">Generate</h2>
-        <div className="flex gap-1.5">
+    <Panel data-component-id="generation-panel-root">
+      <PanelHeader>
+        <PanelHeaderText>
+          <PanelTitle>Generate</PanelTitle>
+        </PanelHeaderText>
+        <PanelActions>
           <Button
             size="sm"
             variant={showDebug ? 'secondary' : 'ghost'}
@@ -100,8 +109,8 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
               Back
             </Button>
           )}
-        </div>
-      </div>
+        </PanelActions>
+      </PanelHeader>
 
       {showDebug ? (
         <DebugPanel
@@ -184,6 +193,6 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
           </div>
         </>
       )}
-    </div>
+    </Panel>
   )
 }

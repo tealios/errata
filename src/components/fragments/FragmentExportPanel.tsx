@@ -5,8 +5,17 @@ import { resolveFragmentVisual, generateBubbles, hexagonPoints, diamondPoints, t
 import { serializeFragment, serializeBundle, downloadExportFile } from '@/lib/fragment-clipboard'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { EmptyHint, Hint } from '@/components/ui/prose-text'
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelFooter,
+  PanelHeader,
+  PanelHeaderText,
+  PanelTitle,
+} from '@/components/ui/panel'
 import {
   X,
   Download,
@@ -187,25 +196,26 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
   const allSelected = allExportable.length > 0 && allExportable.every((f) => selected.has(f.id))
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-        <div className="flex items-center gap-2.5">
+    <Panel>
+      <PanelHeader>
+        <PanelHeaderText className="flex-row items-center gap-2.5">
           <Package className="size-4 text-muted-foreground" />
-          <h2 className="font-display text-lg">Export Fragments</h2>
+          <PanelTitle>Export Fragments</PanelTitle>
           {selected.size > 0 && (
             <Badge variant="secondary" className="text-[0.625rem] h-4 tabular-nums">
               {selected.size} selected
             </Badge>
           )}
-        </div>
-        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
-      </div>
+        </PanelHeaderText>
+        <PanelActions>
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </PanelActions>
+      </PanelHeader>
 
       {/* Select actions */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-border/30">
+      <div className="shrink-0 flex items-center gap-3 px-6 py-3 border-b border-border/30">
         <button
           onClick={allSelected ? deselectAll : selectAll}
           className="text-[0.6875rem] text-muted-foreground hover:text-foreground transition-colors"
@@ -217,9 +227,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
         </span>
       </div>
 
-      {/* Fragment groups */}
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="px-6 py-4 space-y-6">
+      <PanelBody className="px-6 py-4 gap-6">
           {Object.entries(grouped).map(([type, fragments]) => {
             const config = TYPE_CONFIG[type]
             if (!config) return null
@@ -315,17 +323,16 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
             )
           })}
 
-          {allExportable.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-sm text-muted-foreground italic">No fragments to export</p>
-              <p className="text-xs text-muted-foreground mt-1">Create some characters, guidelines, or knowledge first</p>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+        {allExportable.length === 0 && (
+          <div className="text-center py-12">
+            <EmptyHint size="sm">No fragments to export</EmptyHint>
+            <Hint className="mt-1">Create some characters, guidelines, or knowledge first</Hint>
+          </div>
+        )}
+      </PanelBody>
 
       {/* Context config toggle */}
-      <div className="px-6 py-3 border-t border-border/30">
+      <div className="shrink-0 px-6 py-3 border-t border-border/30">
         <div
           onClick={() => setIncludeConfigs((v) => !v)}
           className="flex items-center gap-2.5 cursor-pointer group"
@@ -354,8 +361,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
         )}
       </div>
 
-      {/* Footer actions */}
-      <div className="flex items-center gap-2 px-6 py-4 border-t border-border/50">
+      <PanelFooter className="px-6 py-4 gap-2">
         <Button
           size="sm"
           className="gap-1.5"
@@ -378,7 +384,7 @@ export function FragmentExportPanel({ storyId, storyName, onClose }: FragmentExp
         <Button size="sm" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-      </div>
-    </div>
+      </PanelFooter>
+    </Panel>
   )
 }

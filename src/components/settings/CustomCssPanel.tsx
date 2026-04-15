@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { X, Code2, RotateCcw, Save } from 'lucide-react'
+import { Hint } from '@/components/ui/prose-text'
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelHeader,
+  PanelHeaderText,
+  PanelTitle,
+} from '@/components/ui/panel'
 import { useCustomCss } from '@/lib/theme'
 
 interface CustomCssPanelProps {
@@ -27,23 +35,25 @@ export function CustomCssPanel({ onClose }: CustomCssPanelProps) {
   }, [])
 
   return (
-    <div className="flex flex-col h-full" data-component-id="custom-css-panel-root">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-        <div className="flex items-center gap-2">
+    <Panel data-component-id="custom-css-panel-root">
+      <PanelHeader>
+        <PanelHeaderText className="flex-row items-center gap-2">
           <Code2 className="size-4 text-muted-foreground" />
-          <h2 className="font-display text-lg">Custom CSS</h2>
+          <PanelTitle>Custom CSS</PanelTitle>
           <span className="text-[0.625rem] text-muted-foreground uppercase tracking-wider">Appearance</span>
-        </div>
-        <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose} data-component-id="custom-css-panel-close">
-          <X className="size-4" />
-        </Button>
-      </div>
+        </PanelHeaderText>
+        <PanelActions>
+          <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" onClick={onClose} data-component-id="custom-css-panel-close">
+            <X className="size-4" />
+          </Button>
+        </PanelActions>
+      </PanelHeader>
 
-      <ScrollArea className="flex-1" data-component-id="custom-css-panel-scroll">
-        <div className="max-w-3xl mx-auto p-6 space-y-4">
-          <p className="text-sm text-muted-foreground">
+      <PanelBody className="px-6 py-6" data-component-id="custom-css-panel-scroll">
+        <div className="max-w-3xl w-full mx-auto space-y-4">
+          <Hint size="sm">
             Add your own CSS to customize the interface. Styles are applied globally when Custom CSS is enabled.
-          </p>
+          </Hint>
 
           <Textarea
             value={value}
@@ -71,8 +81,8 @@ export function CustomCssPanel({ onClose }: CustomCssPanelProps) {
             </div>
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </PanelBody>
+    </Panel>
   )
 }
 
