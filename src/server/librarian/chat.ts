@@ -1,4 +1,4 @@
-import { tool } from 'ai'
+import { tool, ToolLoopAgent, stepCountIs } from 'ai'
 import { z } from 'zod/v4'
 import { getModel } from '../llm/client'
 import { getFragment, getStory } from '../fragments/storage'
@@ -7,7 +7,6 @@ import { createFragmentTools } from '../llm/tools'
 import { pluginRegistry } from '../plugins/registry'
 import { collectPluginTools } from '../plugins/tools'
 import { createLogger } from '../logging'
-import { createToolAgent } from '../agents/create-agent'
 import { createEventStream } from '../agents/create-event-stream'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { createAgentInstance } from '../agents/agent-instance'
@@ -158,11 +157,12 @@ async function librarianChatInner(
   const systemMessage = compiled.messages.find(m => m.role === 'system')
   const userMessage = compiled.messages.find(m => m.role === 'user')
 
-  const chatAgent = createToolAgent({
+  const chatAgent = new ToolLoopAgent({
     model,
     instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
-    maxSteps: opts.maxSteps ?? 10,
+    toolChoice: 'auto',
+    stopWhen: stepCountIs(opts.maxSteps ?? 10),
     temperature,
   })
 

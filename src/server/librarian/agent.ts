@@ -15,7 +15,6 @@ import {
 import { applyFragmentSuggestion } from './suggestions'
 import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
-import { createToolAgent } from '../agents/create-agent'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { createEmptyCollector, createAnalysisTools } from './analysis-tools'
 import { buildAnalyzeSystemPrompt } from './blocks'
@@ -265,11 +264,12 @@ async function runLibrarianInner(
   }
 
   const providerOptions = buildProviderOptions(story.settings.disableThinking ?? false)
-  const agent = createToolAgent({
+  const agent = new ToolLoopAgent({
     model,
     instructions: systemMessage?.content || 'You are a helpful assistant.',
     tools: compiled.tools,
-    maxSteps: 3,
+    toolChoice: 'auto',
+    stopWhen: stepCountIs(3),
     temperature,
     providerOptions,
   })

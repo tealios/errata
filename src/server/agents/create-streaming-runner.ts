@@ -5,7 +5,7 @@
  * that all streaming agents share. Only the agent-specific "knobs" vary.
  */
 
-import type { ToolSet } from 'ai'
+import { ToolLoopAgent, stepCountIs, type ToolSet } from 'ai'
 import type { StoryMeta } from '../fragments/schema'
 import type { ContextBuildState } from '../llm/context-builder'
 import type { AgentBlockContext } from './agent-block-context'
@@ -16,7 +16,6 @@ import { buildContextState } from '../llm/context-builder'
 import { createFragmentTools } from '../llm/tools'
 import { reportUsage } from '../llm/token-tracker'
 import { createLogger } from '../logging'
-import { createToolAgent } from './create-agent'
 import { createEventStream } from './create-event-stream'
 import { compileAgentContext, type CompiledAgentContext } from './compile-agent-context'
 import { withBranch } from '../fragments/branches'
@@ -181,12 +180,12 @@ export function createStreamingRunner<TOpts extends object, TValidated = Record<
 
       // 9. Create agent
       const maxSteps = (opts as Record<string, unknown>).maxSteps as number | undefined
-      const agent = createToolAgent({
+      const agent = new ToolLoopAgent({
         model,
         instructions: systemMessage?.content || 'You are a helpful assistant.',
         tools: compiled.tools,
-        maxSteps: maxSteps ?? defaultMaxSteps,
-        toolChoice: config.toolChoice,
+        toolChoice: config.toolChoice ?? 'auto',
+        stopWhen: stepCountIs(maxSteps ?? defaultMaxSteps),
         temperature,
         providerOptions,
       })
