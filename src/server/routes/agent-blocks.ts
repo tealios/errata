@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia'
-import { getStory } from '../fragments/storage'
+import { withStory } from './_helpers'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
@@ -22,6 +22,9 @@ import {
 } from '../agents/agent-block-storage'
 
 export function agentBlockRoutes(dataDir: string) {
+  // Idempotent; run once so every handler sees a populated registry.
+  ensureCoreAgentsRegistered()
+
   return new Elysia({ detail: { tags: ['Agent Blocks'] } })
     // List currently running agents for a story
     .get('/stories/:storyId/active-agents', ({ params }) => {
@@ -30,12 +33,10 @@ export function agentBlockRoutes(dataDir: string) {
 
     // List all registered model roles (auto-discovered from agents)
     .get('/model-roles', () => {
-      ensureCoreAgentsRegistered()
       return modelRoleRegistry.list()
     }, { detail: { summary: 'List all registered model roles' } })
     // List all registered agent block definitions (auto-discovered)
     .get('/agent-blocks', () => {
-      ensureCoreAgentsRegistered()
       return agentBlockRegistry.list().map(def => ({
         agentName: def.agentName,
         displayName: def.displayName,
@@ -45,14 +46,7 @@ export function agentBlockRoutes(dataDir: string) {
     }, { detail: { summary: 'List all agent block definitions' } })
 
     // Export a single agent's block config for sharing
-    .get('/stories/:storyId/agent-blocks/:agentName/export-config', async ({ params, set }) => {
-      ensureCoreAgentsRegistered()
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .get('/stories/:storyId/agent-blocks/:agentName/export-config', withStory(dataDir, async (_story, { params, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -65,17 +59,10 @@ export function agentBlockRoutes(dataDir: string) {
         displayName: def.displayName,
         config,
       }
-    }, { detail: { summary: 'Export a single agent block config' } })
+    }), { detail: { summary: 'Export a single agent block config' } })
 
     // Import a single agent's block config
-    .post('/stories/:storyId/agent-blocks/:agentName/import-config', async ({ params, body, set }) => {
-      ensureCoreAgentsRegistered()
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .post('/stories/:storyId/agent-blocks/:agentName/import-config', withStory(dataDir, async (_story, { params, body, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -96,16 +83,10 @@ export function agentBlockRoutes(dataDir: string) {
 
       await saveAgentBlockConfig(dataDir, params.storyId, params.agentName, parsed.data)
       return { ok: true }
-    }, { detail: { summary: 'Import a single agent block config' } })
+    }), { detail: { summary: 'Import a single agent block config' } })
 
     // Get config + builtin blocks + available tools for an agent
-    .get('/stories/:storyId/agent-blocks/:agentName', async ({ params, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .get('/stories/:storyId/agent-blocks/:agentName', withStory(dataDir, async (_story, { params, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -131,16 +112,10 @@ export function agentBlockRoutes(dataDir: string) {
         builtinBlocks,
         availableTools: def.availableTools ?? [],
       }
-    }, { detail: { summary: 'Get agent config and builtin blocks' } })
+    }), { detail: { summary: 'Get agent config and builtin blocks' } })
 
     // Compile preview with real story data
-    .get('/stories/:storyId/agent-blocks/:agentName/preview', async ({ params, query, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .get('/stories/:storyId/agent-blocks/:agentName/preview', withStory(dataDir, async (_story, { params, query, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -177,16 +152,10 @@ export function agentBlockRoutes(dataDir: string) {
         .map(b => ({ id: b.id, name: b.name ?? b.id, role: b.role }))
 
       return { messages, blocks: blocksMeta, blockCount: blocks.length }
-    }, { detail: { summary: 'Preview compiled agent context' } })
+    }), { detail: { summary: 'Preview compiled agent context' } })
 
     // Create custom block
-    .post('/stories/:storyId/agent-blocks/:agentName/custom', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .post('/stories/:storyId/agent-blocks/:agentName/custom', withStory(dataDir, async (_story, { params, body, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -201,16 +170,10 @@ export function agentBlockRoutes(dataDir: string) {
 
       const config = await addAgentCustomBlock(dataDir, params.storyId, params.agentName, parsed.data)
       return config
-    }, { detail: { summary: 'Create a custom agent block' } })
+    }), { detail: { summary: 'Create a custom agent block' } })
 
     // Update custom block
-    .put('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .put('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', withStory(dataDir, async (_story, { params, body, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -223,16 +186,10 @@ export function agentBlockRoutes(dataDir: string) {
         return { error: 'Custom block not found' }
       }
       return config
-    }, { detail: { summary: 'Update a custom agent block' } })
+    }), { detail: { summary: 'Update a custom agent block' } })
 
     // Delete custom block
-    .delete('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', async ({ params, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .delete('/stories/:storyId/agent-blocks/:agentName/custom/:blockId', withStory(dataDir, async (_story, { params, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -241,16 +198,10 @@ export function agentBlockRoutes(dataDir: string) {
 
       const config = await deleteAgentCustomBlock(dataDir, params.storyId, params.agentName, params.blockId)
       return config
-    }, { detail: { summary: 'Delete a custom agent block' } })
+    }), { detail: { summary: 'Delete a custom agent block' } })
 
     // Update overrides / blockOrder / disabledTools
-    .patch('/stories/:storyId/agent-blocks/:agentName/config', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
-
+    .patch('/stories/:storyId/agent-blocks/:agentName/config', withStory(dataDir, async (_story, { params, body, set }) => {
       const def = agentBlockRegistry.get(params.agentName)
       if (!def) {
         set.status = 404
@@ -280,15 +231,12 @@ export function agentBlockRoutes(dataDir: string) {
         await updateAgentDisabledTools(dataDir, params.storyId, params.agentName, disabledTools)
       }
 
-      // Apply disableAutoAnalysis if provided
+      const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
       if (disableAutoAnalysis !== undefined) {
-        const current = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
-        current.disableAutoAnalysis = disableAutoAnalysis
-        await saveAgentBlockConfig(dataDir, params.storyId, params.agentName, current)
+        config.disableAutoAnalysis = disableAutoAnalysis
+        await saveAgentBlockConfig(dataDir, params.storyId, params.agentName, config)
       }
 
-      // Return latest config
-      const config = await getAgentBlockConfig(dataDir, params.storyId, params.agentName)
       return config
-    }, { detail: { summary: 'Update agent block config' } })
+    }), { detail: { summary: 'Update agent block config' } })
 }

@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia'
-import { getStory } from '../fragments/storage'
+import { withStory } from './_helpers'
 import {
   getBranchesIndex,
   switchActiveBranch,
@@ -10,23 +10,13 @@ import {
 
 export function branchRoutes(dataDir: string) {
   return new Elysia({ detail: { tags: ['Branches'] } })
-    .get('/stories/:storyId/branches', async ({ params, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
+    .get('/stories/:storyId/branches', withStory(dataDir, async (_story, { params }) => {
       return getBranchesIndex(dataDir, params.storyId)
-    }, {
+    }), {
       detail: { summary: 'List all branches' },
     })
 
-    .post('/stories/:storyId/branches', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
+    .post('/stories/:storyId/branches', withStory(dataDir, async (_story, { params, body, set }) => {
       try {
         const branch = await createBranch(
           dataDir,
@@ -40,7 +30,7 @@ export function branchRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to create branch' }
       }
-    }, {
+    }), {
       body: t.Object({
         name: t.String(),
         parentBranchId: t.String(),
@@ -49,12 +39,7 @@ export function branchRoutes(dataDir: string) {
       detail: { summary: 'Create a new branch' },
     })
 
-    .patch('/stories/:storyId/branches/active', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
+    .patch('/stories/:storyId/branches/active', withStory(dataDir, async (_story, { params, body, set }) => {
       try {
         await switchActiveBranch(dataDir, params.storyId, body.branchId)
         return { ok: true }
@@ -62,19 +47,14 @@ export function branchRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to switch branch' }
       }
-    }, {
+    }), {
       body: t.Object({
         branchId: t.String(),
       }),
       detail: { summary: 'Switch the active branch' },
     })
 
-    .put('/stories/:storyId/branches/:branchId', async ({ params, body, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
+    .put('/stories/:storyId/branches/:branchId', withStory(dataDir, async (_story, { params, body, set }) => {
       try {
         const branch = await renameBranch(dataDir, params.storyId, params.branchId, body.name)
         return branch
@@ -82,19 +62,14 @@ export function branchRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to rename branch' }
       }
-    }, {
+    }), {
       body: t.Object({
         name: t.String(),
       }),
       detail: { summary: 'Rename a branch' },
     })
 
-    .delete('/stories/:storyId/branches/:branchId', async ({ params, set }) => {
-      const story = await getStory(dataDir, params.storyId)
-      if (!story) {
-        set.status = 404
-        return { error: 'Story not found' }
-      }
+    .delete('/stories/:storyId/branches/:branchId', withStory(dataDir, async (_story, { params, set }) => {
       try {
         await deleteBranch(dataDir, params.storyId, params.branchId)
         return { ok: true }
@@ -102,7 +77,7 @@ export function branchRoutes(dataDir: string) {
         set.status = 400
         return { error: err instanceof Error ? err.message : 'Failed to delete branch' }
       }
-    }, {
+    }), {
       detail: { summary: 'Delete a branch' },
     })
 }
