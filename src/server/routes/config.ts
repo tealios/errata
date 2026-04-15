@@ -12,6 +12,39 @@ import {
 } from '../config/storage'
 import { ProviderConfigSchema } from '../config/schema'
 
+type ModelEntry = { id: string; owned_by?: string }
+type FetchModelsResult = { models: ModelEntry[]; error?: string }
+
+async function fetchModelsFromProvider(
+  baseURL: string,
+  apiKey: string,
+  customHeaders?: Record<string, string>,
+): Promise<FetchModelsResult> {
+  try {
+    const base = baseURL.replace(/\/+$/, '')
+    const url = /\/v\d+$/.test(base) ? `${base}/models` : `${base}/v1/models`
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        ...(customHeaders ?? {}),
+      },
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText)
+      return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
+    }
+    const json = await res.json() as { data?: ModelEntry[] }
+    const models = (json.data ?? []).map((m) => ({
+      id: m.id,
+      owned_by: m.owned_by,
+    }))
+    models.sort((a, b) => a.id.localeCompare(b.id))
+    return { models }
+  } catch (err) {
+    return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
+  }
+}
+
 export function configRoutes(dataDir: string) {
   return new Elysia()
     .get('/config/providers', async () => {
@@ -116,56 +149,12 @@ export function configRoutes(dataDir: string) {
         set.status = 404
         return { models: [], error: 'Provider not found' }
       }
-      try {
-        const base = provider.baseURL.replace(/\/+$/, '')
-        const url = /\/v\d+$/.test(base) ? `${base}/models` : `${base}/v1/models`
-        const res = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${provider.apiKey}`,
-            ...(provider.customHeaders ?? {}),
-          },
-        })
-        if (!res.ok) {
-          const text = await res.text().catch(() => res.statusText)
-          return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
-        }
-        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
-        const models = (json.data ?? []).map((m) => ({
-          id: m.id,
-          owned_by: m.owned_by,
-        }))
-        models.sort((a, b) => a.id.localeCompare(b.id))
-        return { models }
-      } catch (err) {
-        return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
-      }
+      return fetchModelsFromProvider(provider.baseURL, provider.apiKey, provider.customHeaders)
     })
 
     // Fetch models with arbitrary credentials (for unsaved providers, avoids CORS)
     .post('/config/test-models', async ({ body }) => {
-      try {
-        const base = body.baseURL.replace(/\/+$/, '')
-        const url = /\/v\d+$/.test(base) ? `${base}/models` : `${base}/v1/models`
-        const res = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${body.apiKey}`,
-            ...(body.customHeaders ?? {}),
-          },
-        })
-        if (!res.ok) {
-          const text = await res.text().catch(() => res.statusText)
-          return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
-        }
-        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
-        const models = (json.data ?? []).map((m) => ({
-          id: m.id,
-          owned_by: m.owned_by,
-        }))
-        models.sort((a, b) => a.id.localeCompare(b.id))
-        return { models }
-      } catch (err) {
-        return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
-      }
+      return fetchModelsFromProvider(body.baseURL, body.apiKey, body.customHeaders)
     }, {
       body: t.Object({
         baseURL: t.String(),
