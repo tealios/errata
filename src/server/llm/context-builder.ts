@@ -1,9 +1,8 @@
-import { getStory, listFragments, getFragment } from '../fragments/storage'
+import { getStory, listFragments, getFragment, migrateStoryToSummaryFragments } from '../fragments/storage'
 import { registry } from '../fragments/registry'
 import { instructionRegistry } from '../instructions'
 import { createLogger } from '../logging'
 import { getActiveProseIds, findSectionIndex, getProseChain } from '../fragments/prose-chain'
-import { getAnalysis, getLatestAnalysisIdsByFragment } from '../librarian/storage'
 import type { Fragment, StoryMeta } from '../fragments/schema'
 import type { ModelMessage } from 'ai'
 
@@ -128,29 +127,54 @@ function applyProseLimit(
   }
 }
 
-async function buildSummaryBeforeFragment(
+/**
+ * Load and concatenate all active summary fragments (non-archived).
+ * Era summaries come first (oldest coverage), then active chapter summaries.
+ * Users who have placed or sticky-pinned summary fragments still see them
+ * here — placement overrides only affect context position, not inclusion.
+ */
+async function loadSummaryContent(
   dataDir: string,
   storyId: string,
-  fragmentIdsInOrder: string[],
 ): Promise<string> {
-  if (fragmentIdsInOrder.length === 0) return ''
+  const summaries = await listFragments(dataDir, storyId, 'summary')
+  if (summaries.length === 0) return ''
+  summaries.sort((a, b) => {
+    const aEra = a.meta?.isEraSummary ? 0 : 1
+    const bEra = b.meta?.isEraSummary ? 0 : 1
+    if (aEra !== bEra) return aEra - bEra
+    return a.createdAt.localeCompare(b.createdAt)
+  })
+  return summaries.map(f => f.content.trim()).filter(Boolean).join('\n\n')
+}
 
-  const latestByFragment = await getLatestAnalysisIdsByFragment(dataDir, storyId)
-  if (latestByFragment.size === 0) return ''
+/**
+ * Load summary content for prose that appears in `proseIdsInWindow` — the
+ * already-trimmed list of prose IDs that come before the regeneration
+ * target. A summary fragment is relevant if its `meta.coverageEnd` falls
+ * inside that window.
+ */
+async function loadSummaryContentBefore(
+  dataDir: string,
+  storyId: string,
+  proseIdsInWindow: string[],
+): Promise<string> {
+  const summaries = await listFragments(dataDir, storyId, 'summary')
+  if (summaries.length === 0) return ''
 
-  const analysisIds = fragmentIdsInOrder
-    .map((fragmentId) => latestByFragment.get(fragmentId))
-    .filter((analysisId): analysisId is string => !!analysisId)
-
-  if (analysisIds.length === 0) return ''
-
-  const analyses = await Promise.all(analysisIds.map((analysisId) => getAnalysis(dataDir, storyId, analysisId)))
-  const updates = analyses
-    .filter((a): a is NonNullable<typeof a> => !!a)
-    .map((a) => a.summaryUpdate.trim())
-    .filter((summary) => summary.length > 0)
-
-  return updates.join(' ').trim()
+  const windowIds = new Set(proseIdsInWindow)
+  const relevant = summaries.filter(f => {
+    const cov = f.meta?.coverageEnd as string | undefined
+    if (!cov) return false
+    return windowIds.has(cov)
+  })
+  relevant.sort((a, b) => {
+    const aEra = a.meta?.isEraSummary ? 0 : 1
+    const bEra = b.meta?.isEraSummary ? 0 : 1
+    if (aEra !== bEra) return aEra - bEra
+    return a.createdAt.localeCompare(b.createdAt)
+  })
+  return relevant.map(f => f.content.trim()).filter(Boolean).join('\n\n')
 }
 
 async function resolveBeforeSectionIndex(
@@ -186,6 +210,10 @@ export async function buildContextState(
   } = opts
   const requestLogger = logger.child({ storyId })
   requestLogger.info('Building context state...')
+
+  // One-shot migration of legacy story.summary → summary fragment. Idempotent.
+  // Runs before we read the story so the post-migration state is picked up.
+  await migrateStoryToSummaryFragments(dataDir, storyId)
 
   const story = await getStory(dataDir, storyId)
   if (!story) {
@@ -323,35 +351,13 @@ export async function buildContextState(
     }
   }
 
-  let effectiveSummary = story.summary
+  let effectiveSummary: string
   if (excludeStorySummary) {
     effectiveSummary = ''
-  } else if (summaryBeforeFragmentId) {
-    let summaryContextIds: string[] = []
-    if (activeProseIds.length > 0) {
-      const beforeIndex = await resolveBeforeSectionIndex(
-        dataDir,
-        storyId,
-        summaryBeforeFragmentId,
-        activeProseIds,
-      )
-      summaryContextIds = beforeIndex !== -1
-        ? activeProseIds.slice(0, beforeIndex)
-        : []
-    } else {
-      const beforeFragment = await getFragment(dataDir, storyId, summaryBeforeFragmentId)
-      if (beforeFragment) {
-        const allProse = await listFragments(dataDir, storyId, 'prose')
-        summaryContextIds = allProse
-          .filter(f =>
-            f.order < beforeFragment.order ||
-            (f.order === beforeFragment.order && f.createdAt < beforeFragment.createdAt),
-          )
-          .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
-          .map(f => f.id)
-      }
-    }
-    effectiveSummary = await buildSummaryBeforeFragment(dataDir, storyId, summaryContextIds)
+  } else if (summaryBeforeFragmentId && activeProseIds.length > 0) {
+    effectiveSummary = await loadSummaryContentBefore(dataDir, storyId, activeProseIds)
+  } else {
+    effectiveSummary = await loadSummaryContent(dataDir, storyId)
   }
 
   // Split guidelines, knowledge, and characters into sticky (full) vs shortlist

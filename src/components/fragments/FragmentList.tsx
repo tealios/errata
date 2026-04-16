@@ -618,8 +618,9 @@ export function FragmentList({
     if (!fragments) return []
     let list = [...fragments]
 
-    // Markers are managed through the prose chain, not the sidebar
-    list = list.filter((f) => f.type !== 'marker')
+    // Markers are managed through the prose chain; summaries are managed
+    // by the librarian panel. Neither belongs in the everyday fragment list.
+    list = list.filter((f) => f.type !== 'marker' && f.type !== 'summary')
 
     if (allowedTypes && allowedTypes.length > 0) {
       list = list.filter((f) => allowedTypes.includes(f.type))

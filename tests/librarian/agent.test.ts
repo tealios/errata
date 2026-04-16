@@ -5,6 +5,7 @@ import {
   getStory,
   createFragment,
   getFragment,
+  listFragments,
 } from '@/server/fragments/storage'
 import { getState, getAnalysis, listAnalyses, saveAnalysis } from '@/server/librarian/storage'
 import { initProseChain, addProseSection } from '@/server/fragments/prose-chain'
@@ -114,6 +115,20 @@ function mockStreamWithToolCalls(toolCalls: Array<{ toolName: string; args: Reco
   })
 }
 
+// Concatenate all summary fragments for a story in the same order the
+// context builder reads them (era summaries first, then chapter summaries
+// by createdAt). Replaces assertions on the removed story.summary field.
+async function readSummaries(dataDir: string, storyId: string): Promise<string> {
+  const fragments = await listFragments(dataDir, storyId, 'summary')
+  fragments.sort((a, b) => {
+    const aEra = a.meta?.isEraSummary ? 0 : 1
+    const bEra = b.meta?.isEraSummary ? 0 : 1
+    if (aEra !== bEra) return aEra - bEra
+    return a.createdAt.localeCompare(b.createdAt)
+  })
+  return fragments.map(f => f.content.trim()).filter(Boolean).join('\n\n')
+}
+
 // Helper to set up prose chain for tests
 async function setupProseChain(dataDir: string, storyId: string, proseIds: string[]) {
   if (proseIds.length === 0) return
@@ -141,7 +156,7 @@ describe('librarian agent', () => {
     await cleanup()
   })
 
-  it('appends summary update to story meta', async () => {
+  it('appends summary update to a summary fragment (preserving legacy story.summary)', async () => {
     await createStory(dataDir, makeStory({ summary: 'The hero was born in a small village.' }))
     await createFragment(dataDir, storyId, makeFragment({
       id: 'pr-0001',
@@ -155,10 +170,16 @@ describe('librarian agent', () => {
 
     await runLibrarian(dataDir, storyId, 'pr-0001')
 
+    // Legacy story.summary gets migrated to an era summary fragment; the new
+    // analysis produces an Opening chapter summary fragment. Reading all
+    // summary fragments together reproduces the original rolling string.
+    const combined = await readSummaries(dataDir, storyId)
+    expect(combined).toContain('The hero was born in a small village.')
+    expect(combined).toContain('The hero ventured into the dark forest.')
+
+    // Legacy field is cleared after migration.
     const story = await getStory(dataDir, storyId)
-    expect(story!.summary).toBe(
-      'The hero was born in a small village. The hero ventured into the dark forest.',
-    )
+    expect(story!.summary).toBe('')
   })
 
   it('embeds summary and analysisId in prose fragment meta._librarian', async () => {
@@ -218,7 +239,7 @@ describe('librarian agent', () => {
     expect(annotations[0].text).toBe('Alice')
   })
 
-  it('sets summary when story had no summary', async () => {
+  it('creates a new summary fragment when story had no prior summary', async () => {
     await createStory(dataDir, makeStory({ summary: '' }))
     await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
@@ -229,8 +250,10 @@ describe('librarian agent', () => {
 
     await runLibrarian(dataDir, storyId, 'pr-0001')
 
-    const story = await getStory(dataDir, storyId)
-    expect(story!.summary).toBe('The story begins.')
+    expect(await readSummaries(dataDir, storyId)).toBe('The story begins.')
+    const summaries = await listFragments(dataDir, storyId, 'summary')
+    expect(summaries).toHaveLength(1)
+    expect(summaries[0].meta?.isEraSummary).toBeFalsy()
   })
 
   it('applies deferred summaries contiguously and does not skip gaps', async () => {
@@ -253,9 +276,8 @@ describe('librarian agent', () => {
     ])
     await runLibrarian(dataDir, storyId, 'pr-0001')
 
-    const afterFirst = await getStory(dataDir, storyId)
     const stateAfterFirst = await getState(dataDir, storyId)
-    expect(afterFirst!.summary).toBe('Summary one.')
+    expect(await readSummaries(dataDir, storyId)).toBe('Summary one.')
     expect(stateAfterFirst.summarizedUpTo).toBe('pr-0001')
 
     // pr-0002 remains unanalyzed. Even though pr-0003 has an analysis,
@@ -265,86 +287,43 @@ describe('librarian agent', () => {
     ])
     await runLibrarian(dataDir, storyId, 'pr-0003')
 
-    const afterSecond = await getStory(dataDir, storyId)
     const stateAfterSecond = await getState(dataDir, storyId)
-    expect(afterSecond!.summary).toBe('Summary one.')
-    expect(afterSecond!.summary).not.toContain('Summary three should wait.')
+    const combined = await readSummaries(dataDir, storyId)
+    expect(combined).toBe('Summary one.')
+    expect(combined).not.toContain('Summary three should wait.')
     expect(stateAfterSecond.summarizedUpTo).toBe('pr-0001')
   })
 
-  it('compacts story summary when summaryCompact budget is exceeded', async () => {
+  it('splits the chapter summary into an era summary + fresh chapter when the overflow threshold is exceeded', async () => {
     await createStory(dataDir, makeStory({
-      summary: 'Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context.',
-      settings: {
-        summarizationThreshold: 0,
-        summaryCompact: {
-          maxCharacters: 120,
-          targetCharacters: 100,
-        },
-      },
+      settings: { summarizationThreshold: 0 },
     }))
-    const created = await getStory(dataDir, storyId)
-    expect(created?.settings.summaryCompact).toEqual({
-      maxCharacters: 120,
-      targetCharacters: 100,
-    })
-
-    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'Newest prose' }))
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'First prose' }))
     await setupProseChain(dataDir, storyId, ['pr-0001'])
 
+    // Overflow threshold is 2000. Two large summaries combined should split.
+    const big = 'Lorem ipsum dolor sit amet. '.repeat(50) // ≈1400 chars
     mockStreamWithToolCalls([
-      { toolName: 'updateSummary', args: { summary: 'Latest event must remain visible.' } },
+      { toolName: 'updateSummary', args: { summary: big + 'A' } },
     ])
     await runLibrarian(dataDir, storyId, 'pr-0001')
 
-    const story = await getStory(dataDir, storyId)
-    expect(story).toBeTruthy()
-    expect(story!.summary.length).toBeLessThanOrEqual(100)
-    expect(story!.summary).toContain('Latest event must remain visible.')
-  })
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0002', content: 'Second prose' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001', 'pr-0002'])
 
-  it('uses LLM summary compaction when summary exceeds max budget', async () => {
-    await createStory(dataDir, makeStory({
-      summary: 'Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context. Old context.',
-      settings: {
-        summarizationThreshold: 0,
-        summaryCompact: {
-          maxCharacters: 120,
-          targetCharacters: 80,
-        },
-      },
-    }))
+    mockStreamWithToolCalls([
+      { toolName: 'updateSummary', args: { summary: big + 'B' } },
+    ])
+    await runLibrarian(dataDir, storyId, 'pr-0002')
 
-    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'Newest prose' }))
-    await setupProseChain(dataDir, storyId, ['pr-0001'])
+    const active = await listFragments(dataDir, storyId, 'summary')
+    const archived = await listFragments(dataDir, storyId, 'summary', { includeArchived: true })
 
-    mockAgentStream
-      .mockImplementationOnce(async (_args: unknown, tools: Record<string, { execute: (args: unknown) => Promise<unknown> }>) => {
-        return {
-          fullStream: (async function* () {
-            yield { type: 'tool-call' as const, toolCallId: 'call-0', toolName: 'updateSummary', input: { summary: 'Latest event should be compacted by LLM.' } }
-            const output = await tools.updateSummary.execute({ summary: 'Latest event should be compacted by LLM.' })
-            yield { type: 'tool-result' as const, toolCallId: 'call-0', toolName: 'updateSummary', output }
-            yield { type: 'finish' as const, finishReason: 'stop' }
-          })(),
-        }
-      })
-      .mockImplementationOnce(async () => {
-        return {
-          fullStream: (async function* () {
-            yield { type: 'text-delta' as const, text: 'Compressed continuity summary.' }
-            yield { type: 'finish' as const, finishReason: 'stop' }
-          })(),
-        }
-      })
-
-    await runLibrarian(dataDir, storyId, 'pr-0001')
-
-    const story = await getStory(dataDir, storyId)
-    expect(story).toBeTruthy()
-    expect(story!.summary).toBe('Compressed continuity summary.')
-    expect(story!.summary.length).toBeLessThanOrEqual(80)
-    expect(mockAgentStream).toHaveBeenCalledTimes(2)
+    // The original chapter summary was archived; a new era summary and a
+    // fresh chapter summary should both exist among the active fragments.
+    expect(active.some(f => f.meta?.isEraSummary)).toBe(true)
+    expect(active.some(f => !f.meta?.isEraSummary)).toBe(true)
+    expect(archived.length).toBeGreaterThan(active.length)
   })
 
   it('uses latest analysis per fragment in deferred summary application', async () => {
@@ -383,10 +362,9 @@ describe('librarian agent', () => {
     ])
     await runLibrarian(dataDir, storyId, 'pr-0002')
 
-    const story = await getStory(dataDir, storyId)
-    expect(story).toBeTruthy()
-    expect(story!.summary).toContain('New version should be used.')
-    expect(story!.summary).not.toContain('Old version should not be used.')
+    const combined = await readSummaries(dataDir, storyId)
+    expect(combined).toContain('New version should be used.')
+    expect(combined).not.toContain('Old version should not be used.')
   })
 
   it('detects character mentions', async () => {

@@ -3,12 +3,12 @@ import { ToolLoopAgent, stepCountIs, type ProviderOptions } from 'ai'
 import { instructionRegistry } from '../instructions'
 import {
   getStory,
-  updateStory,
   listFragments,
   getFragment,
   updateFragment,
   createFragment,
   archiveFragment,
+  migrateStoryToSummaryFragments,
 } from '../fragments/storage'
 import { getActiveProseIds, getProseChain } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
@@ -39,34 +39,6 @@ import type { AgentBlockContext } from '../agents/agent-block-context'
 
 const logger = createLogger('librarian-agent')
 
-const DEFAULT_SUMMARY_COMPACT = {
-  maxCharacters: 12000,
-  targetCharacters: 9000,
-} as const
-
-function resolveSummaryCompact(story: Awaited<ReturnType<typeof getStory>> & {}): {
-  maxCharacters: number
-  targetCharacters: number
-} {
-  const raw = story?.settings && typeof story.settings === 'object'
-    ? (story.settings as Record<string, unknown>).summaryCompact
-    : null
-
-  if (!raw || typeof raw !== 'object') return DEFAULT_SUMMARY_COMPACT
-
-  const max = typeof (raw as Record<string, unknown>).maxCharacters === 'number'
-    ? Math.max(100, Math.floor((raw as Record<string, unknown>).maxCharacters as number))
-    : DEFAULT_SUMMARY_COMPACT.maxCharacters
-  const targetCandidate = typeof (raw as Record<string, unknown>).targetCharacters === 'number'
-    ? Math.max(100, Math.floor((raw as Record<string, unknown>).targetCharacters as number))
-    : DEFAULT_SUMMARY_COMPACT.targetCharacters
-
-  return {
-    maxCharacters: max,
-    targetCharacters: Math.min(targetCandidate, max),
-  }
-}
-
 function compactSummaryByCharacters(summary: string, maxCharacters: number, targetCharacters: number): string {
   const normalized = summary.trim()
   if (normalized.length <= maxCharacters) return normalized
@@ -80,96 +52,6 @@ function compactSummaryByCharacters(summary: string, maxCharacters: number, targ
   const tail = normalized.slice(-bodyLimit).trimStart()
   const compacted = `${prefix}${tail}`
   return compacted.length <= target ? compacted : compacted.slice(-target)
-}
-
-export const SUMMARY_COMPACTION_PROMPT = `You compress long rolling story summaries.
-Keep key continuity facts, active constraints, unresolved threads, and recent causal chain.
-Do not add new facts.
-Return only compressed summary text.`
-
-async function compactSummary(
-  dataDir: string,
-  storyId: string,
-  summary: string,
-  maxCharacters: number,
-  targetCharacters: number,
-  requestLogger: ReturnType<typeof logger.child>,
-  providerOptions?: ProviderOptions,
-): Promise<string> {
-  const normalized = summary.trim()
-  if (normalized.length <= maxCharacters) return normalized
-
-  const target = Math.min(Math.max(100, targetCharacters), maxCharacters)
-  if (normalized.length <= target) return normalized
-
-  try {
-    const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
-    const agent = new ToolLoopAgent({
-      model,
-      instructions: instructionRegistry.resolve('librarian.summary-compaction', modelId),
-      tools: {},
-      toolChoice: 'none' as const,
-      stopWhen: stepCountIs(1),
-      temperature,
-      providerOptions,
-    })
-
-    let compacted = ''
-    const result = await agent.stream({
-      prompt: `Compress this story summary to at most ${target} characters while preserving continuity-critical facts.\n\n${normalized}`,
-    })
-
-    for await (const part of result.fullStream) {
-      if (part.type === 'text-delta') {
-        const p = part as Record<string, unknown>
-        compacted += String(p.text ?? '')
-      }
-    }
-
-    // Track token usage for summary compaction
-    try {
-      const rawUsage = await result.totalUsage
-      if (rawUsage && typeof rawUsage.inputTokens === 'number') {
-        reportUsage(dataDir, storyId, 'librarian.summary-compaction', {
-          inputTokens: rawUsage.inputTokens,
-          outputTokens: rawUsage.outputTokens ?? 0,
-        }, modelId)
-      }
-    } catch {
-      // Some providers may not report usage
-    }
-
-    const compactedText = compacted.trim()
-    if (compactedText.length > 0) {
-      if (compactedText.length <= target) {
-        requestLogger.info('Summary compacted via LLM', {
-          modelId,
-          beforeLength: normalized.length,
-          afterLength: compactedText.length,
-          targetCharacters: target,
-        })
-        return compactedText
-      }
-
-      const bounded = compactedText.slice(0, target).trimEnd()
-      requestLogger.warn('Summary compaction exceeded target; hard-capping output', {
-        modelId,
-        beforeLength: normalized.length,
-        generatedLength: compactedText.length,
-        afterLength: bounded.length,
-        targetCharacters: target,
-      })
-      return bounded
-    }
-
-    requestLogger.warn('Summary compaction returned empty output; falling back to truncation')
-  } catch (error) {
-    requestLogger.warn('Summary compaction failed; falling back to truncation', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-
-  return compactSummaryByCharacters(normalized, maxCharacters, target)
 }
 
 export async function runLibrarian(
@@ -691,6 +573,11 @@ async function applyDeferredSummaries(
   state: { summarizedUpTo: string | null } & Record<string, unknown>,
   requestLogger: ReturnType<typeof logger.child>,
 ) {
+  // Migrate legacy story.summary → summary fragment once, before we write
+  // new summary fragments, so existing rolling-summary content is preserved
+  // and not orphaned on story.summary.
+  await migrateStoryToSummaryFragments(dataDir, storyId)
+
   const proseIds = await getActiveProseIds(dataDir, storyId)
   const threshold = (story.settings?.summarizationThreshold as number | undefined) ?? 4
   const cutoffIndex = proseIds.length - threshold
@@ -818,29 +705,6 @@ async function applyDeferredSummaries(
     if (!analysis) continue
     if (analysis.summaryFragmentId === fragmentId) continue
     await saveAnalysis(dataDir, storyId, { ...analysis, summaryFragmentId: fragmentId })
-  }
-
-  // Legacy dual-write: keep story.summary populated for readers that
-  // haven't migrated yet. Phase 3 removes this block.
-  const currentStory = await getStory(dataDir, storyId)
-  if (currentStory) {
-    const separator = currentStory.summary ? ' ' : ''
-    const summaryCompact = resolveSummaryCompact(currentStory)
-    const combinedSummary = currentStory.summary + separator + items.map(i => i.text).join(' ')
-    const compactedSummary = await compactSummary(
-      dataDir,
-      storyId,
-      combinedSummary,
-      summaryCompact.maxCharacters,
-      summaryCompact.targetCharacters,
-      requestLogger,
-      buildProviderOptions(currentStory.settings.disableThinking ?? false),
-    )
-    await updateStory(dataDir, {
-      ...currentStory,
-      summary: compactedSummary,
-      updatedAt: new Date().toISOString(),
-    })
   }
 
   // Update state with new watermark
