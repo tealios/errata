@@ -109,6 +109,17 @@ export function librarianRoutes(dataDir: string) {
       return analysis
     }, { detail: { summary: 'Get an analysis by ID' } })
 
+    /**
+     * @deprecated DEPRECATED (summary-fragments migration). Edits the
+     * analysis's `summaryUpdate` field (the librarian's stated intent)
+     * and performs a legacy string-replace into `story.summary`. Both
+     * the intent write and the string-replace are no longer read by
+     * downstream code — the artifact is the linked summary fragment
+     * (`analysis.summaryFragmentId`). The correct edit surface is the
+     * Summaries section in LibrarianPanel, which updates the fragment
+     * directly via PUT /fragments/:id. Kept for backward compatibility
+     * until the legacy inline edit UI is migrated or removed.
+     */
     .patch('/stories/:storyId/librarian/analyses/:analysisId', async ({ params, body, set }) => {
       const analysis = await getLibrarianAnalysis(dataDir, params.storyId, params.analysisId)
       if (!analysis) {
@@ -141,6 +152,8 @@ export function librarianRoutes(dataDir: string) {
         }
       }
 
+      // Legacy no-op: story.summary is no longer read by production code.
+      // The replace runs only if story.summary still holds migration-stale content.
       if (previousSummary !== nextSummary && previousSummary && story.summary.includes(previousSummary)) {
         await updateStory(dataDir, {
           ...story,
@@ -154,7 +167,7 @@ export function librarianRoutes(dataDir: string) {
       body: t.Object({
         summaryUpdate: t.String(),
       }),
-      detail: { summary: 'Update an analysis summary' },
+      detail: { summary: 'Update an analysis summary (deprecated — edit the linked summary fragment instead)' },
     })
 
     .post('/stories/:storyId/librarian/analyses/:analysisId/suggestions/:index/accept', async ({ params, set }) => {

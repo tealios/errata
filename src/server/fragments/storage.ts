@@ -316,14 +316,16 @@ export async function deleteFragment(
 }
 
 /**
+ * @deprecated TRANSITIONAL. Delete alongside `StoryMeta.summary` once all
+ * live stories have been migrated.
+ *
  * One-shot migration for the summary-fragments feature. Converts any
  * non-empty `story.summary` string into a single summary fragment, then
  * clears the field. Idempotent — running again with no `story.summary`
  * is a no-op. Existing summary fragments are never overwritten.
  *
- * Intended to be called once on story load (via the route layer) during
- * the transition. After the deprecated `story.summary` is fully removed
- * from the schema, this function can be deleted.
+ * Called at the top of `buildContextState` and `applyDeferredSummaries`
+ * so legacy content surfaces through the new fragment path on first use.
  */
 export async function migrateStoryToSummaryFragments(
   dataDir: string,

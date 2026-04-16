@@ -619,6 +619,16 @@ async function applyDeferredSummaries(
 
   for (let i = startIndex; i < cutoffIndex; i++) {
     const proseId = proseIds[i]
+
+    // Markers sit in the prose chain as structural dividers, not prose.
+    // Skip them without treating the absence of an analysis as a gap —
+    // otherwise a marker placed anywhere would block all summaries past it.
+    const entryFragment = await getFragment(dataDir, storyId, proseId)
+    if (entryFragment?.type === 'marker') {
+      lastAppliedId = proseId
+      continue
+    }
+
     const analysisId = analysisByFragment.get(proseId)
     if (!analysisId) {
       requestLogger.debug('Deferred summarization stopped at gap', {

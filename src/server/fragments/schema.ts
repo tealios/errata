@@ -67,6 +67,16 @@ export const StoryMetaSchema = z.object({
   name: z.string(),
   description: z.string(),
   coverImage: z.string().nullable().default(null),
+  /**
+   * @deprecated DEPRECATED (summary-fragments migration). The rolling
+   * story summary now lives in `summary` fragments (type: 'summary').
+   * This field is no longer read by the context builder and no longer
+   * written by the librarian. It is kept only so existing stories parse
+   * without loss during the transition — migrateStoryToSummaryFragments
+   * converts any non-empty value to an era summary fragment on first
+   * load, then clears it. Safe to remove from the schema (and drop the
+   * migration helper) once all live stories have been migrated.
+   */
   summary: z.string().default(''),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -109,6 +119,14 @@ export const StoryMetaSchema = z.object({
         type: z.enum(['proseLimit', 'maxTokens', 'maxCharacters']),
         value: z.number().int().min(1),
       }).default({ type: 'proseLimit', value: 10 }),
+      /**
+       * @deprecated DEPRECATED (summary-fragments migration). Drove the old
+       * LLM-backed story.summary compactor. With per-chapter summary
+       * fragments, overflow is handled by a per-fragment threshold
+       * (SUMMARY_OVERFLOW_THRESHOLD in librarian/agent.ts). This setting
+       * is no longer read anywhere. Safe to remove from the schema when
+       * the legacy story.summary field is dropped.
+       */
       summaryCompact: z.object({
         maxCharacters: z.number().int().min(100),
         targetCharacters: z.number().int().min(100),

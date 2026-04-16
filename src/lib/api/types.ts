@@ -5,6 +5,13 @@ export interface StoryMeta {
   name: string
   description: string
   coverImage: string | null
+  /**
+   * @deprecated DEPRECATED (summary-fragments migration). Rolling summaries
+   * now live in fragments of type 'summary'. This field is cleared by
+   * the server-side migration on first load and is no longer written
+   * anywhere. Kept so existing payloads parse. Safe to drop once the
+   * server-side schema removes it.
+   */
   summary: string
   createdAt: string
   updatedAt: string
@@ -25,6 +32,11 @@ export interface StoryMeta {
     contextOrderMode?: 'simple' | 'advanced'
     fragmentOrder?: string[]
     contextCompact?: { type: 'proseLimit' | 'maxTokens' | 'maxCharacters'; value: number }
+    /**
+     * @deprecated DEPRECATED (summary-fragments migration). Drove the old
+     * LLM-backed story.summary compactor. Per-fragment overflow now uses
+     * a constant threshold in the librarian. Setting is ignored.
+     */
     summaryCompact?: { maxCharacters: number; targetCharacters: number }
     enableHierarchicalSummary?: boolean
     guidedContinuePrompt?: string
