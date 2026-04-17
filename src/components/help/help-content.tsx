@@ -528,8 +528,8 @@ export const HELP_SECTIONS: HelpSection[] = [
   },
   {
     id: 'blocks',
-    title: 'Block Editor',
-    description: 'Control the model context structure — disable, reorder, override, and create blocks.',
+    title: 'Context blocks',
+    description: 'Control the model context structure — disable, reorder, override, and create blocks per agent.',
     subsections: [
       {
         id: 'overview',
@@ -543,14 +543,15 @@ export const HELP_SECTIONS: HelpSection[] = [
               that the model sees.
             </P>
             <P>
-              The <strong className="text-foreground/75">Block Editor</strong> lets you see and control these blocks
-              directly. To enable it, set <strong className="text-foreground/75">Prompt control</strong> to{' '}
-              <Mono>Advanced</Mono> in Settings. The Block Editor and Fragment Order panels then appear
-              in the sidebar under <strong className="text-foreground/75">Management</strong>.
+              Blocks are configured <strong className="text-foreground/75">per agent</strong>. Open the{' '}
+              <strong className="text-foreground/75">Agents</strong> tab in the sidebar and pick an agent
+              (writer, librarian analyze, librarian chat, and so on) to see its blocks. Each agent has its
+              own ordering, overrides, and custom blocks — tuning the writer doesn't affect the librarian.
             </P>
             <Tip>
-              Use the <strong className="text-foreground/75">Preview</strong> button in the Block Editor to see exactly
-              what the compiled prompt looks like with your changes applied.
+              Use the <strong className="text-foreground/75">Preview</strong> button at the top of the
+              configure panel to see exactly what the compiled prompt looks like for that agent with
+              your changes applied.
             </Tip>
           </>
         ),
@@ -692,9 +693,9 @@ export const HELP_SECTIONS: HelpSection[] = [
         content: (
           <>
             <P>
-              Click <strong className="text-foreground/75">Add Context Block</strong> at the bottom of the
-              Block Editor to inject your own content into the model prompt. Custom blocks sit alongside
-              builtin blocks and can be reordered, enabled, or disabled the same way.
+              Click <strong className="text-foreground/75">Add Context Block</strong> at the bottom of
+              the agent's configure panel to inject your own content into its prompt. Custom blocks sit
+              alongside builtin blocks and can be reordered, enabled, or disabled the same way.
             </P>
             <P>
               When creating a custom block, choose:
@@ -989,8 +990,8 @@ return rules.map(r => r.content).join('\\n')`}</div>
             </P>
             <P>
               <strong className="text-foreground/75">Analyses</strong> — each prose generation gets
-              its own analysis entry. Expand one to see the summary update, which characters appeared,
-              any contradictions found, fragment suggestions, and timeline events detected.
+              its own analysis entry. Expand one to see which characters appeared, any contradictions
+              found, fragment suggestions, and timeline events detected.
             </P>
             <P>
               <strong className="text-foreground/75">Characters</strong> — tracks which characters
@@ -1001,6 +1002,36 @@ return rules.map(r => r.content).join('\\n')`}</div>
               events the librarian has extracted from your prose, linked back to the fragments
               they came from.
             </P>
+          </>
+        ),
+      },
+      {
+        id: 'summaries',
+        title: 'Summaries',
+        content: (
+          <>
+            <P>
+              The <strong className="text-foreground/75">Summaries</strong> tab lists the rolling
+              summary the librarian maintains. Each chapter gets its own summary fragment; once a
+              chapter's summary grows past a threshold, older material is promoted into an
+              <strong className="text-foreground/75"> era summary</strong> that floats to the top of
+              the list.
+            </P>
+            <P>
+              Tap any summary to open it in a <strong className="text-foreground/75">fullscreen
+              editor</strong> — a centered reading column set in the prose font, generous line-height,
+              autosave on blur. Press <Kbd>Esc</Kbd> to close. Your edits persist through future
+              librarian runs; the librarian appends to what's there rather than overwriting you.
+            </P>
+            <P>
+              Archive a summary to exclude it from the prompt without deleting it. A <strong className="text-foreground/75">show archived</strong> toggle
+              at the bottom of the list reveals archived entries so you can restore them later.
+            </P>
+            <Tip>
+              Summaries are regular fragments of type <Mono>summary</Mono>. They appear in the prompt
+              through the <Mono>summary</Mono> block and can be exported, imported, and referenced
+              like any other fragment.
+            </Tip>
           </>
         ),
       },
@@ -1363,36 +1394,35 @@ return rules.map(r => r.content).join('\\n')`}</div>
       },
       {
         id: 'prompt-control',
-        title: 'Prompt control',
+        title: 'Fragment ordering',
         content: (
           <>
             <P>
-              <strong className="text-foreground/75">Simple mode</strong> (default) groups sticky fragments by type
-              (guidelines, then knowledge, then characters) in the prompt. The block structure is fixed.
-            </P>
-            <P>
-              <strong className="text-foreground/75">Advanced mode</strong> unlocks two sidebar panels:
+              The <strong className="text-foreground/75">Fragment ordering</strong> setting controls how
+              sticky fragments are arranged inside the prompt.
             </P>
             <div className="rounded-md border border-border/25 bg-accent/10 px-3 py-2.5 mb-2.5 space-y-1.5">
               <div>
-                <p className="text-[0.71875rem] font-medium text-foreground/65">Block Editor</p>
+                <p className="text-[0.71875rem] font-medium text-foreground/65">Grouped</p>
                 <p className="text-[0.6875rem] text-muted-foreground leading-snug">
-                  Disable, reorder, and override entire context blocks (instructions, tools, story info,
-                  prose, etc.). Create custom blocks with plain text or JavaScript scripts.
+                  Default — sticky fragments are bundled by type (guidelines, then knowledge, then characters).
                 </p>
               </div>
               <div className="h-px bg-border/15" />
               <div>
-                <p className="text-[0.71875rem] font-medium text-foreground/65">Fragment Order</p>
+                <p className="text-[0.71875rem] font-medium text-foreground/65">Custom</p>
                 <p className="text-[0.6875rem] text-muted-foreground leading-snug">
-                  Drag pinned fragments into a custom order and toggle their placement between system
-                  and user messages.
+                  Unlocks the <strong className="text-foreground/75">Fragment Order</strong> panel in the
+                  sidebar. Drag pinned fragments into a custom order and toggle their placement between
+                  system and user messages.
                 </p>
               </div>
             </div>
             <Tip>
-              See the <strong className="text-foreground/75">Block Editor</strong> help section for full details
-              on blocks, overrides, and custom script blocks.
+              For block-level control — disabling, reordering, overriding, or adding custom blocks —
+              open the <strong className="text-foreground/75">Agents</strong> tab and configure each
+              agent individually. See the <strong className="text-foreground/75">Context blocks</strong> help
+              section.
             </Tip>
           </>
         ),
