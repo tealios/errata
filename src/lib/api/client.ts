@@ -3,12 +3,14 @@ import type { ChatEvent } from './types'
 const API_BASE = '/api'
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (init?.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
+    headers,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
