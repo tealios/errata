@@ -196,6 +196,54 @@ describe('Per-agent config export/import routes', () => {
     expect(saved.config.customBlocks).toHaveLength(1)
     expect(saved.config.customBlocks[0].id).toBe('cb-round1')
   })
+
+  it('DELETE /agent-blocks/:agentName/custom/:blockId removes a custom block', async () => {
+    const storyId = await createStory()
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/custom`, {
+      id: 'cb-agdel1',
+      name: 'Delete Me',
+      role: 'system',
+      order: 100,
+      enabled: true,
+      type: 'simple',
+      content: 'Temporary block',
+    })
+
+    const deleteRes = await api(`/stories/${storyId}/agent-blocks/generation.writer/custom/cb-agdel1`, {
+      method: 'DELETE',
+    })
+
+    expect(deleteRes.status).toBe(200)
+    const deleted = await deleteRes.json()
+    expect(deleted.customBlocks).toEqual([])
+    expect(deleted.blockOrder).not.toContain('cb-agdel1')
+
+    const getRes = await api(`/stories/${storyId}/agent-blocks/generation.writer`)
+    const saved = await getRes.json()
+    expect(saved.config.customBlocks).toEqual([])
+  })
+
+  it('DELETE /agent-blocks/:agentName/custom/:blockId accepts content-type json without a body', async () => {
+    const storyId = await createStory()
+    await apiJson(`/stories/${storyId}/agent-blocks/generation.writer/custom`, {
+      id: 'cb-agdel2',
+      name: 'Delete Me Too',
+      role: 'system',
+      order: 100,
+      enabled: true,
+      type: 'simple',
+      content: 'Temporary block',
+    })
+
+    const deleteRes = await api(`/stories/${storyId}/agent-blocks/generation.writer/custom/cb-agdel2`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    expect(deleteRes.status).toBe(200)
+    const deleted = await deleteRes.json()
+    expect(deleted.customBlocks).toEqual([])
+  })
 })
 
 describe('Bundle export/import routes', () => {

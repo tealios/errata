@@ -67,7 +67,10 @@ function BlurSaveTextarea({
   value,
   onSave,
   ...props
-}: { value: string; onSave: (value: string) => void } & Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onBlur'>) {
+}: {
+  value: string
+  onSave: (value: string) => void
+} & Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onBlur'>) {
   const [local, setLocal] = useState(value)
   const savedRef = useRef(value)
 
