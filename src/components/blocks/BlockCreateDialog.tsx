@@ -42,12 +42,12 @@ export function BlockCreateDialog({ open, onOpenChange, onSubmit }: BlockCreateD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]" data-component-id="block-create-dialog">
+      <DialogContent className="sm:max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden" data-component-id="block-create-dialog">
         <DialogHeader>
           <DialogTitle className="font-display text-lg">New Custom Block</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 py-1">
+        <div className="flex-1 overflow-y-auto space-y-5 py-1 pr-1">
           {/* Name */}
           <div>
             <h4 className="text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-2">
@@ -143,13 +143,13 @@ export function BlockCreateDialog({ open, onOpenChange, onSubmit }: BlockCreateD
                   : 'Block content...'
               }
               rows={6}
-              className={cn('text-xs resize-y', type === 'script' && 'font-mono bg-muted/15')}
+              className={cn('text-xs resize-y min-h-32 max-h-[40vh] overflow-y-auto', type === 'script' && 'font-mono bg-muted/15')}
               data-component-id="block-create-content"
             />
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 pt-3 border-t border-border/30">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-xs" data-component-id="block-create-cancel">
             Cancel
           </Button>
