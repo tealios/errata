@@ -550,6 +550,38 @@ describe('prewriter', () => {
       expect(prewriterText).toContain('CONTINUE')
     })
 
+    it('writer system instructions and tools do not leak into prewriter context', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) return createMockStreamResult('A brief.') as any
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue', saveResult: false }),
+      })
+      expect(res.status).toBe(200)
+      await res.text()
+
+      const prewriterArgs = mockAgentStream.mock.calls[0][0] as any
+      const prewriterText = prewriterArgs.messages!
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+
+      // The writer's own system prompt / tool guidance must not bleed into the
+      // planner's context (the planner has its own 'instructions' block, so we
+      // assert on the writer-specific wording rather than the block markers).
+      expect(prewriterText).not.toContain('Your task is to write prose that continues')
+      expect(prewriterText).not.toContain('Use these tools to retrieve details about characters')
+      // The planner's OWN instruction is still present.
+      expect(prewriterText).toContain('writing planner')
+    })
+
     it('prewriter custom blocks do not leak into writer context', async () => {
       await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
 

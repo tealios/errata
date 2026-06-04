@@ -198,7 +198,13 @@ export function generationRoutes(dataDir: string) {
       const clarifications = body.clarifications ?? []
       const clarifyRound = body.clarifyRound ?? 0
       if (isPrewriterMode) {
-        blocks = blocks.filter(b => b.id !== 'author-input' && b.source !== 'custom')
+        // Strip writer-only blocks from the context dumped into the prewriter's
+        // full-context: the author direction (it has its own planning-request),
+        // custom blocks, and the writer's operating instructions/tool guidance
+        // ("write prose directly, don't use tools to save") — which would
+        // otherwise confuse the planner, whose job is the opposite.
+        const WRITER_ONLY_BLOCKS = new Set(['author-input', 'instructions', 'tools'])
+        blocks = blocks.filter(b => !WRITER_ONLY_BLOCKS.has(b.id) && b.source !== 'custom')
       }
 
       let messages = compileBlocks(blocks)
