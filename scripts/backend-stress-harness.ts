@@ -240,6 +240,7 @@ async function seedStory(dataDir: string, options: HarnessOptions): Promise<{
       maxSteps: 10,
       modelOverrides: {},
       generationMode: 'standard' as const,
+      clarifyBeforeGenerate: false,
       autoApplyLibrarianSuggestions: false,
       disableLibrarianDirections: false,
       disableLibrarianSuggestions: false,

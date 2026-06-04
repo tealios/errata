@@ -43,6 +43,7 @@ function makeStory(id: string = TEST_STORY_ID): StoryMeta {
       maxSteps: 10,
       modelOverrides: {},
       generationMode: 'standard' as const,
+      clarifyBeforeGenerate: false,
       autoApplyLibrarianSuggestions: false,
       disableLibrarianDirections: false,
       disableLibrarianSuggestions: false,
