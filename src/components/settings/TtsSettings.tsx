@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
-import { Volume2, Download, Check, Loader2, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Volume2, Download, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   useTtsSettings,
   useBrowserVoices,
   isBrowserTtsSupported,
-  PIPER_VOICES,
+  SUPERTONIC_VOICES,
   playFragment,
+  preloadNeural,
   stopTts,
   type TtsEngine,
 } from '@/lib/tts'
@@ -93,86 +94,19 @@ function BrowserVoiceRow({ voiceURI, onChange }: { voiceURI: string | null; onCh
   )
 }
 
-function PiperVoiceRows({ voiceId, onChange }: { voiceId: string; onChange: (id: string) => void }) {
-  const [downloaded, setDownloaded] = useState<boolean | null>(null)
-  const [progress, setProgress] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  // Check cache status for the selected voice. Loading the module here is fine —
-  // the user has opted into the neural engine to reach this control.
-  useEffect(() => {
-    let cancelled = false
-    setDownloaded(null)
-    setError(null)
-    ;(async () => {
-      try {
-        const piper = await import('@mintplex-labs/piper-tts-web')
-        const stored = await piper.stored()
-        if (!cancelled) setDownloaded(stored.includes(voiceId))
-      } catch {
-        if (!cancelled) setDownloaded(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [voiceId])
-
-  const handleDownload = async () => {
-    setProgress(0)
-    setError(null)
-    try {
-      const piper = await import('@mintplex-labs/piper-tts-web')
-      await piper.download(voiceId, (p) => setProgress(p.total ? Math.round((p.loaded / p.total) * 100) : 0))
-      setDownloaded(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Download failed')
-    } finally {
-      setProgress(null)
-    }
-  }
-
-  const handleRemove = async () => {
-    try {
-      const piper = await import('@mintplex-labs/piper-tts-web')
-      await piper.remove(voiceId)
-      setDownloaded(false)
-    } catch { /* ignore */ }
-  }
-
-  return (
-    <>
-      <Row label="Voice" description="Neural voices run in your browser. First use downloads a model (~20–60 MB), then it's cached.">
-        <select className={selectClass} value={voiceId} onChange={(e) => { stopTts(); onChange(e.target.value) }}>
-          {PIPER_VOICES.map((v) => (
-            <option key={v.id} value={v.id}>{v.label}</option>
-          ))}
-        </select>
-      </Row>
-      <Row label="Model" description={downloaded ? 'Cached and ready to use offline.' : 'Not downloaded yet — downloads on first read.'}>
-        {progress !== null ? (
-          <span className="inline-flex items-center gap-1.5 font-mono text-[0.625rem] text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-            {progress}%
-          </span>
-        ) : downloaded ? (
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[0.6875rem] text-primary"><Check className="size-3.5" />Ready</span>
-            <button onClick={handleRemove} title="Remove cached model" className="grid size-6 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive">
-              <Trash2 className="size-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button onClick={handleDownload} className="inline-flex items-center gap-1.5 rounded-md border border-border/40 px-2.5 py-1 text-[0.6875rem] text-foreground/80 transition-colors hover:border-primary/30 hover:bg-primary/[0.04]">
-            <Download className="size-3.5" />Download
-          </button>
-        )}
-      </Row>
-      {error && <p className="px-3 pb-2 text-[0.625rem] text-destructive">{error}</p>}
-    </>
-  )
-}
-
 export function TtsSettings() {
   const [s, set] = useTtsSettings()
+  const [preload, setPreload] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+
+  const handlePreload = async () => {
+    setPreload('loading')
+    try {
+      await preloadNeural(s)
+      setPreload('ready')
+    } catch {
+      setPreload('error')
+    }
+  }
 
   return (
     <div>
@@ -184,17 +118,39 @@ export function TtsSettings() {
 
         {s.enabled && (
           <>
-            <Row label="Engine" description="Browser is instant. Neural sounds far better but downloads a voice model.">
+            <Row label="Engine" description="Browser is instant. Supertonic is a far better neural voice (downloads ~200 MB on first use, then cached).">
               <Segmented<TtsEngine>
                 value={s.engine}
-                options={[{ value: 'browser', label: 'Browser' }, { value: 'piper', label: 'Neural' }]}
+                options={[{ value: 'browser', label: 'Browser' }, { value: 'supertonic', label: 'Supertonic' }]}
                 onChange={(v) => { stopTts(); set({ engine: v }) }}
               />
             </Row>
 
-            {s.engine === 'browser'
-              ? <BrowserVoiceRow voiceURI={s.browserVoiceURI} onChange={(uri) => set({ browserVoiceURI: uri })} />
-              : <PiperVoiceRows voiceId={s.piperVoiceId} onChange={(id) => set({ piperVoiceId: id })} />}
+            {s.engine === 'browser' ? (
+              <BrowserVoiceRow voiceURI={s.browserVoiceURI} onChange={(uri) => set({ browserVoiceURI: uri })} />
+            ) : (
+              <>
+                <Row label="Voice" description="Supertonic preset voices, generated on-device.">
+                  <select className={selectClass} value={s.supertonicVoiceId} onChange={(e) => { stopTts(); set({ supertonicVoiceId: e.target.value }) }}>
+                    {SUPERTONIC_VOICES.map((v) => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </select>
+                </Row>
+                <Row label="Model" description="Downloads once on first read (~200 MB), then runs offline from cache.">
+                  {preload === 'loading' ? (
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[0.625rem] text-muted-foreground"><Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />Loading…</span>
+                  ) : preload === 'ready' ? (
+                    <span className="inline-flex items-center gap-1 text-[0.6875rem] text-primary"><Check className="size-3.5" />Ready</span>
+                  ) : (
+                    <button onClick={handlePreload} className="inline-flex items-center gap-1.5 rounded-md border border-border/40 px-2.5 py-1 text-[0.6875rem] text-foreground/80 transition-colors hover:border-primary/30 hover:bg-primary/[0.04]">
+                      <Download className="size-3.5" />Preload
+                    </button>
+                  )}
+                </Row>
+                <Slider label="Quality" value={s.steps} min={1} max={20} step={1} onChange={(v) => set({ steps: v })} format={(v) => `${v} steps`} />
+              </>
+            )}
 
             <Slider label="Speed" value={s.rate} min={0.5} max={2} step={0.05} onChange={(v) => set({ rate: v })} format={(v) => `${v.toFixed(2)}×`} />
             {s.engine === 'browser' && (

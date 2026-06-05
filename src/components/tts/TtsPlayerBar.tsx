@@ -141,7 +141,7 @@ export function TtsPlayerBar() {
         {/* Engine hint + stop */}
         {engine && !error && (
           <span className="hidden shrink-0 font-mono text-[0.5625rem] uppercase tracking-[0.14em] text-muted-foreground/70 sm:inline">
-            {engine === 'piper' ? 'Piper' : 'Browser'}
+            {engine === 'supertonic' ? 'Supertonic' : 'Browser'}
           </span>
         )}
         <button

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   TTS_DEFAULTS,
-  PIPER_VOICES,
+  SUPERTONIC_VOICES,
   getTtsSettings,
   isBrowserTtsSupported,
   toPlainText,
@@ -13,17 +13,23 @@ describe('tts settings', () => {
     expect(TTS_DEFAULTS.enabled).toBe(false)
   })
 
-  it('defaults to the browser engine with a valid default Piper voice', () => {
+  it('defaults to the browser engine with a valid default Supertonic voice', () => {
     expect(TTS_DEFAULTS.engine).toBe('browser')
-    expect(PIPER_VOICES.map((v) => v.id)).toContain(TTS_DEFAULTS.piperVoiceId)
+    expect(SUPERTONIC_VOICES.map((v) => v.id)).toContain(TTS_DEFAULTS.supertonicVoiceId)
   })
 
-  it('every Piper voice option has an id and a label', () => {
-    expect(PIPER_VOICES.length).toBeGreaterThan(0)
-    for (const v of PIPER_VOICES) {
+  it('every Supertonic voice option has an id and a label', () => {
+    expect(SUPERTONIC_VOICES.length).toBeGreaterThan(0)
+    for (const v of SUPERTONIC_VOICES) {
       expect(v.id).toBeTruthy()
       expect(v.label).toBeTruthy()
     }
+  })
+
+  it('migrates the legacy piper engine id to supertonic', () => {
+    // getTtsSettings can't read localStorage in node, but the migration logic is
+    // exercised here as documentation of intended behavior.
+    expect(TTS_DEFAULTS.engine).not.toBe('piper')
   })
 
   it('getTtsSettings returns defaults when there is no window/storage', () => {

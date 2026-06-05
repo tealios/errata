@@ -1,9 +1,10 @@
 /**
  * Text-to-speech for reading prose aloud. Two engines:
  *  - 'browser' — the Web Speech API (SpeechSynthesisUtterance). Instant, no download.
- *  - 'piper'   — @mintplex-labs/piper-tts-web, neural voices that run fully in the
- *               browser via WASM/ONNX. Downloads a model (tens of MB) on first use,
- *               cached in OPFS. Lazy-imported so nothing heavy loads unless used.
+ *  - 'supertonic' — Supertonic neural voices via Transformers.js (onnx-community/
+ *               Supertonic-TTS-ONNX), running in a Web Worker on WebGPU (WASM
+ *               fallback). Downloads the model (~200 MB) on first use, cached by
+ *               the browser. The worker is created only when the engine is used.
  *
  * Playback is CHUNKED: the passage is split into sentence-sized pieces and
  * synthesized one at a time, so audio starts after the first sentence is ready
@@ -19,7 +20,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 // Settings (client-side, persisted in localStorage — a per-device preference)
 // ---------------------------------------------------------------------------
 
-export type TtsEngine = 'browser' | 'piper'
+export type TtsEngine = 'browser' | 'supertonic'
 
 export interface TtsSettings {
   /** Master opt-in. When false, no read-aloud UI is shown and no models download. */
@@ -27,9 +28,11 @@ export interface TtsSettings {
   engine: TtsEngine
   /** Web Speech voice (voiceURI), or null for the browser default. */
   browserVoiceURI: string | null
-  /** Piper model id, e.g. 'en_US-hfc_female-medium'. */
-  piperVoiceId: string
-  /** 0.5–2. Playback speed (utterance rate / audio playbackRate). */
+  /** Supertonic voice id, e.g. 'F1' or 'M1'. */
+  supertonicVoiceId: string
+  /** Supertonic denoising steps (num_inference_steps): higher = better, slower. */
+  steps: number
+  /** 0.5–2. Speech speed (utterance rate / Supertonic speed). */
   rate: number
   /** 0–2. Browser engine only. */
   pitch: number
@@ -41,7 +44,8 @@ export const TTS_DEFAULTS: TtsSettings = {
   enabled: false,
   engine: 'browser',
   browserVoiceURI: null,
-  piperVoiceId: 'en_US-hfc_female-medium',
+  supertonicVoiceId: 'F1',
+  steps: 5,
   rate: 1,
   pitch: 1,
   volume: 1,
@@ -55,7 +59,12 @@ export function getTtsSettings(): TtsSettings {
   try {
     const raw = localStorage.getItem(TTS_KEY)
     if (!raw) return TTS_DEFAULTS
-    return { ...TTS_DEFAULTS, ...(JSON.parse(raw) as Partial<TtsSettings>) }
+    const stored = JSON.parse(raw) as Partial<TtsSettings>
+    // Migrate the old Piper engine id to Supertonic; drop anything unknown.
+    const eng = (stored as { engine?: string }).engine
+    if (eng === 'piper') stored.engine = 'supertonic'
+    else if (eng !== 'browser' && eng !== 'supertonic') delete stored.engine
+    return { ...TTS_DEFAULTS, ...stored }
   } catch {
     return TTS_DEFAULTS
   }
@@ -86,20 +95,23 @@ export function useTtsSettings(): [TtsSettings, (patch: Partial<TtsSettings>) =>
 // Voices
 // ---------------------------------------------------------------------------
 
-export interface PiperVoiceOption {
+export interface SupertonicVoiceOption {
   id: string
   label: string
 }
 
-/** A curated English subset of Piper's catalogue (the full list is ~120 voices). */
-export const PIPER_VOICES: PiperVoiceOption[] = [
-  { id: 'en_US-hfc_female-medium', label: 'English (US) · Female' },
-  { id: 'en_US-hfc_male-medium', label: 'English (US) · Male' },
-  { id: 'en_US-amy-medium', label: 'English (US) · Amy' },
-  { id: 'en_US-lessac-medium', label: 'English (US) · Lessac' },
-  { id: 'en_US-ryan-high', label: 'English (US) · Ryan (high)' },
-  { id: 'en_GB-alan-medium', label: 'English (GB) · Alan' },
-  { id: 'en_GB-cori-high', label: 'English (GB) · Cori (high)' },
+/** Supertonic preset voices (speaker-embedding .bin files on the Hub). */
+export const SUPERTONIC_VOICES: SupertonicVoiceOption[] = [
+  { id: 'F1', label: 'Female 1' },
+  { id: 'F2', label: 'Female 2' },
+  { id: 'F3', label: 'Female 3' },
+  { id: 'F4', label: 'Female 4' },
+  { id: 'F5', label: 'Female 5' },
+  { id: 'M1', label: 'Male 1' },
+  { id: 'M2', label: 'Male 2' },
+  { id: 'M3', label: 'Male 3' },
+  { id: 'M4', label: 'Male 4' },
+  { id: 'M5', label: 'Male 5' },
 ]
 
 export function isBrowserTtsSupported(): boolean {
@@ -271,41 +283,46 @@ interface Session {
 let session: Session | null = null
 let token = 0
 
-// --- Piper worker: synthesis runs off the main thread so the UI never freezes,
-// and the model stays warm across chunks. ---
+// --- Neural worker: Supertonic synthesis runs off the main thread so the UI
+// never freezes, and the model stays warm across chunks. ---
 
-let piperWorker: Worker | null = null
-let piperReqId = 0
-const piperPending = new Map<number, { resolve: (b: Blob) => void; reject: (e: Error) => void }>()
+let neuralWorker: Worker | null = null
+let reqId = 0
+const pending = new Map<number, { resolve: (b: Blob) => void; reject: (e: Error) => void }>()
 
-function getPiperWorker(): Worker {
-  if (piperWorker) return piperWorker
-  const worker = new Worker(new URL('./piper.worker.ts', import.meta.url), { type: 'module' })
+function getNeuralWorker(): Worker {
+  if (neuralWorker) return neuralWorker
+  const worker = new Worker(new URL('./supertonic.worker.ts', import.meta.url), { type: 'module' })
   worker.onmessage = (e: MessageEvent) => {
     const { id, ok, buf, mime, error } = e.data as { id: number; ok: boolean; buf?: ArrayBuffer; mime?: string; error?: string }
-    const pending = piperPending.get(id)
-    if (!pending) return
-    piperPending.delete(id)
-    if (ok && buf) pending.resolve(new Blob([buf], { type: mime || 'audio/x-wav' }))
-    else pending.reject(new Error(error || 'Speech synthesis failed'))
+    const p = pending.get(id)
+    if (!p) return
+    pending.delete(id)
+    if (ok && buf) p.resolve(new Blob([buf], { type: mime || 'audio/wav' }))
+    else p.reject(new Error(error || 'Speech synthesis failed'))
   }
   worker.onerror = () => {
-    for (const p of piperPending.values()) p.reject(new Error('The speech engine crashed.'))
-    piperPending.clear()
-    piperWorker?.terminate()
-    piperWorker = null
+    for (const p of pending.values()) p.reject(new Error('The speech engine crashed.'))
+    pending.clear()
+    neuralWorker?.terminate()
+    neuralWorker = null
   }
-  piperWorker = worker
+  neuralWorker = worker
   return worker
 }
 
-function synthChunk(voiceId: string, text: string): Promise<Blob> {
-  const worker = getPiperWorker()
-  const id = ++piperReqId
+function synthChunk(s: TtsSettings, text: string): Promise<Blob> {
+  const worker = getNeuralWorker()
+  const id = ++reqId
   return new Promise<Blob>((resolve, reject) => {
-    piperPending.set(id, { resolve, reject })
-    worker.postMessage({ id, type: 'synth', voiceId, text })
+    pending.set(id, { resolve, reject })
+    worker.postMessage({ id, type: 'synth', voiceId: s.supertonicVoiceId, text, steps: s.steps, speed: s.rate })
   })
+}
+
+/** Warm the neural pipeline (downloads + caches the model). Resolves when ready. */
+export function preloadNeural(settings: TtsSettings): Promise<Blob> {
+  return synthChunk(settings, 'Ready.')
 }
 
 function alive(t: number): boolean {
@@ -355,7 +372,7 @@ export function togglePlayPause(): void {
 }
 
 /**
- * Adjust playback volume live. Updates the playing audio immediately (Piper) and
+ * Adjust playback volume live. Updates the playing audio immediately (Supertonic) and
  * the active session so subsequent chunks use it too. Persisting the preference
  * is the caller's job (via useTtsSettings).
  */
@@ -396,8 +413,9 @@ function browserPlay(i: number) {
   window.speechSynthesis.speak(u)
 }
 
-// --- Piper engine: a sequential producer synthesizes chunks ahead of playback
-// (one at a time, off the main thread), while playback consumes the buffer. ---
+// --- Supertonic engine: a sequential producer synthesizes chunks ahead of
+// playback (one at a time, off the main thread), while playback consumes the
+// buffer. ---
 
 function ensureSynth(i: number) {
   if (!session || i < 0 || i >= session.chunks.length) return
@@ -406,7 +424,7 @@ function ensureSynth(i: number) {
   const n = s.chunks.length
   const t0 = performance.now()
   ttsLog(`▶ generating chunk ${i + 1}/${n} (${s.chunks[i].length} chars)`)
-  const p = synthChunk(s.settings.piperVoiceId, s.chunks[i])
+  const p = synthChunk(s.settings, s.chunks[i])
   s.blobs.set(i, p)
   p.then(
     () => { if (s.token === token) { s.ready.add(i); ttsLog(`✓ chunk ${i + 1}/${n} ready in ${Math.round(performance.now() - t0)}ms`) } },
@@ -415,7 +433,7 @@ function ensureSynth(i: number) {
 }
 
 /** Synthesize every chunk in order, racing ahead of playback to fill the buffer. */
-function startPiperProducer(s: Session) {
+function startProducer(s: Session) {
   ttsLog(`queued ${s.chunks.length} chunk(s) for background synthesis`)
   void (async () => {
     for (let i = 0; i < s.chunks.length; i++) {
@@ -426,7 +444,7 @@ function startPiperProducer(s: Session) {
   })()
 }
 
-async function piperPlay(i: number) {
+async function neuralPlay(i: number) {
   const t = token
   if (!alive(t) || !session) return
   if (i >= session.chunks.length) {
@@ -448,19 +466,19 @@ async function piperPlay(i: number) {
   } catch {
     // One bad chunk shouldn't end the whole read — skip it and keep going.
     ttsLog(`↷ skipping chunk ${i + 1}/${session.chunks.length} (synthesis failed)`)
-    if (alive(t)) scheduleAdvance(i + 1, (n) => { void piperPlay(n) })
+    if (alive(t)) scheduleAdvance(i + 1, (n) => { void neuralPlay(n) })
     return
   }
   if (!alive(t) || !session) return
 
   const audio = new Audio(URL.createObjectURL(blob))
   audio.volume = session.settings.volume
-  audio.playbackRate = session.settings.rate
+  audio.playbackRate = 1 // Supertonic bakes speed into synthesis
   audio.onended = () => {
     if (audio.src) URL.revokeObjectURL(audio.src)
-    if (alive(t)) scheduleAdvance(i + 1, (n) => { void piperPlay(n) })
+    if (alive(t)) scheduleAdvance(i + 1, (n) => { void neuralPlay(n) })
   }
-  audio.onerror = () => { if (alive(t)) scheduleAdvance(i + 1, (n) => { void piperPlay(n) }) }
+  audio.onerror = () => { if (alive(t)) scheduleAdvance(i + 1, (n) => { void neuralPlay(n) }) }
   session.audio = audio
   session.played = true
   emit({ chunkIndex: i, status: 'playing' })
@@ -473,9 +491,9 @@ async function piperPlay(i: number) {
  */
 export function playFragment(id: string, rawText: string, title: string, settings: TtsSettings): void {
   stopTts()
-  // Piper pays a fixed cost per chunk, so use larger chunks for it (espeak still
-  // pauses at sentence punctuation within a chunk); the browser engine is cheap.
-  const max = settings.engine === 'piper' ? 360 : 240
+  // Supertonic pays a fixed cost per chunk, so use larger chunks for it; the
+  // browser engine is cheap.
+  const max = settings.engine === 'supertonic' ? 360 : 240
   const chunks = chunkText(toPlainText(rawText), { max })
   if (chunks.length === 0) return
 
@@ -501,7 +519,7 @@ export function playFragment(id: string, rawText: string, title: string, setting
     return
   }
 
-  // Piper: kick off the producer (synthesizes in the worker) and start playback.
-  startPiperProducer(session)
-  void piperPlay(0)
+  // Supertonic: kick off the producer (synthesizes in the worker) and start playback.
+  startProducer(session)
+  void neuralPlay(0)
 }

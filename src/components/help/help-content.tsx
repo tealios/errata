@@ -1421,10 +1421,11 @@ return rules.map(r => r.content).join('\\n')`}</div>
             </P>
             <P>
               <strong className="text-foreground/75">Browser</strong> uses your system's built-in
-              speech voices — instant, nothing to download. <strong className="text-foreground/75">Neural</strong>
-              {' '}uses Piper voices that run entirely in your browser; the first time you use a voice
-              it downloads a model (roughly 20–60 MB) and caches it for offline use afterward. Tune
-              speed, pitch, and volume, and use Test voice to preview.
+              speech voices — instant, nothing to download. <strong className="text-foreground/75">Supertonic</strong>
+              {' '}is a high-quality neural voice that runs entirely in your browser (on the GPU where
+              available); the first time you use it, the model downloads (~200 MB) and is cached for
+              offline use afterward. Pick a preset voice, tune quality, speed, and volume, and use
+              Test voice to preview.
             </P>
           </>
         ),
