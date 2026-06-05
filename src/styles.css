@@ -565,3 +565,10 @@ code {
   0%   { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
 }
+
+/* When the fixed player bar is visible it sets --tts-bar-height on :root.
+   Scroll regions reserve that space at the bottom so their last items aren't
+   hidden behind the bar. Zero (the fallback) when no bar is shown. */
+[data-slot="scroll-area-viewport"] {
+  padding-bottom: var(--tts-bar-height, 0px);
+}

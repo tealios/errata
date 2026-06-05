@@ -28,6 +28,16 @@ export function TtsPlayerBar() {
     return () => cancelAnimationFrame(raf)
   }, [visible])
 
+  // Publish the bar's height so scroll regions can reserve space and not be
+  // covered by this fixed overlay.
+  const barRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = document.documentElement
+    if (!visible) { root.style.removeProperty('--tts-bar-height'); return }
+    root.style.setProperty('--tts-bar-height', `${barRef.current?.offsetHeight ?? 56}px`)
+    return () => { root.style.removeProperty('--tts-bar-height') }
+  }, [visible, error])
+
   if (!visible) return null
 
   const loading = status === 'loading'
@@ -37,6 +47,7 @@ export function TtsPlayerBar() {
 
   return (
     <div
+      ref={barRef}
       role="region"
       aria-label="Read-aloud player"
       className={cn(
