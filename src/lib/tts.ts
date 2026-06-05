@@ -238,9 +238,20 @@ export function useIsReadingFragment(id: string): boolean {
   )
 }
 
+interface PiperWasmPaths { onnxWasm: string; piperData: string; piperWasm: string }
 interface PiperModule {
-  TtsSession: { create(opts: { voiceId: string }): Promise<{ predict(text: string): Promise<Blob> }> }
+  /** Base URL for the piper phonemizer wasm/data (e.g. '…/piper_phonemize'). */
+  WASM_BASE?: string
+  TtsSession: { create(opts: { voiceId: string; wasmPaths?: PiperWasmPaths }): Promise<{ predict(text: string): Promise<Blob> }> }
 }
+
+/**
+ * ONNX Runtime Web assets, hotlinked from cdnjs. This version MUST match the
+ * pinned `onnxruntime-web` in package.json — the bundled runtime and these
+ * wasm files have to agree, or the loader fetches a module it can't use. Bump
+ * both together.
+ */
+const ONNX_WASM_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/'
 
 interface Session {
   id: string
@@ -397,7 +408,13 @@ export async function playFragment(id: string, rawText: string, title: string, s
     const piper = (await import('@mintplex-labs/piper-tts-web')) as unknown as PiperModule
     if (!alive(t) || !session) return
     if (!piperCache || piperCache.voiceId !== settings.piperVoiceId) {
-      const created = await piper.TtsSession.create({ voiceId: settings.piperVoiceId })
+      // Explicitly hotlink the ONNX runtime so the path is pinned in our code
+      // rather than relying on the package's internal default. Keep the piper
+      // phonemizer on its own default CDN base.
+      const wasmPaths: PiperWasmPaths | undefined = piper.WASM_BASE
+        ? { onnxWasm: ONNX_WASM_BASE, piperWasm: `${piper.WASM_BASE}.wasm`, piperData: `${piper.WASM_BASE}.data` }
+        : undefined
+      const created = await piper.TtsSession.create({ voiceId: settings.piperVoiceId, ...(wasmPaths ? { wasmPaths } : {}) })
       if (!alive(t) || !session) return
       piperCache = { voiceId: settings.piperVoiceId, session: created }
     }
