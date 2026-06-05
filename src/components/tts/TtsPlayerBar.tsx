@@ -58,7 +58,28 @@ export function TtsPlayerBar() {
         shown ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
       )}
     >
-      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5">
+      {/* Progress as a hairline along the bar's top edge (keeps the bar slim) */}
+      {!error && (
+        <div
+          className="absolute inset-x-0 top-0 h-[2px] overflow-hidden bg-border/40"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={chunkCount}
+          aria-valuenow={loading ? 0 : chunkIndex + 1}
+          aria-label="Reading progress"
+        >
+          {loading ? (
+            <span className="block h-full w-1/3 animate-[tts-indeterminate_1.4s_ease-in-out_infinite] bg-primary/60 motion-reduce:w-full motion-reduce:animate-none" />
+          ) : (
+            <span
+              className="block h-full origin-left bg-primary/70 transition-transform duration-300 ease-out motion-reduce:transition-none"
+              style={{ transform: `scaleX(${fill})` }}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="mx-auto flex max-w-3xl items-center gap-2.5 px-4 py-1.5">
         {/* Primary affordance: play / pause / loading */}
         <button
           type="button"
@@ -66,70 +87,41 @@ export function TtsPlayerBar() {
           disabled={loading || !!error}
           aria-label={playing ? 'Pause reading' : 'Resume reading'}
           className={cn(
-            'relative grid size-9 shrink-0 place-items-center rounded-full',
+            'relative grid size-7 shrink-0 place-items-center rounded-full',
             'bg-primary/12 text-primary transition-colors',
             'hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
             'disabled:cursor-default disabled:opacity-70',
           )}
         >
-          {loading && (
-            <span
-              aria-hidden
-              className="absolute inset-0 rounded-full ring-2 ring-primary/30 animate-pulse motion-reduce:animate-none"
-            />
-          )}
           {loading
-            ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+            ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
             : playing
-              ? <Pause className="size-4" />
-              : <Play className="size-4 translate-x-px" />}
+              ? <Pause className="size-3.5" />
+              : <Play className="size-3.5 translate-x-px" />}
         </button>
 
-        {/* Now reading: title + progress */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <p className="min-w-0 flex-1 truncate font-prose text-[0.875rem] italic leading-tight text-foreground/85">
-              {error
-                ? <span className="inline-flex items-center gap-1.5 not-italic text-destructive"><AlertCircle className="size-3.5" />{error}</span>
-                : (title || 'Reading passage')}
-            </p>
-            {!error && (
-              <span className="shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground" aria-hidden>
-                {loading ? 'generating…' : `${chunkIndex + 1} / ${chunkCount}`}
-              </span>
-            )}
-          </div>
-
-          {/* Progress rule */}
+        {/* Now reading: title + counter, single line */}
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <p className="min-w-0 flex-1 truncate font-prose text-[0.8125rem] italic leading-tight text-foreground/85">
+            {error
+              ? <span className="inline-flex items-center gap-1.5 not-italic text-destructive"><AlertCircle className="size-3.5" />{error}</span>
+              : (title || 'Reading passage')}
+          </p>
           {!error && (
-            <div
-              className="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-border/50"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={chunkCount}
-              aria-valuenow={loading ? 0 : chunkIndex + 1}
-              aria-label="Reading progress"
-            >
-              {loading ? (
-                <span className="block h-full w-1/3 animate-[tts-indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-primary/60 motion-reduce:w-full motion-reduce:animate-none" />
-              ) : (
-                <span
-                  className="block h-full origin-left rounded-full bg-primary/70 transition-transform duration-300 ease-out motion-reduce:transition-none"
-                  style={{ transform: `scaleX(${fill})` }}
-                />
-              )}
-            </div>
+            <span className="shrink-0 font-mono text-[0.625rem] tabular-nums text-muted-foreground" aria-hidden>
+              {loading ? 'generating…' : `${chunkIndex + 1} / ${chunkCount}`}
+            </span>
           )}
         </div>
 
         {/* Volume */}
         {!error && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={toggleMute}
               aria-label={volume === 0 ? 'Unmute' : 'Mute'}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               <VolumeIcon className="size-3.5" />
             </button>
@@ -141,7 +133,7 @@ export function TtsPlayerBar() {
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               aria-label="Volume"
-              className="hidden h-1 w-16 cursor-pointer appearance-none rounded-full bg-border/60 accent-foreground sm:block"
+              className="hidden h-1 w-14 cursor-pointer appearance-none rounded-full bg-border/60 accent-foreground sm:block"
             />
           </div>
         )}
@@ -157,7 +149,7 @@ export function TtsPlayerBar() {
           onClick={stopTts}
           aria-label="Stop reading"
           className={cn(
-            'grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors',
+            'grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors',
             'hover:bg-accent/60 hover:text-foreground',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           )}

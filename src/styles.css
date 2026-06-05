@@ -567,8 +567,10 @@ code {
 }
 
 /* When the fixed player bar is visible it sets --tts-bar-height on :root.
-   Scroll regions reserve that space at the bottom so their last items aren't
-   hidden behind the bar. Zero (the fallback) when no bar is shown. */
-[data-slot="scroll-area-viewport"] {
+   Scroll regions and the sidebar footer reserve that space at the bottom so
+   their last items (incl. the Settings button) aren't hidden behind the bar.
+   Zero (the fallback) when no bar is shown. */
+[data-slot="scroll-area-viewport"],
+[data-slot="sidebar-footer"] {
   padding-bottom: var(--tts-bar-height, 0px);
 }
