@@ -6,6 +6,7 @@ import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, 
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
 import { TtsSettings } from '@/components/settings/TtsSettings'
+import { SharingPanel } from '@/components/settings/SharingPanel'
 import { ProseColorsPanel } from '@/components/settings/ProseColorsPanel'
 import { CustomTransformsPanel } from '@/components/settings/CustomTransformsPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
@@ -964,6 +965,9 @@ export function SettingsPanel({
           </div>
         )}
       </div>
+
+      {/* Sharing (Basic Auth + LAN + tunnel) */}
+      <SharingPanel />
 
       {/* Attribution */}
       <div className="pt-4 mt-2 border-t border-border/20">

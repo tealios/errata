@@ -471,3 +471,16 @@ export interface CharacterChatConversationSummary {
   createdAt: string
   updatedAt: string
 }
+
+// Network sharing (Basic Auth + LAN + cloudflared tunnel)
+export type TunnelStatus = 'stopped' | 'downloading' | 'starting' | 'running' | 'error'
+
+export interface SharingStatusResponse {
+  authEnabled: boolean
+  hasPassword: boolean
+  username: string
+  lan: { enabled: boolean; running: boolean; url: string | null }
+  tunnel: { enabled: boolean; status: TunnelStatus; url: string | null; error: string | null }
+  lanQr: string | null
+  tunnelQr: string | null
+}
