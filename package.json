@@ -2,6 +2,7 @@
   "name": "errata",
   "version": "1.9.0",
   "private": true,
+  "license": "GPL-2.0",
   "type": "module",
   "scripts": {
     "dev": "bun install --frozen-lockfile && vite dev --port 7739",
