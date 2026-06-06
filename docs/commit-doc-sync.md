@@ -1,17 +1,17 @@
 # Commit-Driven Documentation Sync
 
-Generated: 2026-04-05T23:01:57.065Z
+Generated: 2026-06-06T22:47:03.388Z
 
 ## Baseline
 
 - Baseline commit: `e83338cda2ae9a884c3b7d78c57dab41bb668057` (2026-02-18)
 - Baseline reason: this is the latest point where accumulated doc changes cover at least 50% of tracked docs.
-- Coverage at baseline: 54.2% (16/29 docs)
+- Coverage at baseline: 54.2% (16/30 docs)
 
 ## Sync Range
 
-- From (exclusive): `0fee09f36d04804a779a1bd1b8d83264a623b0d2`
-- To (inclusive): `0fee09f36d04804a779a1bd1b8d83264a623b0d2`
+- From (exclusive): `50e09b09e60c22da119a9c4f1e59aed467366680`
+- To (inclusive): `50e09b09e60c22da119a9c4f1e59aed467366680`
 - Commits inspected: 0
 
 ## Commit Feed

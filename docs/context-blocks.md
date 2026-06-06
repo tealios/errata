@@ -188,21 +188,21 @@ const messages = compileBlocks(blocks)
 
 ---
 
-# Block Editor & Custom Blocks
+# Agent Block Editor & Custom Blocks
 
-The Block Editor is a UI panel that gives users full control over the LLM context structure — without writing plugins. Users can disable builtin blocks, override their content, create custom blocks (including dynamic script blocks), and reorder everything via drag-and-drop.
+The current block editor lives inside the **Agents** panel. It gives users full control over each agent's LLM context structure without writing plugins. Users can disable builtin blocks, override their content, create custom blocks (including dynamic script blocks), and reorder everything via drag-and-drop.
 
-The Block Editor is accessible from the sidebar under **Management > Block Editor** when **Prompt control** is set to **Advanced** in Settings. The Fragment Order panel (for ordering pinned fragments within blocks) is also gated behind this setting.
+Open it from the sidebar under **Management > Agents**, then pick an agent such as **Writer**, **Prewriter**, **Librarian Analyze**, or **Character Chat**. The older story-level Block Editor UI was removed when per-agent configuration became the source of truth. The separate **Fragment Order** panel is still gated by **Settings > Generation > Context > Fragment ordering: Custom**.
 
 ## How It Works
 
-Every generation request produces a set of **default blocks** from story data (see [Default Blocks](#default-blocks) above). The Block Editor stores a per-story **block configuration** that is applied on top of those defaults during every generation. The configuration is applied after `createDefaultBlocks()` and before plugin `beforeBlocks` hooks, so plugins always see the user's customizations.
+Every generation request produces a set of **default blocks** from story data (see [Default Blocks](#default-blocks) above). The `generation.writer` agent stores a per-agent **block configuration** that is applied on top of those defaults during every generation. The configuration is applied after `createDefaultBlocks()` and before plugin `beforeBlocks` hooks, so plugins always see the user's customizations.
 
 ```
 createDefaultBlocks(state) → applyBlockConfig(blocks, config, state) → beforeBlocks hooks → compileBlocks()
 ```
 
-The configuration is stored as a JSON file at `data/stories/<storyId>/block-config.json`.
+The configuration is stored as a JSON file at `data/stories/<storyId>/branches/<branchId>/agent-blocks/generation.writer.json`.
 
 ## Block Configuration
 
@@ -338,7 +338,7 @@ Content modes are useful for tweaking builtin blocks without fully replacing the
 
 `blockOrder` is a flat array of block IDs representing the desired ordering. When present, blocks are assigned position-based order values (0, 1, 2, ...) matching their position in the array. Blocks not in the array keep their default order values.
 
-Since `compileBlocks()` sorts system and user blocks independently by `order`, the block order controls the sequence within each role group. Drag-and-drop in the Block Editor updates this array.
+Since `compileBlocks()` sorts system and user blocks independently by `order`, the block order controls the sequence within each role group. Drag-and-drop in the agent block editor updates this array.
 
 ## Application Order
 
@@ -356,82 +356,38 @@ This order means:
 - Per-block `order` overrides can fine-tune positions beyond what drag-and-drop provides.
 - Disabling happens last, so a disabled block's content is never evaluated for overrides.
 
-## API Endpoints
+## Legacy Generation Block APIs
 
-All endpoints are under `/api/stories/:storyId/blocks`.
+The old story-level generation block CRUD API was removed. Per-agent block configuration now lives under `/api/stories/:storyId/agent-blocks/:agentName` (see [Agent Block System](#agent-block-system)).
+
+The remaining `/api/stories/:storyId/blocks` routes are compatibility utilities:
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/blocks` | Returns the block config and builtin block metadata (id, role, order, source, full content, content preview) |
-| `GET` | `/blocks/preview` | Compiles the full context with config applied and returns the resulting messages |
-| `POST` | `/blocks/custom` | Creates a new custom block (body: `CustomBlockDefinition`) |
-| `PUT` | `/blocks/custom/:blockId` | Updates a custom block (body: partial fields) |
-| `DELETE` | `/blocks/custom/:blockId` | Deletes a custom block and cleans up its overrides/ordering |
-| `PATCH` | `/blocks/config` | Updates overrides and/or block order (body: `{ overrides?, blockOrder? }`) |
 | `POST` | `/blocks/eval-script` | Evaluates a script block body against current story data and returns `{ result, error }` |
 
 Story-wide config sharing endpoints live at `/api/stories/:storyId`:
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/export-configs` | Export generation block config plus any non-empty agent block configs |
-| `POST` | `/import-configs` | Import and replace generation/agent block configs from a JSON payload |
-
-### GET /blocks response
-
-```json
-{
-  "config": {
-    "customBlocks": [...],
-    "overrides": { "instructions": { "enabled": false } },
-    "blockOrder": ["tools", "instructions", ...]
-  },
-  "builtinBlocks": [
-    { "id": "instructions", "role": "system", "order": 100, "source": "builtin", "content": "You are a creative writing assistant...", "contentPreview": "You are a creative..." },
-    { "id": "tools", "role": "system", "order": 200, "source": "builtin", "content": "## Available Tools...", "contentPreview": "## Available Tools..." },
-    ...
-  ]
-}
-```
-
-### GET /blocks/preview response
-
-```json
-{
-  "messages": [
-    { "role": "system", "content": "[@block=tools]\n## Available Tools..." },
-    { "role": "user", "content": "[@block=story-info]\n## Story: ..." }
-  ],
-  "blockCount": 5
-}
-```
-
-The preview endpoint builds the full context using `(preview)` as the author input, applies the block config, and compiles. This is what the Preview dialog in the Block Editor shows.
+| `GET` | `/export-configs` | Export all non-empty agent block configs |
+| `POST` | `/import-configs` | Import and replace agent block configs from a JSON payload |
 
 ## Storage
 
-Block configuration is stored at:
+Generation-writer block configuration is stored at:
 
 ```
-data/stories/<storyId>/branches/<branchId>/block-config.json
+data/stories/<storyId>/branches/<branchId>/agent-blocks/generation.writer.json
 ```
 
 The file is created on first write. If it doesn't exist, all functions return an empty default config (`{ customBlocks: [], overrides: {}, blockOrder: [] }`), meaning no modifications are applied and the default blocks pass through unchanged.
 
-Storage functions (`src/server/blocks/storage.ts`):
+Storage functions for per-agent configs live in `src/server/agents/agent-block-storage.ts`.
 
-| Function | Description |
-|---|---|
-| `getBlockConfig(dataDir, storyId)` | Read config, returns empty default if missing |
-| `saveBlockConfig(dataDir, storyId, config)` | Write full config |
-| `addCustomBlock(dataDir, storyId, block)` | Add a custom block and append its ID to `blockOrder` |
-| `updateCustomBlock(dataDir, storyId, blockId, updates)` | Partial update of a custom block (returns `null` if not found) |
-| `deleteCustomBlock(dataDir, storyId, blockId)` | Remove custom block + clean up its override and order entries |
-| `updateBlockOverrides(dataDir, storyId, overrides, blockOrder?)` | Merge overrides and optionally replace `blockOrder` |
+## UI: Agent Block Editor
 
-## UI: Block Editor Panel
-
-The Block Editor panel is in the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It shows a unified list of all blocks (builtin + custom), merged and sorted by role then order.
+The Agents panel is in the sidebar under **Management**. Pick an agent to open its block editor. It shows model settings, agent-specific toggles, tool toggles, and a unified list of prompt blocks (builtin + custom), merged and sorted by role then order.
 
 ### Block list
 
@@ -462,7 +418,7 @@ When a custom block is expanded:
 
 ### Creating custom blocks
 
-Click **Add Context Block** at the bottom to open the creation dialog:
+Click **Add Context Block** at the bottom of an agent editor to open the creation dialog:
 - **Name** — display name for the block
 - **Role** — system or user (determines which LLM message it goes in)
 - **Type** — simple (plain text) or script (JavaScript with `ctx` access)
@@ -516,17 +472,18 @@ return ''
 | File | Purpose |
 |---|---|
 | `src/server/blocks/schema.ts` | Zod schemas for `BlockOverride`, `CustomBlockDefinition`, `BlockConfig` |
-| `src/server/blocks/storage.ts` | File-based CRUD for block config |
+| `src/server/agents/agent-block-storage.ts` | File-based CRUD for per-agent block config |
 | `src/server/blocks/apply.ts` | `applyBlockConfig()` — evaluates custom blocks, applies overrides/ordering/disabling. Script blocks receive a generic context object (not tied to `ContextBuildState`). |
-| `src/server/api.ts` | API routes under `/stories/:storyId/blocks/*` and pipeline integration |
-| `src/lib/api/blocks.ts` | Frontend API client |
+| `src/server/routes/agent-blocks.ts` | API routes under `/stories/:storyId/agent-blocks/*` |
+| `src/lib/api/blocks.ts` | Legacy compatibility client for script eval and config bundles |
+| `src/lib/api/agent-blocks.ts` | Per-agent block API client |
 | `src/lib/api/types.ts` | TypeScript types (`BlockConfig`, `CustomBlockDefinition`, `BlockOverride`, etc.) |
-| `src/components/blocks/BlockEditorPanel.tsx` | Main panel component |
+| `src/components/agents/AgentConfigurePanel.tsx` | Main per-agent block editor component |
 | `src/components/blocks/BlockCreateDialog.tsx` | Custom block creation dialog |
-| `src/components/blocks/BlockPreviewDialog.tsx` | Context preview dialog |
-| `tests/blocks/storage.test.ts` | Storage CRUD tests |
+| `src/components/blocks/BlockContentView.tsx` | Context preview renderer |
+| `tests/agents/agent-block-storage.test.ts` | Storage CRUD tests |
 | `tests/blocks/apply.test.ts` | Config application logic tests |
-| `tests/api/blocks-routes.test.ts` | API endpoint tests |
+| `tests/api/blocks-routes.test.ts` | Compatibility route tests |
 
 ---
 
@@ -707,7 +664,7 @@ All endpoints are under `/api/stories/:storyId/agent-blocks`.
 
 ## UI
 
-The **Agent Configure** panel is accessible from the sidebar under **Management** (requires **Prompt control → Advanced** in Settings). It allows browsing registered agents, viewing their compiled context, exporting/importing configs, changing provider/model/temperature per agent, toggling tools, and customizing block overrides.
+The **Agent Configure** panel is accessible from the sidebar under **Management > Agents**. It allows browsing registered agents, viewing their compiled context, exporting/importing configs, changing provider/model/temperature per agent, toggling tools, and customizing block overrides.
 
 ## File Reference
 

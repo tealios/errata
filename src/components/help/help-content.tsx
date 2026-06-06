@@ -1393,17 +1393,38 @@ return rules.map(r => r.content).join('\\n')`}</div>
     description: 'Configuring providers, plugins, appearance, and generation behavior.',
     subsections: [
       {
+        id: 'overview',
+        title: 'Settings layout',
+        content: (
+          <>
+            <P>
+              Settings opens as a left-docked overlay with its own section list. Use the table of
+              contents to jump between interface, typography, read-aloud, provider, generation,
+              authoring, remote access, and plugin controls.
+            </P>
+            <P>
+              Interface preferences such as theme, UI size, prose width, prose font size, character
+              mention highlighting, the timeline bar, prose colors, and custom CSS are local UI
+              preferences. Generation, memory, provider, plugin, and remote access controls affect
+              the current story or running app.
+            </P>
+          </>
+        ),
+      },
+      {
         id: 'providers',
-        title: 'model providers',
+        title: 'Model providers',
         content: (
           <>
             <P>
               Errata supports multiple model providers. Each provider has an API endpoint and key.
-              You can set different providers for generation (prose output) and the librarian
-              (background analysis).
+              Settings exposes namespace-level model roles for generation, librarian, character chat,
+              and direction suggestions. Individual agents can still override provider, model, and
+              temperature from the Agents panel.
             </P>
             <P>
-              Add providers through the Manage Providers panel in Settings.
+              Add or edit providers through the Manage Providers panel in Settings. OpenAI-compatible
+              endpoints can be used as long as the provider returns compatible chat completions.
             </P>
           </>
         ),
@@ -1426,6 +1447,68 @@ return rules.map(r => r.content).join('\\n')`}</div>
               available); the first time you use it, the model downloads (~200 MB) and is cached for
               offline use afterward. Pick a preset voice, tune quality, speed, pitch, and volume, and
               use Test voice to preview.
+            </P>
+            <P>
+              The player bar stays pinned to the bottom while audio is loading, playing, paused, or
+              errored. Use the mute button for quick volume control, the sliders button for speed,
+              pitch, and volume, and Stop to end the read-aloud session.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'appearance',
+        title: 'Appearance',
+        content: (
+          <>
+            <P>
+              The Interface and Typography sections control how Errata looks while you write. You can
+              change the app theme, scale the UI, adjust the prose reading width and font size, pick
+              fonts for display/prose/interface/code roles, and customize prose text colors.
+            </P>
+            <P>
+              Custom CSS applies globally when enabled. Use it for project-specific interface tweaks
+              that are not covered by the built-in appearance controls.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'authoring',
+        title: 'Authoring',
+        content: (
+          <>
+            <P>
+              The Authoring section contains writing helpers that affect the prose editor and guided
+              generation flow. Selection transforms appear in the floating toolbar when text is
+              selected in the writing panel; custom transforms can be enabled, disabled, and reordered.
+            </P>
+            <P>
+              Guided mode prompts let you replace the default Continue, Scene-setting, and Suggest
+              directions prompts used by the inline generation input.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'remote',
+        title: 'Remote access',
+        content: (
+          <>
+            <P>
+              Remote access lets you reach the running Errata app from another device. First enable
+              Basic Auth with a username and password; network sharing stays disabled until a password
+              is set.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Local network</strong> exposes Errata on your
+              Wi-Fi and shows a copyable URL plus QR code. Local-network access uses plain HTTP, so
+              the password is not encrypted on your LAN.
+            </P>
+            <P>
+              <strong className="text-foreground/75">Internet</strong> starts a temporary Cloudflare
+              Tunnel HTTPS link. Errata downloads <Mono>cloudflared</Mono> automatically when needed
+              and shows tunnel status, a copyable URL, and a QR code when it is running.
             </P>
           </>
         ),
