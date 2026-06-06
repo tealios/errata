@@ -391,6 +391,18 @@ export function setTtsVolume(v: number): void {
   if (session.audio) session.audio.volume = vol
 }
 
+/**
+ * Adjust pitch live. Pitch is applied at playback (playbackRate), so the change
+ * is heard immediately on the current audio; it also carries to later chunks.
+ * Persisting the preference is the caller's job (via useTtsSettings).
+ */
+export function setTtsPitch(v: number): void {
+  const pitch = Math.max(0.5, Math.min(2, v))
+  if (!session) return
+  session.settings = { ...session.settings, pitch }
+  if (session.audio) session.audio.playbackRate = pitch
+}
+
 /** Advance to chunk `i`, inserting the inter-sentence pause before it. */
 function scheduleAdvance(i: number, play: (i: number) => void) {
   const count = session?.chunks.length ?? 0

@@ -1,7 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Play, Pause, Square, Loader2, AlertCircle, Volume2, Volume1, VolumeX } from 'lucide-react'
+import { Play, Pause, Square, Loader2, AlertCircle, Volume2, Volume1, VolumeX, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTtsState, useTtsSettings, togglePlayPause, stopTts, setTtsVolume } from '@/lib/tts'
+import { useTtsState, useTtsSettings, togglePlayPause, stopTts, setTtsVolume, setTtsPitch } from '@/lib/tts'
+
+function PopSlider({ label, value, min, max, step, onChange, format }: {
+  label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; format: (v: number) => string
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between">
+        <span className="font-sans text-[0.6875rem] font-medium text-foreground/80">{label}</span>
+        <span className="font-mono text-[0.625rem] tabular-nums text-muted-foreground">{format(value)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        aria-label={label}
+        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-border/60 accent-foreground"
+      />
+    </div>
+  )
+}
 
 /**
  * Persistent "now reading" bar pinned to the bottom of the viewport while a
@@ -17,8 +40,20 @@ export function TtsPlayerBar() {
   const lastAudible = useRef(volume > 0 ? volume : 1)
   useEffect(() => { if (volume > 0) lastAudible.current = volume }, [volume])
   const setVolume = (v: number) => { updateSettings({ volume: v }); setTtsVolume(v) }
+  const setPitch = (v: number) => { updateSettings({ pitch: v }); setTtsPitch(v) }
+  const setSpeed = (v: number) => updateSettings({ rate: v }) // applies to the next chunk/read
   const toggleMute = () => setVolume(volume > 0 ? 0 : lastAudible.current || 1)
   const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2
+
+  // "Tune" popover (speed / pitch / volume).
+  const [tuneOpen, setTuneOpen] = useState(false)
+  const tuneRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!tuneOpen) return
+    const onDown = (e: MouseEvent) => { if (tuneRef.current && !tuneRef.current.contains(e.target as Node)) setTuneOpen(false) }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [tuneOpen])
 
   // Mount-in transition (re-runs each time the bar appears for a new passage).
   const [shown, setShown] = useState(false)
@@ -114,9 +149,9 @@ export function TtsPlayerBar() {
           )}
         </div>
 
-        {/* Volume */}
+        {/* Mute + tune popover (speed / pitch / volume) */}
         {!error && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               type="button"
               onClick={toggleMute}
@@ -125,16 +160,31 @@ export function TtsPlayerBar() {
             >
               <VolumeIcon className="size-3.5" />
             </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              aria-label="Volume"
-              className="hidden h-1 w-14 cursor-pointer appearance-none rounded-full bg-border/60 accent-foreground sm:block"
-            />
+            <div className="relative" ref={tuneRef}>
+              <button
+                type="button"
+                onClick={() => setTuneOpen((o) => !o)}
+                aria-label="Playback settings"
+                aria-expanded={tuneOpen}
+                className={cn(
+                  'grid size-6 shrink-0 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                  tuneOpen ? 'bg-accent/60 text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                )}
+              >
+                <SlidersHorizontal className="size-3.5" />
+              </button>
+              {tuneOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Playback settings"
+                  className="absolute bottom-full right-0 mb-2 w-52 space-y-3 rounded-lg border border-border/50 bg-card/95 p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.3)] backdrop-blur-md"
+                >
+                  <PopSlider label="Speed" value={settings.rate} min={0.5} max={2} step={0.05} onChange={setSpeed} format={(v) => `${v.toFixed(2)}×`} />
+                  <PopSlider label="Pitch" value={settings.pitch} min={0.5} max={2} step={0.05} onChange={setPitch} format={(v) => `${v.toFixed(2)}×`} />
+                  <PopSlider label="Volume" value={volume} min={0} max={1} step={0.05} onChange={setVolume} format={(v) => `${Math.round(v * 100)}%`} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
