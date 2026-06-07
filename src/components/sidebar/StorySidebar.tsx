@@ -208,7 +208,7 @@ export function StorySidebar({
 
         {/* Fragments */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[0.625rem] uppercase tracking-widest text-muted-foreground font-medium">
+          <SidebarGroupLabel className="text-[0.875rem] font-display text-muted-foreground">
             Fragments
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -234,8 +234,8 @@ export function StorySidebar({
         <SidebarSeparator />
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[0.625rem] uppercase tracking-widest text-muted-foreground font-medium">
-            Management
+          <SidebarGroupLabel className="text-[0.875rem] font-display text-muted-foreground">
+            Workshop
           </SidebarGroupLabel>
           <SidebarGroupContent>
               <SidebarMenu>
@@ -337,7 +337,7 @@ export function StorySidebar({
           <>
             <SidebarSeparator />
             <SidebarGroup>
-              <SidebarGroupLabel className="text-[0.625rem] uppercase tracking-widest text-muted-foreground font-medium">
+              <SidebarGroupLabel className="text-[0.875rem] font-display text-muted-foreground">
                 Plugins
               </SidebarGroupLabel>
               <SidebarGroupContent>

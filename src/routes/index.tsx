@@ -404,7 +404,7 @@ function StoryListPage() {
             </Button>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetDialog() }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5" variant={'ghost'} data-component-id="story-create-open">
+              <Button size="sm" className="gap-1.5" data-component-id="story-create-open">
                 <Plus className="size-3.5" />
                 New Story
               </Button>
@@ -628,15 +628,12 @@ function StoryListPage() {
           </div>
         )}
 
-        <div
-          className="grid gap-4 sm:gap-5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}
-          data-component-id="story-list"
-        >
-          {sortedStories.map((story) => (
+        <div className="library-shelf" data-component-id="story-list">
+          {sortedStories.map((story, i) => (
             <StoryCard
               key={story.id}
               story={story}
+              isRecent={i === 0 && sortedStories.length > 1}
               onDelete={() => {
                 if (confirm(`Delete "${story.name}"?`)) {
                   deleteMutation.mutate(story.id)
@@ -675,7 +672,7 @@ function StoryListPage() {
 
 // ── Story Card ──────────────────────────────────────────
 
-function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void }) {
+function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: () => void; isRecent?: boolean }) {
   const queryClient = useQueryClient()
   const coverInputRef = useRef<HTMLInputElement>(null)
   const { theme } = useTheme()
@@ -739,6 +736,8 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
         onChange={handleCoverFileChange}
       />
 
+      {isRecent && <div className="book-ribbon" aria-hidden title="Last opened" />}
+
       <Link
         to="/story/$storyId"
         params={{ storyId: story.id }}
@@ -747,15 +746,7 @@ function StoryCard({ story, onDelete }: { story: StoryMeta; onDelete: () => void
           localStorage.setItem(`errata:last-accessed:${story.id}`, new Date().toISOString())
         }}
       >
-        <div
-          className={`relative rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ring-1 ${
-            isLightCover
-              ? 'ring-black/[0.08] hover:ring-black/[0.15] hover:shadow-black/10'
-              : 'ring-white/[0.06] hover:ring-white/[0.12] hover:shadow-black/20'
-          }`}
-          style={{ aspectRatio: '3 / 4' }}
-          data-component-id={`story-${story.id}-card`}
-        >
+        <div className="book" data-component-id={`story-${story.id}-card`}>
           {/* Background layer */}
           {hasCover ? (
             <img
