@@ -7,7 +7,7 @@ import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Za
 import { EmptyHint, Hint } from '@/components/ui/prose-text'
 
 const PRESETS = {
-  deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
+  deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-flash', models: ['deepseek-v4-flash', 'deepseek-v4-pro'] },
   openai: { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-5.2' },
   anthropic: { name: 'Anthropic', baseURL: 'https://api.anthropic.com/v1', defaultModel: 'claude-opus-4-6' },
   kimi: { name: 'Kimi', baseURL: 'https://api.moonshot.ai/v1', defaultModel: 'kimi-k2.5' },
@@ -31,7 +31,7 @@ interface FormState {
 
 type ModelOption = { id: string; owned_by?: string; isFree?: boolean }
 
-const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-chat', customHeaders: [], temperature: '' }
+const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-v4-flash', customHeaders: [], temperature: '' }
 
 /**
  * Compact provider list for the settings sidebar.
@@ -469,7 +469,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                     value={form.defaultModel}
                     onChange={(e) => setForm({ ...form, defaultModel: e.target.value })}
                     className={inputClass + ' flex-1'}
-                    placeholder="e.g. deepseek-chat"
+                    placeholder="e.g. deepseek-v4-flash"
                   />
                 )}
                 <Button
@@ -484,6 +484,24 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                   Fetch Models
                 </Button>
               </div>
+              {(() => {
+                const suggested = (PRESETS[form.preset as keyof typeof PRESETS] as { models?: readonly string[] } | undefined)?.models ?? []
+                return suggested.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mr-0.5">Suggested</span>
+                    {suggested.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setForm({ ...form, defaultModel: m })}
+                        className={`px-2 py-0.5 rounded-full text-[0.6875rem] border transition-colors ${form.defaultModel === m ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-border/50 text-muted-foreground hover:text-foreground/80 hover:bg-accent/40'}`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                ) : null
+              })()}
               {fetchedModels.length > 0 && (
                 <button
                   type="button"

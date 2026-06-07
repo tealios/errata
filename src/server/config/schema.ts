@@ -4,7 +4,8 @@ export const PROVIDER_PRESETS = {
   deepseek: {
     name: 'DeepSeek',
     baseURL: 'https://api.deepseek.com',
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4-flash',
+    models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   },
   openai: {
     name: 'OpenAI',
