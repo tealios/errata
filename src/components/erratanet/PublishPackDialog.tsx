@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import type { ErratapackManifest } from '@/lib/erratanet/pack-schema'
@@ -178,12 +178,14 @@ export function PublishPackDialog({
 
   // Reset transient state whenever the dialog opens. A defaultSlug (sync)
   // pre-fills the pack to re-publish to.
+  const seededRef = useRef(false)
   useEffect(() => {
     if (open) {
       setError(null)
       setPublishedId(null)
       setReadme('')
       setContentRating('general')
+      seededRef.current = false
       if (defaultSlug) setSlug(defaultSlug)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,6 +196,29 @@ export function PublishPackDialog({
     if (open && !title && storyName) setTitle(storyName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  // When updating an existing pack (sync, or re-publishing the same slug),
+  // pre-fill the metadata from its latest published manifest so the update
+  // preserves tags, description, license, rating, and readme. Runs once per open.
+  useEffect(() => {
+    if (!open || seededRef.current) return
+    const manifest = (existingPack as { manifest?: Record<string, unknown> } | null | undefined)?.manifest
+    if (!manifest) return
+    seededRef.current = true
+    if (Array.isArray(manifest.tags)) {
+      setTags(manifest.tags.filter((t): t is string => typeof t === 'string'))
+    }
+    if (typeof manifest.description === 'string' && manifest.description) setDescription(manifest.description)
+    if (typeof manifest.license === 'string' && manifest.license) setLicense(manifest.license)
+    if (typeof manifest.readme === 'string') setReadme(manifest.readme)
+    if (manifest.contentRating === 'general' || manifest.contentRating === 'mature' || manifest.contentRating === 'r18') {
+      setContentRating(manifest.contentRating)
+    } else if (manifest.nsfw === true) {
+      setContentRating('r18')
+    }
+    if (typeof manifest.title === 'string' && manifest.title) setTitle(manifest.title)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, existingPack])
 
   const addTag = useCallback(() => {
     const tag = tagDraft.trim().toLowerCase()
