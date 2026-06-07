@@ -12,6 +12,53 @@ import {
 } from '../config/storage'
 import { ProviderConfigSchema } from '../config/schema'
 
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+const OPENROUTER_FREE_MODEL_ID = 'openrouter/free'
+
+function maskConfigProviders<T extends { providers: Array<{ apiKey: string }> }>(config: T): T {
+  return {
+    ...config,
+    providers: config.providers.map((p) => ({
+      ...p,
+      apiKey: maskApiKey(p.apiKey),
+    })),
+  }
+}
+
+function isOpenRouterProvider(provider: { preset?: string; baseURL: string }) {
+  return provider.preset === 'openrouter' || provider.baseURL.includes('openrouter.ai')
+}
+
+function isFreeModel(model: { id: string; pricing?: { prompt?: string; completion?: string } }) {
+  return model.id === OPENROUTER_FREE_MODEL_ID
+    || model.id.endsWith(':free')
+    || (model.pricing?.prompt === '0' && model.pricing?.completion === '0')
+}
+
+function normalizeModels(
+  rawModels: Array<{ id: string; owned_by?: string; pricing?: { prompt?: string; completion?: string } }>,
+  provider: { preset?: string; baseURL: string },
+) {
+  const models = rawModels.map((m) => ({
+    id: m.id,
+    owned_by: m.owned_by,
+    isFree: isFreeModel(m),
+  }))
+
+  if (isOpenRouterProvider(provider) && !models.some((m) => m.id === OPENROUTER_FREE_MODEL_ID)) {
+    models.push({ id: OPENROUTER_FREE_MODEL_ID, owned_by: 'openrouter', isFree: true })
+  }
+
+  models.sort((a, b) => {
+    if (a.id === OPENROUTER_FREE_MODEL_ID) return -1
+    if (b.id === OPENROUTER_FREE_MODEL_ID) return 1
+    if (a.isFree !== b.isFree) return a.isFree ? -1 : 1
+    return a.id.localeCompare(b.id)
+  })
+
+  return models
+}
+
 export function configRoutes(dataDir: string) {
   return new Elysia({ detail: { tags: ['Config'] } })
     .get('/config/providers', async () => {
@@ -35,13 +82,7 @@ export function configRoutes(dataDir: string) {
         createdAt: new Date().toISOString(),
       })
       const config = await addProvider(dataDir, provider)
-      return {
-        ...config,
-        providers: config.providers.map((p) => ({
-          ...p,
-          apiKey: maskApiKey(p.apiKey),
-        })),
-      }
+      return maskConfigProviders(config)
     }, {
       detail: { summary: 'Add a new provider' },
       body: t.Object({
@@ -65,13 +106,7 @@ export function configRoutes(dataDir: string) {
       if (body.customHeaders !== undefined) updates.customHeaders = body.customHeaders
       if (body.temperature !== undefined) updates.temperature = body.temperature
       const config = await updateProviderConfig(dataDir, params.providerId, updates)
-      return {
-        ...config,
-        providers: config.providers.map((p) => ({
-          ...p,
-          apiKey: maskApiKey(p.apiKey),
-        })),
-      }
+      return maskConfigProviders(config)
     }, {
       detail: { summary: 'Update a provider' },
       body: t.Object({
@@ -87,26 +122,14 @@ export function configRoutes(dataDir: string) {
 
     .delete('/config/providers/:providerId', async ({ params }) => {
       const config = await deleteProviderConfig(dataDir, params.providerId)
-      return {
-        ...config,
-        providers: config.providers.map((p) => ({
-          ...p,
-          apiKey: maskApiKey(p.apiKey),
-        })),
-      }
+      return maskConfigProviders(config)
     }, {
       detail: { summary: 'Delete a provider' },
     })
 
     .post('/config/providers/:providerId/duplicate', async ({ params }) => {
       const config = await duplicateProviderConfig(dataDir, params.providerId)
-      return {
-        ...config,
-        providers: config.providers.map((p) => ({
-          ...p,
-          apiKey: maskApiKey(p.apiKey),
-        })),
-      }
+      return maskConfigProviders(config)
     }, {
       detail: { summary: 'Duplicate a provider' },
     })
@@ -142,12 +165,8 @@ export function configRoutes(dataDir: string) {
           const text = await res.text().catch(() => res.statusText)
           return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
         }
-        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
-        const models = (json.data ?? []).map((m) => ({
-          id: m.id,
-          owned_by: m.owned_by,
-        }))
-        models.sort((a, b) => a.id.localeCompare(b.id))
+        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string; pricing?: { prompt?: string; completion?: string } }> }
+        const models = normalizeModels(json.data ?? [], provider)
         return { models }
       } catch (err) {
         return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
@@ -171,12 +190,8 @@ export function configRoutes(dataDir: string) {
           const text = await res.text().catch(() => res.statusText)
           return { models: [], error: `Failed to fetch models: ${res.status} ${text}` }
         }
-        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string }> }
-        const models = (json.data ?? []).map((m) => ({
-          id: m.id,
-          owned_by: m.owned_by,
-        }))
-        models.sort((a, b) => a.id.localeCompare(b.id))
+        const json = await res.json() as { data?: Array<{ id: string; owned_by?: string; pricing?: { prompt?: string; completion?: string } }> }
+        const models = normalizeModels(json.data ?? [], { preset: undefined, baseURL: body.baseURL })
         return { models }
       } catch (err) {
         return { models: [], error: err instanceof Error ? err.message : 'Unknown error fetching models' }
@@ -245,6 +260,74 @@ export function configRoutes(dataDir: string) {
         apiKey: t.Optional(t.String()),
         model: t.String(),
         customHeaders: t.Optional(t.Record(t.String(), t.String())),
+      }),
+    })
+
+    .post('/config/openrouter/oauth/exchange', async ({ body, set }) => {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: body.code,
+            code_verifier: body.codeVerifier,
+            code_challenge_method: body.codeChallengeMethod,
+          }),
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => res.statusText)
+          set.status = res.status
+          return { error: `OpenRouter OAuth failed: ${text}` }
+        }
+        const json = await res.json() as { key?: string }
+        if (!json.key) {
+          set.status = 502
+          return { error: 'OpenRouter OAuth did not return an API key' }
+        }
+
+        const config = await getGlobalConfig(dataDir)
+        const existingIdx = config.providers.findIndex((p) => isOpenRouterProvider(p))
+        const now = new Date().toISOString()
+        if (existingIdx === -1) {
+          const provider = ProviderConfigSchema.parse({
+            id: `prov-${Date.now().toString(36)}`,
+            name: 'OpenRouter',
+            preset: 'openrouter',
+            baseURL: OPENROUTER_BASE_URL,
+            apiKey: json.key,
+            defaultModel: OPENROUTER_FREE_MODEL_ID,
+            enabled: true,
+            customHeaders: {},
+            createdAt: now,
+          })
+          config.providers.push(provider)
+          if (!config.defaultProviderId) {
+            config.defaultProviderId = provider.id
+          }
+        } else {
+          config.providers[existingIdx] = {
+            ...config.providers[existingIdx],
+            name: config.providers[existingIdx].name || 'OpenRouter',
+            preset: 'openrouter',
+            baseURL: OPENROUTER_BASE_URL,
+            apiKey: json.key,
+            defaultModel: config.providers[existingIdx].defaultModel || OPENROUTER_FREE_MODEL_ID,
+            enabled: true,
+          }
+        }
+
+        await saveGlobalConfig(dataDir, config)
+        return maskConfigProviders(config)
+      } catch (err) {
+        set.status = 502
+        return { error: err instanceof Error ? err.message : 'OpenRouter OAuth exchange failed' }
+      }
+    }, {
+      detail: { summary: 'Exchange an OpenRouter OAuth code for a provider API key' },
+      body: t.Object({
+        code: t.String(),
+        codeVerifier: t.String(),
+        codeChallengeMethod: t.Optional(t.Union([t.Literal('S256'), t.Literal('plain')])),
       }),
     })
 }

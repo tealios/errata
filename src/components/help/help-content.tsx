@@ -1426,6 +1426,11 @@ return rules.map(r => r.content).join('\\n')`}</div>
               Add or edit providers through the Manage Providers panel in Settings. OpenAI-compatible
               endpoints can be used as long as the provider returns compatible chat completions.
             </P>
+            <P>
+              OpenRouter can also be connected through its browser sign-in flow instead of manually
+              entering an API key. When connected this way, Errata adds the <Mono>openrouter/free</Mono>
+              router to the model list and marks zero-cost OpenRouter models as free.
+            </P>
           </>
         ),
       },

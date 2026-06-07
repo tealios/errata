@@ -18,9 +18,11 @@ export const config = {
       body: JSON.stringify({ providerId }),
     }),
   listModels: (providerId: string) =>
-    apiFetch<{ models: Array<{ id: string; owned_by?: string }>; error?: string }>(`/config/providers/${providerId}/models`),
+    apiFetch<{ models: Array<{ id: string; owned_by?: string; isFree?: boolean }>; error?: string }>(`/config/providers/${providerId}/models`),
   testModels: (data: { baseURL: string; apiKey: string; customHeaders?: Record<string, string> }) =>
-    apiFetch<{ models: Array<{ id: string; owned_by?: string }>; error?: string }>('/config/test-models', { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<{ models: Array<{ id: string; owned_by?: string; isFree?: boolean }>; error?: string }>('/config/test-models', { method: 'POST', body: JSON.stringify(data) }),
   testConnection: (data: { providerId?: string; baseURL?: string; apiKey?: string; model: string; customHeaders?: Record<string, string> }) =>
     apiFetch<{ ok: boolean; reply?: string; error?: string }>('/config/test-connection', { method: 'POST', body: JSON.stringify(data) }),
+  exchangeOpenRouterOAuth: (data: { code: string; codeVerifier: string; codeChallengeMethod?: 'S256' | 'plain' }) =>
+    apiFetch<GlobalConfigSafe>('/config/openrouter/oauth/exchange', { method: 'POST', body: JSON.stringify(data) }),
 }

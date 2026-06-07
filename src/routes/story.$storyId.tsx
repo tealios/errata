@@ -97,6 +97,16 @@ function StoryEditorPage() {
     if (typeof window === 'undefined') return
     localStorage.setItem(OUTLINE_OPEN_KEY, outlineOpen ? '1' : '0')
   }, [outlineOpen])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('openrouter_oauth') === '1') {
+      setShowProviders(true)
+      notifyPluginPanelOpen({ panel: 'providers' }, { storyId })
+    }
+  }, [storyId])
+
   const dragCounter = useRef(0)
 
   const { data: story, isLoading } = useQuery({

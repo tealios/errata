@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ProviderConfigSafe } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Zap, Copy } from 'lucide-react'
+import { Plus, Trash2, Star, Pencil, RefreshCw, Loader2, X, ArrowLeft, Minus, Zap, Copy, KeyRound } from 'lucide-react'
 import { EmptyHint, Hint } from '@/components/ui/prose-text'
 
 const PRESETS = {
@@ -29,7 +29,28 @@ interface FormState {
   temperature: string // stored as string for input; '' means unset
 }
 
+type ModelOption = { id: string; owned_by?: string; isFree?: boolean }
+
 const emptyForm: FormState = { preset: 'deepseek', name: 'DeepSeek', baseURL: 'https://api.deepseek.com', apiKey: '', defaultModel: 'deepseek-chat', customHeaders: [], temperature: '' }
+const OPENROUTER_OAUTH_SESSION_KEY = 'errata:openrouter-oauth'
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function randomVerifier(): string {
+  const bytes = new Uint8Array(48)
+  crypto.getRandomValues(bytes)
+  return base64Url(bytes)
+}
+
+async function sha256Challenge(verifier: string): Promise<string> {
+  const data = new TextEncoder().encode(verifier)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return base64Url(new Uint8Array(digest))
+}
 
 /**
  * Compact provider list for the settings sidebar.
@@ -73,12 +94,13 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
-  const [fetchedModels, setFetchedModels] = useState<Array<{ id: string; owned_by?: string }>>([])
+  const [fetchedModels, setFetchedModels] = useState<ModelOption[]>([])
   const [fetchingModels, setFetchingModels] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [useCustomModel, setUseCustomModel] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; reply?: string; error?: string } | null>(null)
+  const [oauthStatus, setOauthStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const { data: config } = useQuery({
     queryKey: ['global-config'],
@@ -87,6 +109,65 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['global-config'] })
 
+  const closeForm = useCallback(() => {
+    setEditingId(null)
+    setForm(null)
+    setFetchedModels([])
+    setFetchError(null)
+    setUseCustomModel(false)
+    setTestResult(null)
+  }, [])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('code')
+    const isOpenRouterCallback = url.searchParams.get('openrouter_oauth') === '1'
+    if (!isOpenRouterCallback || !code) return
+
+    const stored = sessionStorage.getItem(OPENROUTER_OAUTH_SESSION_KEY)
+    sessionStorage.removeItem(OPENROUTER_OAUTH_SESSION_KEY)
+
+    const cleanupUrl = () => {
+      url.searchParams.delete('openrouter_oauth')
+      url.searchParams.delete('code')
+      url.searchParams.delete('state')
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+
+    if (!stored) {
+      setOauthStatus({ type: 'error', message: 'OpenRouter sign-in session expired. Try connecting again.' })
+      cleanupUrl()
+      return
+    }
+
+    let session: { verifier?: string; state?: string }
+    try {
+      session = JSON.parse(stored) as { verifier?: string; state?: string }
+    } catch {
+      setOauthStatus({ type: 'error', message: 'OpenRouter sign-in session was invalid. Try connecting again.' })
+      cleanupUrl()
+      return
+    }
+    const returnedState = url.searchParams.get('state')
+    if (!session.verifier || (returnedState && session.state && returnedState !== session.state)) {
+      setOauthStatus({ type: 'error', message: 'OpenRouter sign-in could not be verified. Try connecting again.' })
+      cleanupUrl()
+      return
+    }
+
+    api.config.exchangeOpenRouterOAuth({
+      code,
+      codeVerifier: session.verifier,
+      codeChallengeMethod: 'S256',
+    }).then((nextConfig) => {
+      queryClient.setQueryData(['global-config'], nextConfig)
+      setOauthStatus({ type: 'success', message: 'OpenRouter connected. The free router is ready to use.' })
+      closeForm()
+    }).catch((err) => {
+      setOauthStatus({ type: 'error', message: err instanceof Error ? err.message : 'OpenRouter sign-in failed.' })
+    }).finally(cleanupUrl)
+  }, [queryClient, closeForm])
+
   const addMutation = useMutation({
     mutationFn: (data: { name: string; preset?: string; baseURL: string; apiKey: string; defaultModel: string; customHeaders?: Record<string, string>; temperature?: number }) =>
       api.config.addProvider(data),
@@ -94,7 +175,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name?: string; baseURL?: string; apiKey?: string; defaultModel?: string; customHeaders?: Record<string, string> } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; baseURL?: string; apiKey?: string; defaultModel?: string; customHeaders?: Record<string, string>; temperature?: number } }) =>
       api.config.updateProvider(id, data),
     onSuccess: () => { invalidate(); closeForm() },
   })
@@ -109,21 +190,35 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     onSuccess: invalidate,
   })
 
-  const closeForm = () => {
-    setEditingId(null)
-    setForm(null)
-    setFetchedModels([])
-    setFetchError(null)
-    setUseCustomModel(false)
-    setTestResult(null)
-  }
-
   const openAdd = () => {
     setEditingId(null)
     setForm({ ...emptyForm })
     setFetchedModels([])
     setFetchError(null)
     setUseCustomModel(false)
+  }
+
+  const connectOpenRouter = async () => {
+    if (!crypto?.subtle || !crypto.getRandomValues) {
+      setOauthStatus({ type: 'error', message: 'This browser does not support secure OAuth PKCE.' })
+      return
+    }
+    const verifier = randomVerifier()
+    const challenge = await sha256Challenge(verifier)
+    const state = randomVerifier()
+
+    const callback = new URL(window.location.href)
+    callback.searchParams.set('openrouter_oauth', '1')
+    callback.searchParams.set('state', state)
+    callback.searchParams.delete('code')
+
+    sessionStorage.setItem(OPENROUTER_OAUTH_SESSION_KEY, JSON.stringify({ verifier, state }))
+
+    const authUrl = new URL('https://openrouter.ai/auth')
+    authUrl.searchParams.set('callback_url', callback.toString())
+    authUrl.searchParams.set('code_challenge', challenge)
+    authUrl.searchParams.set('code_challenge_method', 'S256')
+    window.location.assign(authUrl.toString())
   }
 
   const duplicateMutation = useMutation({
@@ -227,7 +322,14 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     const parsedTemp = form.temperature !== '' ? parseFloat(form.temperature) : undefined
     const temperature = parsedTemp != null && !isNaN(parsedTemp) ? parsedTemp : undefined
     if (editingId) {
-      const data: Record<string, unknown> = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord, temperature }
+      const data: {
+        name: string
+        baseURL: string
+        defaultModel: string
+        customHeaders: Record<string, string>
+        temperature?: number
+        apiKey?: string
+      } = { name: form.name, baseURL: form.baseURL, defaultModel: form.defaultModel, customHeaders: headersRecord, temperature }
       if (form.apiKey) data.apiKey = form.apiKey
       updateMutation.mutate({ id: editingId, data })
     } else {
@@ -404,7 +506,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
                     )}
                     {fetchedModels.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.id}{m.owned_by ? ` (${m.owned_by})` : ''}
+                        {m.id}{m.isFree ? ' (free)' : m.owned_by ? ` (${m.owned_by})` : ''}
                       </option>
                     ))}
                   </select>
@@ -510,6 +612,26 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
         /* ─── Provider List ─── */
         <ScrollArea className="flex-1">
           <div className="max-w-2xl mx-auto p-6 space-y-2">
+            <div className="mb-4 rounded-lg border border-border/30 bg-accent/10 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">OpenRouter OAuth</p>
+                  <p className="mt-0.5 text-[0.6875rem] leading-snug text-muted-foreground">
+                    Connect in the browser. Errata stores the returned API key and defaults to the free router.
+                  </p>
+                </div>
+                <Button size="sm" className="shrink-0 gap-1.5" onClick={connectOpenRouter}>
+                  <KeyRound className="size-3.5" />
+                  Connect OpenRouter
+                </Button>
+              </div>
+              {oauthStatus && (
+                <p className={`mt-2 text-[0.6875rem] ${oauthStatus.type === 'success' ? 'text-emerald-500' : 'text-destructive'}`}>
+                  {oauthStatus.message}
+                </p>
+              )}
+            </div>
+
             {providers.length === 0 && (
               <div className="text-center py-12">
                 <EmptyHint size="sm" className="mb-4">No providers configured.</EmptyHint>
@@ -594,7 +716,7 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
  * Used by SettingsPanel for the model override selector.
  */
 export function useModelFetcher() {
-  const [models, setModels] = useState<Array<{ id: string; owned_by?: string }>>([])
+  const [models, setModels] = useState<ModelOption[]>([])
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

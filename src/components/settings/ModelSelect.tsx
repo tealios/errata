@@ -73,7 +73,7 @@ export function ModelSelect({ providerId, value, onChange, disabled, defaultLabe
       >
         <option value="">{isLoading ? 'Loading\u2026' : defaultLabel}</option>
         {models.map((m) => (
-          <option key={m.id} value={m.id}>{m.id}</option>
+          <option key={m.id} value={m.id}>{m.id}{m.isFree ? ' (free)' : ''}</option>
         ))}
       </select>
       {hasModels && (
