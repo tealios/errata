@@ -12,7 +12,7 @@ import {
   type TtsEngine,
 } from '@/lib/tts'
 
-const SAMPLE = 'Hello! Welcome to my website.'
+const SAMPLE = 'And here he stands, the one they call the Knight of the Sorrowful Countenance, the once and future king'
 
 function Row({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
