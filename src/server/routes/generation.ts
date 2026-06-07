@@ -193,8 +193,18 @@ export function generationRoutes(dataDir: string) {
       // custom blocks and author-input would leak through and bypass the
       // prewriter's block config.
       const isPrewriterMode = story.settings.generationMode === 'prewriter'
+      // Clarify-before-generate only applies in prewriter mode.
+      const clarifyEnabled = isPrewriterMode && (story.settings.clarifyBeforeGenerate ?? false)
+      const clarifications = body.clarifications ?? []
+      const clarifyRound = body.clarifyRound ?? 0
       if (isPrewriterMode) {
-        blocks = blocks.filter(b => b.id !== 'author-input' && b.source !== 'custom')
+        // Strip writer-only blocks from the context dumped into the prewriter's
+        // full-context: the author direction (it has its own planning-request),
+        // custom blocks, and the writer's operating instructions/tool guidance
+        // ("write prose directly, don't use tools to save") — which would
+        // otherwise confuse the planner, whose job is the opposite.
+        const WRITER_ONLY_BLOCKS = new Set(['author-input', 'instructions', 'tools'])
+        blocks = blocks.filter(b => !WRITER_ONLY_BLOCKS.has(b.id) && b.source !== 'custom')
       }
 
       let messages = compileBlocks(blocks)
@@ -265,7 +275,16 @@ export function generationRoutes(dataDir: string) {
               const prewriterActivityId = registerActiveAgent(params.storyId, 'generation.prewriter')
               try {
                 const configuredMax = story.settings.maxSteps ?? 10
-                const prewriterMaxSteps = Math.max(1, Math.floor(configuredMax / 2))
+                const prewriterReasoningLevel = story.settings.prewriterReasoning ?? 'normal'
+                // Scale the prewriter's tool-step budget by reasoning length so
+                // 'short' actually runs fewer round trips (the main speed win),
+                // while 'extensive' may explore the full budget.
+                const half = Math.max(1, Math.floor(configuredMax / 2))
+                const prewriterMaxSteps = prewriterReasoningLevel === 'short'
+                  ? Math.min(2, half)
+                  : prewriterReasoningLevel === 'extensive'
+                    ? configuredMax
+                    : half
                 const prewriterResult = await runPrewriter({
                   dataDir,
                   storyId: params.storyId,
@@ -276,14 +295,33 @@ export function generationRoutes(dataDir: string) {
                   maxSteps: prewriterMaxSteps,
                   abortSignal: abortController.signal,
                   providerOptions,
+                  clarifyEnabled,
+                  clarifications,
+                  round: clarifyRound,
+                  reasoning: prewriterReasoningLevel,
                   onEvent: (event) => {
                     if (event.type === 'text') {
                       emit({ type: 'prewriter-text', text: event.text })
+                    } else if (event.type === 'questions') {
+                      // Canonical clarify-questions is emitted from the result below.
                     } else {
                       emit(event)
                     }
                   },
                 })
+
+                // The prewriter chose to ask the author questions instead of
+                // finalizing a brief. Surface them and end the turn — no writer,
+                // no save. The client answers and re-POSTs with clarifications.
+                if (prewriterResult.questions && prewriterResult.questions.length > 0) {
+                  // Inner finally below unregisters the prewriter activity; outer
+                  // finally unregisters the generation activity. Returning here
+                  // skips the writer and the save block entirely.
+                  emit({ type: 'clarify-questions', questions: prewriterResult.questions, round: clarifyRound })
+                  emit({ type: 'finish', finishReason: 'clarify', stepCount: prewriterResult.stepCount, stopped: true })
+                  controller.close()
+                  return
+                }
                 prewriterBrief = prewriterResult.brief
                 prewriterReasoning = prewriterResult.reasoning || undefined
                 prewriterDurationMs = prewriterResult.durationMs
@@ -594,6 +632,8 @@ export function generationRoutes(dataDir: string) {
         saveResult: t.Optional(t.Boolean()),
         mode: t.Optional(t.Union([t.Literal('generate'), t.Literal('regenerate'), t.Literal('refine')])),
         fragmentId: t.Optional(t.String()),
+        clarifications: t.Optional(t.Array(t.Object({ question: t.String(), answer: t.String() }))),
+        clarifyRound: t.Optional(t.Number()),
       }),
       detail: { summary: 'Generate prose via streaming NDJSON' },
     })

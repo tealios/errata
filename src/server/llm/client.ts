@@ -112,9 +112,12 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
       for (const r of chain) {
         // Check modelOverrides map first
         const override = overrides[r]
+        if (!targetModelId && override?.modelId) {
+          targetModelId = override.modelId
+        }
         if (override?.providerId) {
           targetProviderId = override.providerId
-          targetModelId = override.modelId ?? null
+          targetModelId = targetModelId || override.modelId || null
           if (override.temperature != null) {
             targetTemperature = override.temperature
           }

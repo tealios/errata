@@ -20,6 +20,7 @@ export { agentBlocks } from './agent-blocks'
 export { agents } from './agents'
 export { tokenUsage } from './token-usage'
 export { folders } from './folders'
+export { sharing } from './sharing'
 
 // HTTP Client utilities (exported for advanced use cases)
 export { apiFetch, fetchStream, fetchEventStream } from './client'
@@ -41,6 +42,7 @@ import { agentBlocks } from './agent-blocks'
 import { agents } from './agents'
 import { tokenUsage } from './token-usage'
 import { folders } from './folders'
+import { sharing } from './sharing'
 
 export const api = {
   stories,
@@ -59,4 +61,5 @@ export const api = {
   agents,
   tokenUsage,
   folders,
+  sharing,
 }

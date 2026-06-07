@@ -2,6 +2,7 @@ import { pluginRegistry } from './plugins/registry'
 import { loadAllPlugins } from './plugins/loader'
 import { clearRuntimePluginUi } from './plugins/runtime-ui'
 import { createApp } from './api'
+import { reconcileSharing } from './sharing/manager'
 import type { WritingPlugin } from './plugins/types'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -88,7 +89,14 @@ async function initializeApp() {
   )
 
   // Create the app after plugins are loaded, so plugin routes get mounted
-  return createApp(dataDir)
+  const app = createApp(dataDir)
+
+  // Restore network sharing (LAN proxy / tunnel) if it was enabled. Only the
+  // production/dev entry (getApp) reconciles; tests calling createApp directly
+  // never start the proxy machinery.
+  void reconcileSharing(dataDir).catch((err) => console.error('[sharing] startup reconcile failed:', err))
+
+  return app
 }
 
 let appPromise: Promise<ReturnType<typeof createApp>> | null = null

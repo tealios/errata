@@ -25,6 +25,10 @@ export interface StoryMeta {
     providerId?: string | null
     modelId?: string | null
     generationMode?: 'standard' | 'prewriter'
+    /** Prewriter asks clarifying questions before writing. Only active in prewriter mode. */
+    clarifyBeforeGenerate?: boolean
+    /** How much the prewriter deliberates. Only active in prewriter mode. */
+    prewriterReasoning?: 'short' | 'normal' | 'extensive'
     disableLibrarianAutoAnalysis?: boolean
     autoApplyLibrarianSuggestions?: boolean
     disableLibrarianDirections?: boolean
@@ -400,6 +404,28 @@ export interface SuggestionDirection {
   pacing?: 'linger' | 'continue' | 'end'
 }
 
+/** A single option offered for a clarifying question (mirrors AskUserQuestion). */
+export interface ClarifyQuestionOption {
+  label: string
+  description?: string
+}
+
+/** A clarifying question the prewriter can ask the author before writing. */
+export interface ClarifyQuestion {
+  question: string
+  /** Short chip label (<= 12 chars). */
+  header: string
+  multiSelect: boolean
+  /** 2-4 suggested options, or omitted/empty for a free-text question. */
+  options?: ClarifyQuestionOption[]
+}
+
+/** An answered clarifying question, carried back into the next generate request. */
+export interface Clarification {
+  question: string
+  answer: string
+}
+
 export type ChatEvent =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
@@ -409,6 +435,7 @@ export type ChatEvent =
   | { type: 'phase'; phase: string }
   | { type: 'finish'; finishReason: string; stepCount: number }
   | { type: 'prewriter-directions'; directions: SuggestionDirection[] }
+  | { type: 'clarify-questions'; questions: ClarifyQuestion[]; round: number }
 
 // Character Chat types
 export type PersonaMode =
@@ -443,4 +470,17 @@ export interface CharacterChatConversationSummary {
   messageCount: number
   createdAt: string
   updatedAt: string
+}
+
+// Network sharing (Basic Auth + LAN + cloudflared tunnel)
+export type TunnelStatus = 'stopped' | 'downloading' | 'starting' | 'running' | 'error'
+
+export interface SharingStatusResponse {
+  authEnabled: boolean
+  hasPassword: boolean
+  username: string
+  lan: { enabled: boolean; running: boolean; url: string | null }
+  tunnel: { enabled: boolean; status: TunnelStatus; url: string | null; error: string | null }
+  lanQr: string | null
+  tunnelQr: string | null
 }

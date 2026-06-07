@@ -558,3 +558,34 @@ code {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ── Read-aloud player: indeterminate progress while the first chunk
+   is being synthesized. Reduced-motion holds a full quiet bar. ──── */
+@keyframes tts-indeterminate {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
+}
+
+/* When the fixed player bar is visible it sets --tts-bar-height on :root.
+   Scroll regions and the sidebar footer reserve that space at the bottom so
+   their last items (incl. the Settings button) aren't hidden behind the bar.
+   Zero (the fallback) when no bar is shown. */
+[data-slot="scroll-area-viewport"] {
+  padding-bottom: var(--tts-bar-height, 0px);
+}
+/* The sidebar footer keeps its own base padding (p-2) and only *adds* the bar
+   height, so the Settings button isn't flush against the bottom edge. */
+[data-slot="sidebar-footer"] {
+  padding-bottom: calc(0.5rem + var(--tts-bar-height, 0px));
+}
+
+/* Radix ScrollArea wraps content in an inline-styled `display: table` element.
+   In Firefox that shrink-to-fits to the content's max width, so percentage-width
+   children (e.g. chat bubbles with `max-w-[85%]`) overflow the viewport and get
+   clipped — the librarian/character chat "cuts off half" the message. Forcing
+   block layout makes the wrapper fill the viewport width in every browser.
+   `!important` is required to beat Radix's inline style. App scroll areas are
+   vertical, so this is safe. */
+[data-slot="scroll-area-viewport"] > div {
+  display: block !important;
+}

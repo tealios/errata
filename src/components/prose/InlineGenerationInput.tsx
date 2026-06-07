@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { PenLine, ArrowRight, Pause, Compass, RefreshCw, Loader2, PenSquare, Type } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { SuggestionDirection } from '@/lib/api/types'
+import type { SuggestionDirection, ClarifyQuestion, Clarification } from '@/lib/api/types'
+import { QuestionCard } from '@/components/generation/QuestionCard'
+
+// A round high enough that the server withholds the ask tool and must write —
+// used by "Skip & write" to proceed without answering.
+const FORCE_PROCEED_ROUND = 99
 
 export type ThoughtStep =
   | { type: 'reasoning'; text: string }
@@ -46,9 +51,12 @@ export function InlineGenerationInput({
   const [isComposing, setIsComposing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+  const [pendingQuestions, setPendingQuestions] = useState<ClarifyQuestion[] | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const composeTextareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // In-flight generation context, preserved across the clarify round trip.
+  const genCtxRef = useRef<{ input: string; clarifications: Clarification[]; round: number }>({ input: '', clarifications: [], round: 0 })
 
   // Mode state with localStorage persistence
   const [mode, setMode] = useState<InputMode>(() => {
@@ -161,18 +169,22 @@ export function InlineGenerationInput({
 
   const prewriterDirectionsRef = useRef<SuggestionDirection[] | null>(null)
 
-  const handleGenerateWithInput = useCallback(async (generationInput: string) => {
+  const handleGenerateWithInput = useCallback(async (generationInput: string, clarifications: Clarification[] = [], round = 0) => {
     if (!generationInput.trim() || isGenerating) return
 
     onGenerationStart()
     setError(null)
+    setPendingQuestions(null)
     prewriterDirectionsRef.current = null
+    genCtxRef.current = { input: generationInput, clarifications, round }
 
     const ac = new AbortController()
     abortRef.current = ac
+    let askedQuestions: ClarifyQuestion[] | null = null
 
     try {
-      const stream = await api.generation.generateAndSave(storyId, generationInput, ac.signal)
+      const opts = clarifications.length || round > 0 ? { clarifications, clarifyRound: round } : undefined
+      const stream = await api.generation.generateAndSave(storyId, generationInput, ac.signal, opts)
 
       const reader = stream.getReader()
       let accumulatedText = ''
@@ -214,6 +226,8 @@ export function InlineGenerationInput({
           thoughtsDirty = true
         } else if (value.type === 'prewriter-directions') {
           prewriterDirectionsRef.current = value.directions
+        } else if (value.type === 'clarify-questions') {
+          askedQuestions = value.questions
         } else if (value.type === 'phase') {
           accumulatedReasoning = ''
           thoughtSteps.push({ type: 'phase', phase: value.phase })
@@ -236,6 +250,14 @@ export function InlineGenerationInput({
       // Final flush
       onGenerationStream(accumulatedText)
       if (thoughtSteps.length > 0) onGenerationThoughts?.([...thoughtSteps])
+
+      // The prewriter asked clarifying questions instead of writing — surface
+      // them and wait for answers (no prose was produced this round).
+      if (askedQuestions) {
+        setPendingQuestions(askedQuestions)
+        onGenerationComplete()
+        return
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
@@ -264,6 +286,18 @@ export function InlineGenerationInput({
   const handleGenerate = () => {
     handleGenerateWithInput(input)
   }
+
+  const handleAnswers = useCallback((answers: Clarification[]) => {
+    const { input: gi, clarifications, round } = genCtxRef.current
+    setPendingQuestions(null)
+    handleGenerateWithInput(gi, [...clarifications, ...answers], round + 1)
+  }, [handleGenerateWithInput])
+
+  const handleSkipQuestions = useCallback(() => {
+    const { input: gi, clarifications } = genCtxRef.current
+    setPendingQuestions(null)
+    handleGenerateWithInput(gi, clarifications, FORCE_PROCEED_ROUND)
+  }, [handleGenerateWithInput])
 
   const handleStop = () => {
     abortRef.current?.abort()
@@ -327,6 +361,18 @@ export function InlineGenerationInput({
       {(error || suggestionError) && (
         <div className="text-sm text-destructive mb-3 font-sans">
           {error || suggestionError}
+        </div>
+      )}
+
+      {/* Clarifying questions from the prewriter */}
+      {pendingQuestions && (
+        <div className="mb-3 overflow-hidden rounded-xl border border-border/40 bg-card/40">
+          <QuestionCard
+            questions={pendingQuestions}
+            onSubmit={handleAnswers}
+            onCancel={handleSkipQuestions}
+            disabled={isGenerating}
+          />
         </div>
       )}
 

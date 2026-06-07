@@ -11,6 +11,7 @@ import { createEventStream } from '../agents/create-event-stream'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { createAgentInstance } from '../agents/agent-instance'
 import { getFragmentsByTag } from '../fragments/associations'
+import { inspectGenerationForFragment, type InspectAspect } from './inspect-generation'
 import { runLibrarian } from './agent'
 import { withBranch } from '../fragments/branches'
 import type { ChatStreamEvent, ChatResult } from '../agents/stream-types'
@@ -121,7 +122,25 @@ async function librarianChatInner(
     },
   })
 
-  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool }
+  const inspectGenerationTool = tool({
+    description:
+      "Inspect the generation (debug) details behind a generated prose fragment: the model used, the exact prompt/context it was given, the tools it called, token usage, the model's reasoning, and the prewriter brief. Use this to explain why a passage came out the way it did, or to trace a continuity issue back to what the model actually saw.",
+    inputSchema: z.object({
+      fragmentId: z.string().describe('The generated prose fragment ID to inspect (e.g. pr-bakumo)'),
+      aspect: z
+        .enum(['summary', 'prompt', 'tools', 'prewriter', 'reasoning'])
+        .optional()
+        .describe(
+          'Which detail to return. Default "summary" is an overview; "prompt" is the full assembled context, "tools" is what the model looked up, "prewriter" is the writing brief, "reasoning" is the model\'s thinking.',
+        ),
+    }),
+    execute: async ({ fragmentId, aspect }: { fragmentId: string; aspect?: InspectAspect }) => {
+      requestLogger.info('Inspecting generation via chat tool', { fragmentId, aspect: aspect ?? 'summary' })
+      return inspectGenerationForFragment(dataDir, storyId, fragmentId, aspect ?? 'summary')
+    },
+  })
+
+  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool, inspectGeneration: inspectGenerationTool }
 
   // Build plugin tool descriptions for the block context
   const pluginToolDescriptions = Object.entries(pluginTools).map(([name, def]) => ({

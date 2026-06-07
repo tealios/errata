@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
-import { GlobalConfigSchema, type GlobalConfig, type ProviderConfig } from './schema'
+import { GlobalConfigSchema, type GlobalConfig, type ProviderConfig, type SharingConfig } from './schema'
 import { writeJsonAtomic } from '../fs-utils'
 
 function configPath(dataDir: string): string {
@@ -12,8 +12,19 @@ export async function getGlobalConfig(dataDir: string): Promise<GlobalConfig> {
     const raw = await fs.readFile(configPath(dataDir), 'utf-8')
     return GlobalConfigSchema.parse(JSON.parse(raw))
   } catch {
-    return { providers: [], defaultProviderId: null }
+    return GlobalConfigSchema.parse({})
   }
+}
+
+export async function getSharingConfig(dataDir: string): Promise<SharingConfig> {
+  return (await getGlobalConfig(dataDir)).sharing
+}
+
+export async function updateSharingConfig(dataDir: string, patch: Partial<SharingConfig>): Promise<SharingConfig> {
+  const config = await getGlobalConfig(dataDir)
+  config.sharing = { ...config.sharing, ...patch }
+  await saveGlobalConfig(dataDir, config)
+  return config.sharing
 }
 
 export async function saveGlobalConfig(dataDir: string, config: GlobalConfig): Promise<void> {
@@ -85,5 +96,7 @@ export async function getGlobalConfigSafe(dataDir: string): Promise<GlobalConfig
       ...p,
       apiKey: maskApiKey(p.apiKey),
     })),
+    // Never expose the password hash to clients.
+    sharing: { ...config.sharing, passwordHash: config.sharing.passwordHash ? '••••' : '' },
   }
 }

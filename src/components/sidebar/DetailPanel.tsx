@@ -7,7 +7,7 @@ import { FragmentList } from '@/components/fragments/FragmentList'
 import { ContextOrderPanel } from '@/components/fragments/ContextOrderPanel'
 import { AgentsPanel } from '@/components/agents/AgentsPanel'
 import { StoryInfoPanel } from './StoryInfoPanel'
-import { SettingsPanel } from './SettingsPanel'
+import { SettingsView } from './SettingsView'
 import { LibrarianPanel } from './LibrarianPanel'
 import { ArchivePanel } from './ArchivePanel'
 import { TimelineManagerPanel } from './TimelineManagerPanel'
@@ -143,24 +143,29 @@ export function DetailPanel({
 
   const panelWidth = 440
 
+  // Settings is a wide, TOC-driven overlay that covers the sidebar, not the
+  // inline detail panel.
+  if (activeSection === 'settings') {
+    return (
+      <SettingsView
+        storyId={storyId}
+        story={story}
+        visible={visible}
+        onClose={onClose}
+        onTransitionEnd={handleTransitionEnd}
+        onManageProviders={onManageProviders}
+        onOpenPluginPanel={onOpenPluginPanel}
+        onTogglePluginSidebar={onTogglePluginSidebar}
+        pluginSidebarVisibility={pluginSidebarVisibility}
+      />
+    )
+  }
+
   const panelContent = (
     <>
       {activeSection === 'story-info' && (
         <ScrollArea className="h-full">
           <StoryInfoPanel storyId={storyId} story={story} onLaunchWizard={onLaunchWizard} onExport={onExport} onDownloadStory={onDownloadStory} onExportProse={onExportProse} />
-        </ScrollArea>
-      )}
-
-      {activeSection === 'settings' && (
-        <ScrollArea className="h-full">
-          <SettingsPanel
-            storyId={storyId}
-            story={story}
-            onManageProviders={onManageProviders}
-            onOpenPluginPanel={onOpenPluginPanel}
-            onTogglePluginSidebar={onTogglePluginSidebar}
-            pluginSidebarVisibility={pluginSidebarVisibility}
-          />
         </ScrollArea>
       )}
 

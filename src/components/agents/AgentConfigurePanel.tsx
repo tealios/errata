@@ -299,7 +299,7 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
   })
 
   const modelOverrideMutation = useMutation({
-    mutationFn: (data: { modelOverrides: Record<string, { providerId?: string | null; modelId?: string | null }> }) =>
+    mutationFn: (data: { modelOverrides: Record<string, { providerId?: string | null; modelId?: string | null; temperature?: number | null }> }) =>
       api.settings.update(storyId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['story', storyId] })
@@ -639,8 +639,16 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                       providerId={effectiveProviderId}
                       value={directModelId}
                       onChange={(mid) => {
+                        const current = overrides[overrideKey] ?? {}
                         modelOverrideMutation.mutate({
-                          modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], modelId: mid } },
+                          modelOverrides: {
+                            ...overrides,
+                            [overrideKey]: {
+                              ...current,
+                              providerId: mid ? (current.providerId ?? effectiveProviderId) : current.providerId,
+                              modelId: mid,
+                            },
+                          },
                         })
                       }}
                       disabled={modelOverrideMutation.isPending}
@@ -666,8 +674,9 @@ function AgentBlockEditor({ storyId, agentName, agents, onBack }: AgentBlockEdit
                     onChange={(e) => {
                       const val = e.target.value
                       const temp = val === '' ? null : parseFloat(val)
+                      const current = overrides[overrideKey] ?? {}
                       modelOverrideMutation.mutate({
-                        modelOverrides: { ...overrides, [overrideKey]: { ...overrides[overrideKey], temperature: temp } },
+                        modelOverrides: { ...overrides, [overrideKey]: { ...current, temperature: temp } },
                       })
                     }}
                     disabled={modelOverrideMutation.isPending}

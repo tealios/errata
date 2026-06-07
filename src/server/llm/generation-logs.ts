@@ -113,3 +113,29 @@ export async function listGenerationLogs(
   summaries.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   return summaries
 }
+
+/**
+ * Find the most recent generation log produced for a given fragment. Logs link
+ * back to their fragment via `fragmentId` (there is no forward pointer on the
+ * fragment), so this is a reverse scan. Returns null if the fragment was never
+ * generated (e.g. written or imported manually) or its log was pruned.
+ */
+export async function findGenerationLogByFragment(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string,
+): Promise<GenerationLog | null> {
+  const dir = await logsDir(dataDir, storyId)
+  if (!existsSync(dir)) return null
+
+  const entries = await readdir(dir)
+  let best: GenerationLog | null = null
+  for (const entry of entries) {
+    if (!entry.endsWith('.json')) continue
+    const raw = await readFile(join(dir, entry), 'utf-8')
+    const log = JSON.parse(raw) as GenerationLog
+    if (log.fragmentId !== fragmentId) continue
+    if (!best || log.createdAt.localeCompare(best.createdAt) > 0) best = log
+  }
+  return best
+}

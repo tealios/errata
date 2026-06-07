@@ -46,6 +46,7 @@ describe('llm client model resolution', () => {
           defaultModel: 'gen-default',
           enabled: true,
           customHeaders: {},
+          temperature: undefined,
           createdAt: new Date().toISOString(),
         },
         {
@@ -57,6 +58,7 @@ describe('llm client model resolution', () => {
           defaultModel: 'lib-default',
           enabled: true,
           customHeaders: {},
+          temperature: undefined,
           createdAt: new Date().toISOString(),
         },
       ],
@@ -87,6 +89,7 @@ describe('llm client model resolution', () => {
           defaultModel: 'gen-default',
           enabled: true,
           customHeaders: {},
+          temperature: undefined,
           createdAt: new Date().toISOString(),
         },
       ],
@@ -100,5 +103,35 @@ describe('llm client model resolution', () => {
     const resolved = await getModel(dataDir, story.id, { role: 'librarian' })
     expect(resolved.providerId).toBe('gen')
     expect(resolved.modelId).toBe('gen-model')
+  })
+
+  it('uses a model-only override with the inherited provider', async () => {
+    await saveGlobalConfig(dataDir, {
+      defaultProviderId: 'openrouter',
+      providers: [
+        {
+          id: 'openrouter',
+          name: 'OpenRouter',
+          preset: 'openrouter',
+          baseURL: 'https://openrouter.ai/api/v1',
+          apiKey: 'test-key-openrouter',
+          defaultModel: 'openrouter/glm-5',
+          enabled: true,
+          customHeaders: {},
+          temperature: undefined,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    })
+
+    const story = makeStory()
+    story.settings.modelOverrides = {
+      generation: { modelId: 'anthropic/claude-sonnet-4.5' },
+    }
+    await createStory(dataDir, story)
+
+    const resolved = await getModel(dataDir, story.id, { role: 'generation' })
+    expect(resolved.providerId).toBe('openrouter')
+    expect(resolved.modelId).toBe('anthropic/claude-sonnet-4.5')
   })
 })

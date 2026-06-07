@@ -117,10 +117,17 @@ Each prose block in the chain view exposes an action menu with operations around
 - **Redo** — regenerate from the original prompt/description
 - **Ask / Refine** — open the librarian with the fragment prefilled
 - **Analyze** — trigger librarian analysis manually for that prose fragment
+- **Read aloud / Stop** — play the passage through the configured read-aloud engine, or stop the current passage when it is already playing
 - **Split from here** — create a new timeline fork from that section
 - **Variation switching** — move between alternate versions of the same section
 
 When a prose fragment already has librarian analysis, the block shows a small green dot in the top-right corner.
+
+## Read Aloud
+
+When **Settings > Read aloud** is enabled, each prose block exposes a **Read aloud** action. Audio is synthesized sentence by sentence and controlled by the bottom player bar.
+
+The player bar shows the current passage title, chunk progress, engine label, pause/resume, mute, playback settings, and stop controls. Playback settings include speed, pitch, and volume. Browser voices start immediately; Supertonic runs locally in the browser after its model has downloaded and been cached.
 
 ## Cover Image Banner
 

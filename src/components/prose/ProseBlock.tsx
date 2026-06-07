@@ -7,8 +7,9 @@ import { ChevronRail } from './ChevronRail'
 import { GenerationThoughts } from './GenerationThoughts'
 import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
-import { RefreshCw, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight, Info, BookOpen } from 'lucide-react'
+import { RefreshCw, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight, Info, BookOpen, Volume2, Square } from 'lucide-react'
 import { Caption } from '@/components/ui/prose-text'
+import { useTtsSettings, useIsReadingFragment, playFragment, stopTts } from '@/lib/tts'
 
 interface ProseBlockProps {
   storyId: string
@@ -122,6 +123,8 @@ export const ProseBlock = memo(function ProseBlock({
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showActions, setShowActions] = useState(false)
   const [actionInput, setActionInput] = useState('')
+  const [ttsSettings] = useTtsSettings()
+  const isReadingThis = useIsReadingFragment(fragment.id)
   const [editingPrompt, setEditingPrompt] = useState(false)
   const [clickY, setClickY] = useState(0)
   const blockRef = useRef<HTMLDivElement>(null)
@@ -742,6 +745,20 @@ export const ProseBlock = memo(function ProseBlock({
                   >
                     <BookOpen className="size-3.5" />
                     Analyze
+                  </button>
+                )}
+                {ttsSettings.enabled && (
+                  <button
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[0.6875rem] transition-all ${isReadingThis ? 'text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'}`}
+                    onClick={() => {
+                      if (isReadingThis) stopTts()
+                      else playFragment(fragment.id, fragment.content, fragment.name, ttsSettings)
+                      setShowActions(false)
+                    }}
+                    data-component-id={`prose-${fragment.id}-read-aloud`}
+                  >
+                    {isReadingThis ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                    {isReadingThis ? 'Stop' : 'Read aloud'}
                   </button>
                 )}
               </div>
