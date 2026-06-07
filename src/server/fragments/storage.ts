@@ -2,7 +2,6 @@ import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { Fragment, FragmentVersion, StoryMeta } from './schema'
-import { PREFIXES } from '@/lib/fragment-ids'
 import { getContentRoot, initBranches } from './branches'
 import { createLogger } from '../logging'
 import { writeJsonAtomic } from '../fs-utils'
@@ -154,17 +153,13 @@ export async function listFragments(
   const entries = await readdir(dir)
   const fragments: Fragment[] = []
 
-  // Determine prefix filter
-  const prefix = type ? (PREFIXES[type] ?? type.slice(0, 2)) : null
-
   for (const entry of entries) {
     if (!entry.endsWith('.json')) continue
-    const id = entry.replace('.json', '')
-    if (prefix && !id.startsWith(prefix + '-')) continue
 
     const rawFragment = await readJson<Fragment>(join(dir, entry))
     const fragment = normalizeFragment(rawFragment)
     if (fragment) {
+      if (type && fragment.type !== type) continue
       // Skip archived fragments unless caller opts in
       if (!includeArchived && fragment.archived) continue
       fragments.push(fragment)

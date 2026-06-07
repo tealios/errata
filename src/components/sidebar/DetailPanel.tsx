@@ -50,6 +50,7 @@ interface DetailPanelProps {
 
 const SECTION_TITLES: Record<string, string> = {
   'story-info': 'Story Info',
+  fragments: 'All Fragments',
   characters: 'Characters',
   guidelines: 'Guidelines',
   knowledge: 'Knowledge',
@@ -167,6 +168,17 @@ export function DetailPanel({
   const panelWidth = 440
   const isLibrarian = activeSection === 'agent-activity'
   const effectiveWidth = isLibrarian && expanded && expandedWidth > 0 ? expandedWidth : panelWidth
+  const handleCreateCustomFragment = () => {
+    const rawType = window.prompt('Fragment type', 'knowledge')
+    const fragmentType = rawType
+      ?.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    if (fragmentType) {
+      onCreateFragment(fragmentType)
+    }
+  }
 
   // Settings is a wide, TOC-driven overlay that covers the sidebar, not the
   // inline detail panel.
@@ -213,7 +225,7 @@ export function DetailPanel({
       )}
 
       {activeSection === 'archive' && (
-        <ArchivePanel storyId={storyId} />
+        <ArchivePanel storyId={storyId} onSelect={onSelectFragment} />
       )}
 
       {activeSection === 'branches' && (
@@ -229,6 +241,17 @@ export function DetailPanel({
           onCreateNew={() => onCreateFragment(SECTION_TO_TYPE[activeSection])}
           onImport={onImportFragment}
           onImportCard={activeSection === 'characters' ? onImportCard : undefined}
+          selectedId={selectedFragmentId}
+        />
+      )}
+
+      {activeSection === 'fragments' && (
+        <FragmentList
+          storyId={storyId}
+          listIdBase="all-fragments-sidebar-list"
+          onSelect={onSelectFragment}
+          onCreateNew={handleCreateCustomFragment}
+          onImport={onImportFragment}
           selectedId={selectedFragmentId}
         />
       )}

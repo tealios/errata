@@ -43,6 +43,7 @@ import { componentId } from '@/lib/dom-ids'
 
 export type SidebarSection =
   | 'story-info'
+  | 'fragments'
   | 'characters'
   | 'guidelines'
   | 'knowledge'
@@ -94,6 +95,7 @@ function PluginIcon({ icon }: { icon?: { type: 'lucide'; name: string } | { type
 }
 
 const FRAGMENT_SECTIONS = [
+  { id: 'fragments' as const, label: 'All fragments', icon: Hash },
   { id: 'guidelines' as const, label: 'Guidelines', icon: BookOpen },
   { id: 'characters' as const, label: 'Characters', icon: Users },
   { id: 'knowledge' as const, label: 'Knowledge', icon: Database },

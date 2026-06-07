@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, type Fragment } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -11,9 +11,10 @@ import { componentId } from '@/lib/dom-ids'
 
 interface ArchivePanelProps {
   storyId: string
+  onSelect?: (fragment: Fragment) => void
 }
 
-export function ArchivePanel({ storyId }: ArchivePanelProps) {
+export function ArchivePanel({ storyId, onSelect }: ArchivePanelProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
 
@@ -76,7 +77,19 @@ export function ArchivePanel({ storyId }: ArchivePanelProps) {
           {filtered.map((fragment) => (
             <div
               key={fragment.id}
-              className="flex items-center gap-2 rounded-md border border-border/30 px-3 py-2 group hover:border-border/50 transition-colors"
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              onClick={() => onSelect?.(fragment)}
+              onKeyDown={(e) => {
+                if (!onSelect) return
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(fragment)
+                }
+              }}
+              className={`flex items-center gap-2 rounded-md border border-border/30 px-3 py-2 group hover:border-border/50 transition-colors ${
+                onSelect ? 'cursor-pointer hover:bg-accent/40' : ''
+              }`}
               data-component-id={componentId('archive', fragment.id, 'item')}
             >
               <div className="flex-1 min-w-0">
@@ -91,7 +104,10 @@ export function ArchivePanel({ storyId }: ArchivePanelProps) {
                   size="icon"
                   variant="ghost"
                   className="size-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => restoreMutation.mutate(fragment.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    restoreMutation.mutate(fragment.id)
+                  }}
                   disabled={restoreMutation.isPending}
                   title="Restore"
                   data-component-id={componentId('archive', fragment.id, 'restore')}
@@ -102,7 +118,8 @@ export function ArchivePanel({ storyId }: ArchivePanelProps) {
                   size="icon"
                   variant="ghost"
                   className="size-7 text-muted-foreground hover:text-destructive"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     if (confirm('Permanently delete this fragment? This cannot be undone.')) {
                       deleteMutation.mutate(fragment.id)
                     }

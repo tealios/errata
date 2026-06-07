@@ -160,6 +160,24 @@ describe('Fragment API routes', () => {
     expect(data.name).toBe('Opening')
   })
 
+  it('POST /api/stories/:sid/fragments creates a custom typed fragment', async () => {
+    const res = await apiJson(`/stories/${storyId}/fragments`, {
+      type: 'location',
+      name: 'The High Library',
+      description: 'A hidden archive',
+      content: 'A city-scale library under the old station.',
+    })
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.id).toMatch(/^loca-/)
+    expect(data.type).toBe('location')
+
+    const listRes = await api(`/stories/${storyId}/fragments?type=location`)
+    const listData = await listRes.json()
+    expect(listData).toHaveLength(1)
+    expect(listData[0].id).toBe(data.id)
+  })
+
   it('GET /api/stories/:sid/fragments lists fragments', async () => {
     await apiJson(`/stories/${storyId}/fragments`, fragment)
     await apiJson(`/stories/${storyId}/fragments`, {
