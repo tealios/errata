@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type StoryMeta, type GlobalConfigSafe } from '@/lib/api'
 import { useTheme, useQuickSwitch, useCharacterMentions, useTimelineBar, useProseWidth, useUiFontSize, UI_FONT_SIZE_LABELS, useProseFontSize, PROSE_FONT_SIZE_LABELS, useFontPreferences, getActiveFont, FONT_CATALOGUE, loadFullFontCatalogue, useCustomCss, useWritingTransforms, type FontRole, type ProseWidth, type UiFontSize, type ProseFontSize } from '@/lib/theme'
-import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, CircleHelp, Code, Wand2, Compass, ArrowLeft } from 'lucide-react'
+import { Settings2, ChevronRight, ExternalLink, Eye, EyeOff, Puzzle, RotateCcw, CircleHelp, Code } from 'lucide-react'
 import { useHelp } from '@/hooks/use-help'
 import { CustomCssPanel } from '@/components/settings/CustomCssPanel'
 import { TtsSettings } from '@/components/settings/TtsSettings'
 import { SharingPanel } from '@/components/settings/SharingPanel'
 import { ProseColorsControls } from '@/components/settings/ProseColorsPanel'
-import { CustomTransformsPanel } from '@/components/settings/CustomTransformsPanel'
+import { CustomTransformsControls } from '@/components/settings/CustomTransformsPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
 import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
@@ -220,9 +220,8 @@ Consider a mix of: advancing the main plot, exploring character relationships, i
 
 Respond with ONLY the JSON array, no markdown fences or other text.`
 
-function GuidedPromptsPanel({ story, onClose, onUpdate, isPending }: {
+function GuidedPromptsControls({ story, onUpdate, isPending }: {
   story: StoryMeta
-  onClose: () => void
   onUpdate: (data: { guidedContinuePrompt?: string; guidedSceneSettingPrompt?: string; guidedSuggestPrompt?: string }) => void
   isPending: boolean
 }) {
@@ -235,17 +234,7 @@ function GuidedPromptsPanel({ story, onClose, onUpdate, isPending }: {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="size-4" />
-        </button>
-        <div>
-          <h3 className="text-sm font-medium">Guided mode prompts</h3>
-          <p className="text-[0.625rem] text-muted-foreground">Customize the prompts used in guided writing mode</p>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" style={{ scrollbarWidth: 'thin' }}>
+    <div className="space-y-4">
         <div>
           <label className="text-[0.6875rem] font-medium text-foreground/80 mb-1 block">Continue prompt</label>
           <p className="text-[0.625rem] text-muted-foreground mb-1.5 leading-snug">Used when clicking the "Continue" button</p>
@@ -290,7 +279,6 @@ function GuidedPromptsPanel({ story, onClose, onUpdate, isPending }: {
         <p className="text-[0.625rem] text-muted-foreground italic">
           Leave empty to use the default prompt. Changes are saved when you leave each field.
         </p>
-      </div>
     </div>
   )
 }
@@ -332,8 +320,6 @@ export function SettingsPanel({
   }
 
   const [customCssPanelOpen, setCustomCssPanelOpen] = useState(false)
-  const [transformsPanelOpen, setTransformsPanelOpen] = useState(false)
-  const [guidedPromptsPanelOpen, setGuidedPromptsPanelOpen] = useState(false)
   const [writingTransforms] = useWritingTransforms()
   const enabledTransformCount = writingTransforms.filter(t => t.enabled).length
   const { openHelp } = useHelp()
@@ -352,21 +338,6 @@ export function SettingsPanel({
 
   if (customCssPanelOpen) {
     return <CustomCssPanel onClose={() => setCustomCssPanelOpen(false)} />
-  }
-
-  if (transformsPanelOpen) {
-    return <CustomTransformsPanel onClose={() => setTransformsPanelOpen(false)} />
-  }
-
-  if (guidedPromptsPanelOpen) {
-    return (
-      <GuidedPromptsPanel
-        story={story}
-        onClose={() => setGuidedPromptsPanelOpen(false)}
-        onUpdate={(data) => updateMutation.mutate(data)}
-        isPending={updateMutation.isPending}
-      />
-    )
   }
 
   return (
@@ -742,40 +713,29 @@ export function SettingsPanel({
       {/* Authoring (transforms + guided prompts) */}
       <SettingsSection id="set-authoring" label="Authoring" group="Writing">
         <SectionHeading label="Authoring" />
-        <SettingsCard>
-          <button
-            type="button"
-            onClick={() => setTransformsPanelOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <Wand2 className="size-3 text-muted-foreground" />
-                <p className="text-[0.75rem] font-medium text-foreground/80">Selection transforms</p>
-              </div>
-              <p className="text-[0.625rem] text-muted-foreground mt-0.5 leading-snug">
-                {enabledTransformCount} custom transform{enabledTransformCount !== 1 ? 's' : ''} active
+        <div className="space-y-6">
+          <div className="space-y-2.5">
+            <div>
+              <p className="text-[0.625rem] uppercase tracking-[0.14em] text-muted-foreground">
+                Selection transforms{enabledTransformCount > 0 ? ` · ${enabledTransformCount} active` : ''}
+              </p>
+              <p className="text-[0.6875rem] text-muted-foreground mt-0.5 leading-snug">
+                Quick rewrites in the floating toolbar when you select text. Drag to reorder, toggle to show or hide.
               </p>
             </div>
-            <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setGuidedPromptsPanelOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/20 transition-colors"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <Compass className="size-3 text-muted-foreground" />
-                <p className="text-[0.75rem] font-medium text-foreground/80">Guided mode prompts</p>
-              </div>
-              <p className="text-[0.625rem] text-muted-foreground mt-0.5 leading-snug">
-                {story.settings.guidedContinuePrompt || story.settings.guidedSceneSettingPrompt || story.settings.guidedSuggestPrompt ? 'Custom prompts configured' : 'Using default prompts'}
+            <CustomTransformsControls />
+          </div>
+
+          <div className="space-y-2.5">
+            <div>
+              <p className="text-[0.625rem] uppercase tracking-[0.14em] text-muted-foreground">Guided mode prompts</p>
+              <p className="text-[0.6875rem] text-muted-foreground mt-0.5 leading-snug">
+                The prompts behind the guided writing buttons. Leave a field empty to use its default.
               </p>
             </div>
-            <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
-          </button>
-        </SettingsCard>
+            <GuidedPromptsControls story={story} onUpdate={(data) => updateMutation.mutate(data)} isPending={updateMutation.isPending} />
+          </div>
+        </div>
       </SettingsSection>
 
       {/* Remote access (auth + LAN + tunnel) */}
