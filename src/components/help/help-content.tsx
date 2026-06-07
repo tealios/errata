@@ -1430,8 +1430,10 @@ return rules.map(r => r.content).join('\\n')`}</div>
               OpenRouter can also be connected through its browser sign-in flow instead of manually
               entering an API key. When connected this way, Errata adds the <Mono>openrouter/free</Mono>
               router to the model list and marks zero-cost OpenRouter models as free.
-              Errata starts a small localhost callback bridge on port <Mono>3000</Mono> so OpenRouter
-              can finish authorization and show a connected message in the browser window.
+              If Errata is running on port <Mono>3000</Mono>, the app accepts the OpenRouter callback
+              directly. On other local ports, Errata starts a small localhost callback bridge on
+              port <Mono>3000</Mono> so OpenRouter can finish authorization and show a connected
+              message in the browser window.
             </P>
           </>
         ),

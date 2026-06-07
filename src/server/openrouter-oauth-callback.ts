@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { getGlobalConfig, saveGlobalConfig } from './config/storage'
 import { ProviderConfigSchema } from './config/schema'
 
@@ -11,7 +11,6 @@ const OPENROUTER_FREE_MODEL_ID = 'openrouter/free'
 
 let callbackServer: Server | null = null
 let callbackServerStarting: Promise<void> | null = null
-let callbackServerUnavailable = false
 const sessions = new Map<string, { verifier: string; dataDir: string; expiresAt: number }>()
 
 function base64Url(bytes: Buffer) {
@@ -26,9 +25,8 @@ function isOpenRouterProvider(provider: { preset?: string; baseURL: string }) {
   return provider.preset === 'openrouter' || provider.baseURL.includes('openrouter.ai')
 }
 
-function sendHtml(res: ServerResponse, status: number, body: string) {
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' })
-  res.end(`<!doctype html>
+function renderHtml(status: number, body: string) {
+  return new Response(`<!doctype html>
 <html>
   <head>
     <title>Errata OpenRouter OAuth</title>
@@ -39,7 +37,19 @@ function sendHtml(res: ServerResponse, status: number, body: string) {
     </style>
   </head>
   <body>${body}</body>
-</html>`)
+</html>`, {
+    status,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  })
+}
+
+async function sendResponse(res: ServerResponse, response: Response) {
+  const headers: Record<string, string> = {}
+  response.headers.forEach((value, key) => {
+    headers[key] = value
+  })
+  res.writeHead(response.status, headers)
+  res.end(await response.text())
 }
 
 function escapeHtml(value: string) {
@@ -112,21 +122,19 @@ export async function exchangeAndSaveOpenRouterOAuthCode(dataDir: string, code: 
   return saveOpenRouterOAuthProvider(dataDir, apiKey)
 }
 
-async function handleCallback(req: IncomingMessage, res: ServerResponse) {
-  const url = new URL(req.url ?? '/', `http://localhost:${CALLBACK_PORT}`)
+export async function handleOpenRouterOAuthCallbackRequest(request: Request) {
+  const url = new URL(request.url)
 
   if (url.pathname === `${CALLBACK_PATH}/health`) {
-    res.writeHead(200, {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
+    return Response.json({ ok: true }, {
+      headers: {
+        'access-control-allow-origin': '*',
+      },
     })
-    res.end(JSON.stringify({ ok: true }))
-    return
   }
 
   if (url.pathname !== CALLBACK_PATH) {
-    sendHtml(res, 404, '<p>Not found.</p>')
-    return
+    return renderHtml(404, '<p>Not found.</p>')
   }
 
   const code = url.searchParams.get('code')
@@ -134,36 +142,29 @@ async function handleCallback(req: IncomingMessage, res: ServerResponse) {
   const sessionId = url.searchParams.get('session_id')
 
   if (error) {
-    sendHtml(res, 400, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(error)}</p>`)
-    return
+    return renderHtml(400, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(error)}</p>`)
   }
 
   if (!code || !sessionId) {
-    sendHtml(res, 400, '<h1>OpenRouter sign-in failed</h1><p>The callback was missing its code or session.</p>')
-    return
+    return renderHtml(400, '<h1>OpenRouter sign-in failed</h1><p>The callback was missing its code or session.</p>')
   }
 
   const session = sessions.get(sessionId)
   sessions.delete(sessionId)
   if (!session || session.expiresAt < Date.now()) {
-    sendHtml(res, 400, '<h1>OpenRouter sign-in expired</h1><p>Return to Errata and start the OpenRouter connection again.</p>')
-    return
+    return renderHtml(400, '<h1>OpenRouter sign-in expired</h1><p>Return to Errata and start the OpenRouter connection again.</p>')
   }
 
   try {
     await exchangeAndSaveOpenRouterOAuthCode(session.dataDir, code, session.verifier)
-    sendHtml(res, 200, '<h1>OpenRouter connected</h1><p>You may close this window and return to Errata.</p>')
+    return renderHtml(200, '<h1>OpenRouter connected</h1><p>You may close this window and return to Errata.</p>')
   } catch (err) {
     const message = err instanceof Error ? err.message : 'OpenRouter OAuth exchange failed'
-    sendHtml(res, 502, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(message)}</p>`)
+    return renderHtml(502, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(message)}</p>`)
   }
 }
 
 export function createOpenRouterOAuthAuthorizationUrl(dataDir: string) {
-  if (!callbackServer?.listening) {
-    throw new Error('OpenRouter OAuth callback bridge is not running on localhost:3000.')
-  }
-
   const sessionId = base64Url(randomBytes(32))
   const verifier = base64Url(randomBytes(48))
   sessions.set(sessionId, { verifier, dataDir, expiresAt: Date.now() + SESSION_TTL_MS })
@@ -184,11 +185,13 @@ export function ensureOpenRouterOAuthCallbackBridge() {
     return callbackServerStarting ?? Promise.resolve()
   }
 
-  callbackServerUnavailable = false
   const server = createServer((req, res) => {
-    void handleCallback(req, res).catch((err) => {
+    const url = new URL(req.url ?? '/', `http://localhost:${CALLBACK_PORT}`)
+    void handleOpenRouterOAuthCallbackRequest(new Request(url)).then((response) => {
+      return sendResponse(res, response)
+    }).catch((err) => {
       const message = err instanceof Error ? err.message : 'Unknown error'
-      sendHtml(res, 500, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(message)}</p>`)
+      void sendResponse(res, renderHtml(500, `<h1>OpenRouter sign-in failed</h1><p>${escapeHtml(message)}</p>`))
     })
   })
   callbackServer = server
@@ -198,7 +201,6 @@ export function ensureOpenRouterOAuthCallbackBridge() {
       callbackServer = null
       callbackServerStarting = null
       if (err.code === 'EADDRINUSE') {
-        callbackServerUnavailable = true
         console.warn('[openrouter] OAuth callback bridge skipped: localhost:3000 is already in use.')
         resolve()
         return
@@ -214,8 +216,4 @@ export function ensureOpenRouterOAuthCallbackBridge() {
   })
 
   return callbackServerStarting
-}
-
-export function isOpenRouterOAuthCallbackBridgeAvailable() {
-  return Boolean(callbackServer?.listening) && !callbackServerUnavailable
 }

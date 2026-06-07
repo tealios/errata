@@ -32,6 +32,12 @@ nsis:
   allowToChangeInstallationDirectory: true
 
 mac:
+  # No Apple Developer cert is configured yet, so skip code signing entirely (identity: null).
+  # An ad-hoc/empty-password signing attempt fails on CI ("not a file"). To enable signing +
+  # notarization later, remove `identity: null` and provide the CSC_* / APPLE_* secrets; the
+  # build will then honor CSC_IDENTITY_AUTO_DISCOVERY. Unsigned macOS builds run only after the
+  # user clears Gatekeeper quarantine, and their auto-update stays inert.
+  identity: null
   # zip is required alongside dmg for electron-updater on macOS.
   target:
     - dmg

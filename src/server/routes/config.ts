@@ -15,7 +15,6 @@ import {
   createOpenRouterOAuthAuthorizationUrl,
   ensureOpenRouterOAuthCallbackBridge,
   exchangeAndSaveOpenRouterOAuthCode,
-  isOpenRouterOAuthCallbackBridgeAvailable,
 } from '../openrouter-oauth-callback'
 
 const OPENROUTER_FREE_MODEL_ID = 'openrouter/free'
@@ -268,12 +267,8 @@ export function configRoutes(dataDir: string) {
       }),
     })
 
-    .post('/config/openrouter/oauth/start', async ({ set }) => {
+    .post('/config/openrouter/oauth/start', async () => {
       await ensureOpenRouterOAuthCallbackBridge()
-      if (!isOpenRouterOAuthCallbackBridgeAvailable()) {
-        set.status = 409
-        return { error: 'OpenRouter OAuth needs localhost:3000, but that port is already in use.' }
-      }
       return createOpenRouterOAuthAuthorizationUrl(dataDir)
     }, {
       detail: { summary: 'Create an OpenRouter OAuth authorization URL' },

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createApp } from '@/server/api'
 import { createTempDir } from '../setup'
+import {
+  createOpenRouterOAuthAuthorizationUrl,
+  handleOpenRouterOAuthCallbackRequest,
+} from '@/server/openrouter-oauth-callback'
 
 describe('config routes', () => {
   let dataDir: string
@@ -57,6 +61,32 @@ describe('config routes', () => {
         code_challenge_method: 'S256',
       }),
     }))
+  })
+
+  it('accepts OpenRouter OAuth on the main localhost callback route', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ key: 'or-oauth-key' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })))
+
+    const { authUrl } = createOpenRouterOAuthAuthorizationUrl(dataDir)
+    const openRouterUrl = new URL(authUrl)
+    const callbackUrl = new URL(openRouterUrl.searchParams.get('callback_url')!)
+    callbackUrl.searchParams.set('code', 'returned-code')
+
+    const callbackRes = await handleOpenRouterOAuthCallbackRequest(new Request(callbackUrl))
+    expect(callbackRes.status).toBe(200)
+    await expect(callbackRes.text()).resolves.toContain('OpenRouter connected')
+
+    const configRes = await app.fetch(new Request('http://localhost/api/config/providers'))
+    const config = await configRes.json() as {
+      providers: Array<{ preset: string; defaultModel: string; apiKey: string }>
+    }
+    expect(config.providers[0]).toMatchObject({
+      preset: 'openrouter',
+      defaultModel: 'openrouter/free',
+      apiKey: '••••-key',
+    })
   })
 
   it('adds the OpenRouter free router and flags free models in model discovery', async () => {
