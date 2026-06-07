@@ -177,17 +177,28 @@ export function PublishPackDialog({
     return out
   }, [selectedFragments, mediaById])
 
-  // Chapter markers, story mode only. Each marker becomes a chapter entry on the
-  // pack page, in fragment order.
+  // Chapters, story mode only. Walk the active prose chain (the reading order)
+  // and emit a chapter for every marker it passes, so the list matches what a
+  // reader sees, in order, and excludes markers no longer in the chain.
   const { data: markerFragments } = useQuery({
     queryKey: ['fragments', storyId, 'marker'],
     queryFn: () => api.fragments.list(storyId!, 'marker'),
     enabled: open && isStory && !!storyId,
   })
-  const chapters = useMemo(
-    () => (markerFragments ?? []).map((m, index) => ({ title: m.name, order: index })),
-    [markerFragments],
-  )
+  const { data: chain } = useQuery({
+    queryKey: ['proseChain', storyId],
+    queryFn: () => api.proseChain.get(storyId!),
+    enabled: open && isStory && !!storyId,
+  })
+  const chapters = useMemo(() => {
+    const markerById = new Map((markerFragments ?? []).map((m) => [m.id, m]))
+    const result: { title: string; order: number }[] = []
+    for (const entry of chain?.entries ?? []) {
+      const marker = markerById.get(entry.active)
+      if (marker) result.push({ title: marker.name, order: result.length })
+    }
+    return result
+  }, [chain, markerFragments])
 
   // Reset transient state whenever the dialog opens. A defaultSlug (sync)
   // pre-fills the pack to re-publish to.
