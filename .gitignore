@@ -22,3 +22,6 @@ docs/site/
 .claude
 data_
 junit.xml
+dist-electron
+release
+build/icon.png

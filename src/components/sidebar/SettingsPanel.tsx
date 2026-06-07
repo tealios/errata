@@ -9,6 +9,7 @@ import { TtsSettings } from '@/components/settings/TtsSettings'
 import { SharingPanel } from '@/components/settings/SharingPanel'
 import { ProseColorsControls } from '@/components/settings/ProseColorsPanel'
 import { CustomTransformsControls } from '@/components/settings/CustomTransformsPanel'
+import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
 import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
@@ -827,6 +828,9 @@ export function SettingsPanel({
           </div>
         )}
       </SettingsSection>
+
+      {/* Desktop app + updates (Electron only; renders nothing in the browser) */}
+      <DesktopUpdatesControls />
 
       {/* Attribution */}
       <div className="pt-4 mt-2 border-t border-border/20">

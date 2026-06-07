@@ -1,0 +1,48 @@
+name: Desktop release
+
+# Builds the Electron desktop app for Windows, macOS, and Linux and uploads the installers +
+# update metadata (latest*.yml) to the GitHub Release that triggered the run. electron-updater
+# reads those to deliver auto-updates. Fires on the same event as release-binary.yml, so
+# publishing a release builds both the standalone binaries and the desktop installers.
+#
+# The release tag must match the package.json version (electron-builder targets v<version>).
+# macOS auto-update only works once the build is signed + notarized: provide the APPLE_* /
+# CSC_* secrets below. Without them the macOS build is produced unsigned and auto-update on
+# macOS stays inert.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build and upload desktop installers
+        run: bun run electron:release
+        env:
+          # Used by electron-builder to upload assets to the triggering GitHub Release.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS code signing + notarization (only consumed on the macOS runner).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

@@ -1,0 +1,54 @@
+appId: com.tealios.errata
+productName: Errata
+copyright: Copyright © Tealios
+
+# Two-package structure: the app directory holds a minimal package.json with no
+# dependencies, so none of Errata's heavy server deps are bundled into the asar. The
+# server ships as the Bun binary in extraResources instead. electron-updater is bundled
+# into main.cjs by the build step. See scripts/build-electron.mjs.
+directories:
+  app: dist-electron
+  buildResources: build
+  output: release
+
+# The Bun server binary + its static assets, copied beside the app's resources. The
+# sidecar resolves <resources>/server/errata(.exe) at runtime. 'from' is project-root
+# relative regardless of directories.app.
+extraResources:
+  - from: dist/server
+    to: server
+    filter:
+      - "**/*"
+
+asar: true
+
+win:
+  target: nsis
+  artifactName: ${productName}-${version}-windows-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  # zip is required alongside dmg for electron-updater on macOS.
+  target:
+    - dmg
+    - zip
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+linux:
+  target: AppImage
+  category: Office
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+
+publish:
+  provider: github
+  owner: tealios
+  repo: errata
