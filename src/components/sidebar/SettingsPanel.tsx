@@ -232,8 +232,18 @@ function GuidedPromptsControls({ story, onUpdate, isPending }: {
   const [sceneSettingPrompt, setSceneSettingPrompt] = useState(story.settings.guidedSceneSettingPrompt ?? '')
   const [suggestPrompt, setSuggestPrompt] = useState(story.settings.guidedSuggestPrompt ?? '')
 
-  const save = (field: string, value: string) => {
-    onUpdate({ [field]: value || undefined })
+  useEffect(() => {
+    setContinuePrompt(story.settings.guidedContinuePrompt ?? '')
+    setSceneSettingPrompt(story.settings.guidedSceneSettingPrompt ?? '')
+    setSuggestPrompt(story.settings.guidedSuggestPrompt ?? '')
+  }, [
+    story.settings.guidedContinuePrompt,
+    story.settings.guidedSceneSettingPrompt,
+    story.settings.guidedSuggestPrompt,
+  ])
+
+  const save = (field: 'guidedContinuePrompt' | 'guidedSceneSettingPrompt' | 'guidedSuggestPrompt', value: string) => {
+    onUpdate({ [field]: value.trim() === '' ? '' : value })
   }
 
   return (

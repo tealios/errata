@@ -17,12 +17,14 @@ export interface SidecarHandle {
   stop: () => void
 }
 
-/** Ask the OS for a free TCP port by binding to 0 on loopback, then releasing it. */
-function findFreePort(): Promise<number> {
+const PREFERRED_DESKTOP_PORT = 3000
+
+/** Ask the OS for a TCP port on loopback, then release it before spawning the sidecar. */
+function reservePort(port: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = createServer()
     srv.on('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
+    srv.listen(port, '127.0.0.1', () => {
       const addr = srv.address()
       if (addr && typeof addr === 'object') {
         const { port } = addr
@@ -32,6 +34,22 @@ function findFreePort(): Promise<number> {
       }
     })
   })
+}
+
+/**
+ * Prefer a stable port so Electron localStorage keeps the same origin across
+ * app launches. If another process already owns it, fall back to an OS-assigned
+ * port so the app can still start.
+ */
+async function findSidecarPort(): Promise<number> {
+  try {
+    return await reservePort(PREFERRED_DESKTOP_PORT)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'EADDRINUSE' && code !== 'EACCES') throw err
+    console.warn(`[desktop] Port ${PREFERRED_DESKTOP_PORT} is unavailable; using an ephemeral port. UI preferences may not persist for this launch.`)
+    return reservePort(0)
+  }
 }
 
 /**
@@ -113,7 +131,7 @@ export async function startSidecar(options: StartSidecarOptions = {}): Promise<S
     }
   }
 
-  const port = await findFreePort()
+  const port = await findSidecarPort()
   const dataDir = join(app.getPath('userData'), 'data')
 
   const child = spawn(binaryPath, [], {

@@ -98,6 +98,31 @@ describe('Story API routes', () => {
     expect(data.settings.disableLibrarianAutoAnalysis).toBe(true)
   })
 
+  it('PATCH /api/stories/:id/settings clears guided prompt overrides when saved empty', async () => {
+    const created = await (await apiJson('/stories', story)).json()
+    const setRes = await apiJson(
+      `/stories/${created.id}/settings`,
+      { guidedContinuePrompt: 'Custom continue prompt' },
+      'PATCH'
+    )
+    expect(setRes.status).toBe(200)
+    expect((await setRes.json()).settings.guidedContinuePrompt).toBe('Custom continue prompt')
+
+    const clearRes = await apiJson(
+      `/stories/${created.id}/settings`,
+      { guidedContinuePrompt: '' },
+      'PATCH'
+    )
+
+    expect(clearRes.status).toBe(200)
+    const cleared = await clearRes.json()
+    expect(cleared.settings).not.toHaveProperty('guidedContinuePrompt')
+
+    const reloadRes = await api(`/stories/${created.id}`)
+    const reloaded = await reloadRes.json()
+    expect(reloaded.settings).not.toHaveProperty('guidedContinuePrompt')
+  })
+
   it('DELETE /api/stories/:id deletes a story', async () => {
     const created = await (await apiJson('/stories', story)).json()
     const res = await api(`/stories/${created.id}`, { method: 'DELETE' })

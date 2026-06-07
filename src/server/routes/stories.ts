@@ -145,35 +145,50 @@ export function storyRoutes(dataDir: string) {
         set.status = 404
         return { error: 'Story not found' }
       }
+      const settings = {
+        ...existing.settings,
+        ...(body.enabledPlugins !== undefined ? { enabledPlugins: body.enabledPlugins } : {}),
+        ...(body.outputFormat !== undefined ? { outputFormat: body.outputFormat } : {}),
+        ...(body.summarizationThreshold !== undefined ? { summarizationThreshold: body.summarizationThreshold } : {}),
+        ...(body.maxSteps !== undefined ? { maxSteps: body.maxSteps } : {}),
+        ...(body.modelOverrides !== undefined ? { modelOverrides: body.modelOverrides } : {}),
+        // Legacy fields (kept for backward compat with older clients)
+        ...(body.providerId !== undefined ? { providerId: body.providerId } : {}),
+        ...(body.modelId !== undefined ? { modelId: body.modelId } : {}),
+        ...(body.generationMode !== undefined ? { generationMode: body.generationMode } : {}),
+        ...(body.clarifyBeforeGenerate !== undefined ? { clarifyBeforeGenerate: body.clarifyBeforeGenerate } : {}),
+        ...(body.prewriterReasoning !== undefined ? { prewriterReasoning: body.prewriterReasoning } : {}),
+        ...(body.disableLibrarianAutoAnalysis !== undefined ? { disableLibrarianAutoAnalysis: body.disableLibrarianAutoAnalysis } : {}),
+        ...(body.autoApplyLibrarianSuggestions !== undefined ? { autoApplyLibrarianSuggestions: body.autoApplyLibrarianSuggestions } : {}),
+        ...(body.disableLibrarianDirections !== undefined ? { disableLibrarianDirections: body.disableLibrarianDirections } : {}),
+        ...(body.disableLibrarianSuggestions !== undefined ? { disableLibrarianSuggestions: body.disableLibrarianSuggestions } : {}),
+        ...(body.contextOrderMode !== undefined ? { contextOrderMode: body.contextOrderMode } : {}),
+        ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
+        ...(body.contextCompact !== undefined ? { contextCompact: body.contextCompact } : {}),
+        ...(body.summaryCompact !== undefined ? { summaryCompact: body.summaryCompact } : {}),
+        ...(body.enableHierarchicalSummary !== undefined ? { enableHierarchicalSummary: body.enableHierarchicalSummary } : {}),
+        ...(body.disableThinking !== undefined ? { disableThinking: body.disableThinking } : {}),
+      }
+
+      const applyGuidedPrompt = (
+        field: 'guidedContinuePrompt' | 'guidedSceneSettingPrompt' | 'guidedSuggestPrompt',
+        value: string | undefined,
+      ) => {
+        if (value === undefined) return
+        if (value.trim() === '') {
+          delete settings[field]
+        } else {
+          settings[field] = value
+        }
+      }
+
+      applyGuidedPrompt('guidedContinuePrompt', body.guidedContinuePrompt)
+      applyGuidedPrompt('guidedSceneSettingPrompt', body.guidedSceneSettingPrompt)
+      applyGuidedPrompt('guidedSuggestPrompt', body.guidedSuggestPrompt)
+
       const updated: StoryMeta = {
         ...existing,
-        settings: {
-          ...existing.settings,
-          ...(body.enabledPlugins !== undefined ? { enabledPlugins: body.enabledPlugins } : {}),
-          ...(body.outputFormat !== undefined ? { outputFormat: body.outputFormat } : {}),
-          ...(body.summarizationThreshold !== undefined ? { summarizationThreshold: body.summarizationThreshold } : {}),
-          ...(body.maxSteps !== undefined ? { maxSteps: body.maxSteps } : {}),
-          ...(body.modelOverrides !== undefined ? { modelOverrides: body.modelOverrides } : {}),
-          // Legacy fields (kept for backward compat with older clients)
-          ...(body.providerId !== undefined ? { providerId: body.providerId } : {}),
-          ...(body.modelId !== undefined ? { modelId: body.modelId } : {}),
-          ...(body.generationMode !== undefined ? { generationMode: body.generationMode } : {}),
-          ...(body.clarifyBeforeGenerate !== undefined ? { clarifyBeforeGenerate: body.clarifyBeforeGenerate } : {}),
-          ...(body.prewriterReasoning !== undefined ? { prewriterReasoning: body.prewriterReasoning } : {}),
-          ...(body.disableLibrarianAutoAnalysis !== undefined ? { disableLibrarianAutoAnalysis: body.disableLibrarianAutoAnalysis } : {}),
-          ...(body.autoApplyLibrarianSuggestions !== undefined ? { autoApplyLibrarianSuggestions: body.autoApplyLibrarianSuggestions } : {}),
-          ...(body.disableLibrarianDirections !== undefined ? { disableLibrarianDirections: body.disableLibrarianDirections } : {}),
-          ...(body.disableLibrarianSuggestions !== undefined ? { disableLibrarianSuggestions: body.disableLibrarianSuggestions } : {}),
-          ...(body.contextOrderMode !== undefined ? { contextOrderMode: body.contextOrderMode } : {}),
-          ...(body.fragmentOrder !== undefined ? { fragmentOrder: body.fragmentOrder } : {}),
-          ...(body.contextCompact !== undefined ? { contextCompact: body.contextCompact } : {}),
-          ...(body.summaryCompact !== undefined ? { summaryCompact: body.summaryCompact } : {}),
-          ...(body.enableHierarchicalSummary !== undefined ? { enableHierarchicalSummary: body.enableHierarchicalSummary } : {}),
-          ...(body.guidedContinuePrompt !== undefined ? { guidedContinuePrompt: body.guidedContinuePrompt } : {}),
-          ...(body.guidedSceneSettingPrompt !== undefined ? { guidedSceneSettingPrompt: body.guidedSceneSettingPrompt } : {}),
-          ...(body.guidedSuggestPrompt !== undefined ? { guidedSuggestPrompt: body.guidedSuggestPrompt } : {}),
-          ...(body.disableThinking !== undefined ? { disableThinking: body.disableThinking } : {}),
-        },
+        settings,
         updatedAt: new Date().toISOString(),
       }
       await updateStory(dataDir, updated)
