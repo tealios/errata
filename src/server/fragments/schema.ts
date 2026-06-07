@@ -148,8 +148,19 @@ export const StoryMetaSchema = z.object({
           // Where this story was installed from (a story pack), if any.
           pack: z.string().optional(),
           version: z.string().optional(),
-          // Where this story is published to. Set on publish; drives "sync".
+          // Where this story is published to as a whole story. Drives "sync".
           publishedAs: z.object({ pack: z.string(), version: z.string() }).optional(),
+          // Fragment packs published from this story (e.g. a reusable "starter").
+          // Each remembers its fragment ids so it can be re-synced as a new version.
+          fragmentPacks: z
+            .array(
+              z.object({
+                pack: z.string(),
+                version: z.string(),
+                fragmentIds: z.array(z.string()).default([]),
+              }),
+            )
+            .optional(),
         })
         .optional(),
     })

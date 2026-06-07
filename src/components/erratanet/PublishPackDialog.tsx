@@ -67,6 +67,15 @@ const sectionLabel =
   'text-[0.5625rem] text-muted-foreground uppercase tracking-[0.15em] font-medium mb-2'
 
 /** Increment a semver core (major.minor.patch). Falls back to 1.0.0 on garbage. */
+/** Derive a pack slug from a title: lowercase, dashes, trimmed. */
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}
+
 function bumpVersion(latest: string | null | undefined, kind: BumpKind): string {
   if (!latest) return '1.0.0'
   const core = latest.split(/[-+]/)[0]
@@ -128,7 +137,11 @@ export function PublishPackDialog({
     enabled: open,
   })
   const handle = account?.handle ?? null
-  const packId = handle && slug.trim() ? `@${handle}/${slug.trim()}` : null
+  // The slug falls back to one derived from the title, so an empty slug still
+  // yields a name.
+  const derivedSlug = slugify(title)
+  const effectiveSlug = slug.trim() || derivedSlug
+  const packId = handle && effectiveSlug ? `@${handle}/${effectiveSlug}` : null
 
   // Look up the latest published version of this pack (404 -> brand new pack).
   const { data: existingPack, isFetching: checkingPack } = useQuery({
@@ -233,8 +246,8 @@ export function PublishPackDialog({
   const publishMut = useMutation({
     mutationFn: async () => {
       if (!handle) throw new Error('Connect a hub account in Settings first.')
-      const cleanSlug = slug.trim()
-      if (!cleanSlug) throw new Error('Enter a slug for the pack.')
+      const cleanSlug = slug.trim() || slugify(title)
+      if (!cleanSlug) throw new Error('Enter a title or a slug for the pack.')
       const id = `@${handle}/${cleanSlug}`
       if (!GLOBAL_PACK_ID_REGEX.test(id)) {
         throw new Error('Slug must be lowercase letters, numbers, and dashes.')
@@ -291,7 +304,13 @@ export function PublishPackDialog({
         fragmentCount: selectedFragments.length,
         payloadHash: await sha256Hex(bundleJson),
       }
-      return api.erratanet.publish({ bundleJson, manifest, unlisted: visibility === 'unlisted' })
+      return api.erratanet.publish({
+        bundleJson,
+        manifest,
+        unlisted: visibility === 'unlisted',
+        // Tie the pack to this story so the sidebar can track + re-sync it.
+        ...(storyId ? { storyId, fragmentIds: selectedFragments.map((f) => f.id) } : {}),
+      })
     },
     onSuccess: (res) => {
       setPublishedId(res.id)
@@ -311,7 +330,7 @@ export function PublishPackDialog({
   const descOver = description.length > 250
   const canPublish =
     !!handle &&
-    !!slug.trim() &&
+    !!effectiveSlug &&
     !!title.trim() &&
     !descOver &&
     (isStory || selectedFragments.length > 0) &&
@@ -365,7 +384,7 @@ export function PublishPackDialog({
                 <Input
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  placeholder="cozy-fantasy-starter"
+                  placeholder={derivedSlug || 'cozy-fantasy-starter'}
                   className="h-9 font-mono"
                   autoFocus
                   data-component-id="publish-pack-slug"

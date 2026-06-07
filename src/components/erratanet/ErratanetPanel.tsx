@@ -62,10 +62,42 @@ export function ErratanetPanel({ storyId, story, onExport }: ErratanetPanelProps
   // Where this story is published, if anywhere. Drives publish vs. sync.
   const publishedAs = story.settings?.erratanet?.publishedAs
   const publishedSlug = publishedAs ? publishedAs.pack.split('/')[1] : undefined
+  const fragmentPacks = story.settings?.erratanet?.fragmentPacks ?? []
 
   const [publishOpen, setPublishOpen] = useState(false)
   const [browseOpen, setBrowseOpen] = useState(false)
+  const [syncPack, setSyncPack] = useState<{ pack: string; fragments: Fragment[] } | null>(null)
   const emptyMedia = useMemo<Map<string, Fragment>>(() => new Map(), [])
+
+  // Fragments + media are needed to re-sync a fragment pack; only fetch them
+  // when this story has packs to sync (the query keys are shared/cached).
+  const needFragments = connected && fragmentPacks.length > 0
+  const { data: allFragments = [] } = useQuery({
+    queryKey: ['fragments', storyId],
+    queryFn: () => api.fragments.list(storyId),
+    enabled: needFragments,
+  })
+  const { data: imageFrags = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'image'],
+    queryFn: () => api.fragments.list(storyId, 'image'),
+    enabled: needFragments,
+  })
+  const { data: iconFrags = [] } = useQuery({
+    queryKey: ['fragments', storyId, 'icon'],
+    queryFn: () => api.fragments.list(storyId, 'icon'),
+    enabled: needFragments,
+  })
+  const fragmentById = useMemo(() => {
+    const m = new Map<string, Fragment>()
+    for (const f of allFragments) m.set(f.id, f)
+    return m
+  }, [allFragments])
+  const mediaById = useMemo(() => {
+    const m = new Map<string, Fragment>()
+    for (const f of imageFrags) m.set(f.id, f)
+    for (const f of iconFrags) m.set(f.id, f)
+    return m
+  }, [imageFrags, iconFrags])
 
   return (
     <>
@@ -112,6 +144,45 @@ export function ErratanetPanel({ storyId, story, onExport }: ErratanetPanelProps
                   </div>
                 )}
 
+                {/* Fragment packs published from this story (e.g. a starter). */}
+                {fragmentPacks.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-[0.625rem] uppercase tracking-wider text-muted-foreground">
+                      Fragment packs
+                    </p>
+                    {fragmentPacks.map((fp) => {
+                      const resolved = fp.fragmentIds
+                        .map((id) => fragmentById.get(id))
+                        .filter((f): f is Fragment => !!f)
+                      const missing = fp.fragmentIds.length - resolved.length
+                      return (
+                        <div
+                          key={fp.pack}
+                          className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/40 px-3 py-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-mono text-[0.75rem] text-foreground">{fp.pack}</p>
+                            <p className="font-mono text-[0.625rem] text-muted-foreground">
+                              v{fp.version} · {resolved.length} fragment{resolved.length === 1 ? '' : 's'}
+                              {missing > 0 ? ` · ${missing} missing` : ''}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 gap-1.5 px-2.5 text-[0.6875rem]"
+                            disabled={resolved.length === 0}
+                            onClick={() => setSyncPack({ pack: fp.pack, fragments: resolved })}
+                          >
+                            <ArrowUpFromLine className="size-3" />
+                            Sync
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
                 <Button
                   variant="ghost"
                   className="mt-2 h-8 w-full justify-start gap-2 px-2 text-[0.75rem] text-muted-foreground hover:text-foreground"
@@ -148,6 +219,21 @@ export function ErratanetPanel({ storyId, story, onExport }: ErratanetPanelProps
         selectedFragments={[]}
         mediaById={emptyMedia}
       />
+
+      {syncPack && (
+        <PublishPackDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setSyncPack(null)
+          }}
+          mode="fragments"
+          storyId={storyId}
+          defaultSlug={syncPack.pack.split('/')[1]}
+          storyName={story.name}
+          selectedFragments={syncPack.fragments}
+          mediaById={mediaById}
+        />
+      )}
 
       {browseOpen &&
         createPortal(

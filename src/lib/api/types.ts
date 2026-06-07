@@ -52,6 +52,8 @@ export interface StoryMeta {
       pack?: string
       version?: string
       publishedAs?: { pack: string; version: string }
+      /** Fragment packs published from this story (e.g. a reusable "starter"). */
+      fragmentPacks?: { pack: string; version: string; fragmentIds: string[] }[]
     }
   }
 }

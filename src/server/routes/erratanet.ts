@@ -232,6 +232,14 @@ export function erratanetRoutes(dataDir: string) {
         if (body.storyId && built.manifest.contentKind === 'story') {
           publishedAs = { pack: result.id, version: result.version }
           await stampStoryPublished(dataDir, body.storyId, publishedAs)
+        } else if (body.storyId && built.manifest.contentKind === 'fragment-pack') {
+          // Remember the fragment pack (and its fragments) so the sidebar can
+          // list it and re-sync it later.
+          await stampStoryFragmentPack(dataDir, body.storyId, {
+            pack: result.id,
+            version: result.version,
+            fragmentIds: body.fragmentIds ?? [],
+          })
         }
 
         return { id: result.id, version: result.version, publishedAs }
@@ -244,6 +252,7 @@ export function erratanetRoutes(dataDir: string) {
       body: t.Object({
         bundleJson: t.Optional(t.String()),
         storyId: t.Optional(t.String()),
+        fragmentIds: t.Optional(t.Array(t.String())),
         unlisted: t.Optional(t.Boolean()),
         manifest: manifestBody,
       }),
@@ -332,6 +341,28 @@ async function stampStoryPublished(
   await updateStory(dataDir, {
     ...story,
     settings: { ...story.settings, erratanet: { ...existing, publishedAs } },
+  })
+}
+
+type StoryFragmentPack = { pack: string; version: string; fragmentIds: string[] }
+
+/** Record a fragment pack published from a story, deduped by pack id (position kept). */
+async function stampStoryFragmentPack(
+  dataDir: string,
+  storyId: string,
+  entry: StoryFragmentPack,
+): Promise<void> {
+  const story = await getStory(dataDir, storyId)
+  if (!story) return
+  const existing = (story.settings.erratanet ?? {}) as Record<string, unknown>
+  const prior = Array.isArray(existing.fragmentPacks)
+    ? (existing.fragmentPacks as StoryFragmentPack[])
+    : []
+  const idx = prior.findIndex((p) => p.pack === entry.pack)
+  const fragmentPacks = idx >= 0 ? prior.map((p, i) => (i === idx ? entry : p)) : [...prior, entry]
+  await updateStory(dataDir, {
+    ...story,
+    settings: { ...story.settings, erratanet: { ...existing, fragmentPacks } },
   })
 }
 

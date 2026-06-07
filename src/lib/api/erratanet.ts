@@ -32,6 +32,8 @@ export const erratanet = {
   publish: (body: {
     bundleJson?: string
     storyId?: string
+    /** For a fragment pack published from a story: the fragments it contains. */
+    fragmentIds?: string[]
     unlisted?: boolean
     manifest: ErratapackManifest
   }) =>
