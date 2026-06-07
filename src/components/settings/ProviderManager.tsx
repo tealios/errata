@@ -130,7 +130,6 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     const cleanupUrl = () => {
       url.searchParams.delete('openrouter_oauth')
       url.searchParams.delete('code')
-      url.searchParams.delete('state')
       window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
     }
 
@@ -140,16 +139,15 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
       return
     }
 
-    let session: { verifier?: string; state?: string }
+    let session: { verifier?: string }
     try {
-      session = JSON.parse(stored) as { verifier?: string; state?: string }
+      session = JSON.parse(stored) as { verifier?: string }
     } catch {
       setOauthStatus({ type: 'error', message: 'OpenRouter sign-in session was invalid. Try connecting again.' })
       cleanupUrl()
       return
     }
-    const returnedState = url.searchParams.get('state')
-    if (!session.verifier || (returnedState && session.state && returnedState !== session.state)) {
+    if (!session.verifier) {
       setOauthStatus({ type: 'error', message: 'OpenRouter sign-in could not be verified. Try connecting again.' })
       cleanupUrl()
       return
@@ -205,14 +203,11 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     }
     const verifier = randomVerifier()
     const challenge = await sha256Challenge(verifier)
-    const state = randomVerifier()
 
-    const callback = new URL(window.location.href)
+    const callback = new URL(window.location.pathname, window.location.origin)
     callback.searchParams.set('openrouter_oauth', '1')
-    callback.searchParams.set('state', state)
-    callback.searchParams.delete('code')
 
-    sessionStorage.setItem(OPENROUTER_OAUTH_SESSION_KEY, JSON.stringify({ verifier, state }))
+    sessionStorage.setItem(OPENROUTER_OAUTH_SESSION_KEY, JSON.stringify({ verifier }))
 
     const authUrl = new URL('https://openrouter.ai/auth')
     authUrl.searchParams.set('callback_url', callback.toString())
