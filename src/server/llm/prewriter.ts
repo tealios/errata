@@ -1,4 +1,4 @@
-import { tool, ToolLoopAgent, stepCountIs, type ToolSet, type ProviderOptions } from 'ai'
+import { tool, ToolLoopAgent, stepCountIs, hasToolCall, type ToolSet, type ProviderOptions } from 'ai'
 import { z } from 'zod/v4'
 import { getModel } from './client'
 import { compileBlocks, expandMessagesFragmentTags, type ContextBlock, type ContextMessage } from './context-builder'
@@ -332,7 +332,11 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
     model,
     tools: mergedTools,
     toolChoice: 'auto',
-    stopWhen: stepCountIs(maxSteps),
+    stopWhen: [
+      stepCountIs(maxSteps),
+      hasToolCall('suggestDirections'),
+      hasToolCall('askQuestions'),
+    ],
     temperature,
     providerOptions,
   })
@@ -340,6 +344,7 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
   let fullText = ''
   let fullReasoning = ''
   let stepCount = 0
+  let terminalToolReturned = false
   const result = await agent.stream({
     messages: prewriterMessages,
     abortSignal,
@@ -348,10 +353,12 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
   for await (const part of result.fullStream) {
     const p = part as Record<string, unknown>
     if (part.type === 'text-delta') {
+      if (terminalToolReturned) continue
       const text = (p.text ?? '') as string
       fullText += text
       onEvent?.({ type: 'text', text })
     } else if (part.type === 'reasoning-delta') {
+      if (terminalToolReturned) continue
       const text = (p.text ?? '') as string
       fullReasoning += text
       onEvent?.({ type: 'reasoning', text })
@@ -363,6 +370,9 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
         args: (p.input ?? {}) as Record<string, unknown>,
       })
     } else if (part.type === 'tool-result') {
+      if (p.toolName === 'suggestDirections' || p.toolName === 'askQuestions') {
+        terminalToolReturned = true
+      }
       onEvent?.({
         type: 'tool-result',
         id: p.toolCallId as string,

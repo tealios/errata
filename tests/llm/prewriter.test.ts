@@ -107,6 +107,38 @@ function createMockStreamResult(text: string) {
   }
 }
 
+function createMockPrewriterToolLoopResult(firstText: string, secondText: string) {
+  async function* generateFullStream() {
+    yield { type: 'text-delta' as const, text: firstText }
+    yield {
+      type: 'tool-call' as const,
+      toolCallId: 'call-directions',
+      toolName: 'suggestDirections',
+      input: {
+        directions: [
+          { pacing: 'linger', title: 'Linger', description: 'Stay here.', instruction: 'Stay here.' },
+          { pacing: 'continue', title: 'Continue', description: 'Move on.', instruction: 'Move on.' },
+          { pacing: 'end', title: 'End', description: 'Close it.', instruction: 'Close it.' },
+        ],
+      },
+    }
+    yield {
+      type: 'tool-result' as const,
+      toolCallId: 'call-directions',
+      toolName: 'suggestDirections',
+      output: { ok: true },
+    }
+    yield { type: 'finish' as const, finishReason: 'tool-calls' }
+    yield { type: 'text-delta' as const, text: secondText }
+    yield { type: 'finish' as const, finishReason: 'stop' }
+  }
+
+  return {
+    fullStream: generateFullStream(),
+    totalUsage: Promise.resolve({ inputTokens: 10, outputTokens: 20 }),
+  }
+}
+
 /** Parse NDJSON response body into an array of events */
 async function parseNDJSON(res: Response): Promise<Array<Record<string, unknown>>> {
   const text = await res.text()
@@ -371,6 +403,36 @@ describe('prewriter', () => {
 
       // Writer should NOT see the raw guideline content (that's in the full context, not the brief)
       expect(userText).not.toContain('Dark gothic style.')
+    })
+
+    it('does not append text generated after the prewriter directions tool returns', async () => {
+      await createStory(dataDir, makeStory({ generationMode: 'prewriter' }))
+
+      let callCount = 0
+      mockAgentStream.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockPrewriterToolLoopResult('First brief.', 'Second repeated brief.') as any
+        }
+        return createMockStreamResult('Some prose.') as any
+      })
+
+      const res = await apiCall(`/stories/${storyId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Continue', saveResult: false }),
+      })
+
+      expect(res.status).toBe(200)
+      await res.text()
+
+      const writerArgs = mockAgentStream.mock.calls[1][0] as any
+      const writerText = writerArgs.messages!
+        .map((m: any) => typeof m.content === 'string' ? m.content : m.content?.map((p: any) => p.text).join('') ?? '')
+        .join('\n')
+
+      expect(writerText).toContain('First brief.')
+      expect(writerText).not.toContain('Second repeated brief.')
     })
 
     it('prewriter mode saves prewriter metadata in generation log', async () => {
