@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { ArrowLeft, RotateCcw, X } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { useProseColors, type ProseColorConfig } from '@/lib/theme'
 
 interface ColorChannel {
@@ -164,7 +164,13 @@ She paused, *weighing her options carefully*, before answering.
 
 "Someone had to," she replied. "And it certainly wasn't going to be Marcus."`
 
-export function ProseColorsPanel({ onClose }: { onClose: () => void }) {
+/**
+ * Inline prose-color controls: channel rows, preset swatches, and a live preview,
+ * without the standalone panel header, back button, or onClose chrome. Designed to
+ * be embedded directly inside the Appearance settings section. Keeps a compact
+ * inline "Reset all" affordance that appears once any color is customized.
+ */
+export function ProseColorsControls() {
   const [colors, setColors, resetColors] = useProseColors()
 
   const hasCustomColors = Object.values(colors).some(Boolean)
@@ -180,23 +186,9 @@ export function ProseColorsPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="size-4" />
-          </button>
-          <div>
-            <h3 className="text-sm font-medium">Prose colors</h3>
-            <p className="text-[0.625rem] text-muted-foreground">
-              Customize text colors in the reading view
-            </p>
-          </div>
-        </div>
+    <div className="rounded-lg border border-border/30 divide-y divide-border/20">
+      <div className="flex items-center justify-between px-3 py-2">
+        <p className="text-[0.75rem] font-medium text-foreground/80">Prose colors</p>
         {hasCustomColors && (
           <button
             type="button"
@@ -209,58 +201,53 @@ export function ProseColorsPanel({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      <div
-        className="flex-1 overflow-y-auto divide-y divide-border/20"
-        style={{ scrollbarWidth: 'thin' }}
-      >
-        {CHANNELS.map((channel) => (
-          <ColorRow
-            key={channel.key}
-            channel={channel}
-            value={colors[channel.key]}
-            onChange={(color) => updateColor(channel.key, color)}
-            onClear={() => clearColor(channel.key)}
-          />
-        ))}
+      {CHANNELS.map((channel) => (
+        <ColorRow
+          key={channel.key}
+          channel={channel}
+          value={colors[channel.key]}
+          onChange={(color) => updateColor(channel.key, color)}
+          onClear={() => clearColor(channel.key)}
+        />
+      ))}
 
-        {/* Live preview */}
-        <div className="px-4 py-4">
-          <p className="text-[0.625rem] text-muted-foreground uppercase tracking-wider mb-2">
-            Preview
-          </p>
-          <div
-            className="prose-content rounded-lg border border-border/20 bg-background p-4 text-[0.8125rem] leading-relaxed"
-          >
-            {PREVIEW_TEXT.split('\n\n').map((para, i) => {
-              // Simple rendering: detect dialogue and emphasis for preview
-              const parts = para.split(/("[^"]*")/g)
-              return (
-                <p key={i} className={i > 0 ? 'mt-3' : ''}>
-                  {parts.map((part, j) => {
-                    if (part.startsWith('"') && part.endsWith('"')) {
+      {/* Live preview */}
+      <div className="px-4 py-4">
+        <p className="text-[0.625rem] text-muted-foreground uppercase tracking-wider mb-2">
+          Preview
+        </p>
+        <div
+          className="prose-content rounded-lg border border-border/20 bg-background p-4 text-[0.8125rem] leading-relaxed"
+        >
+          {PREVIEW_TEXT.split('\n\n').map((para, i) => {
+            // Simple rendering: detect dialogue and emphasis for preview
+            const parts = para.split(/("[^"]*")/g)
+            return (
+              <p key={i} className={i > 0 ? 'mt-3' : ''}>
+                {parts.map((part, j) => {
+                  if (part.startsWith('"') && part.endsWith('"')) {
+                    return (
+                      <em key={j} className="prose-dialogue">
+                        {part}
+                      </em>
+                    )
+                  }
+                  // Handle emphasis markers
+                  const emphParts = part.split(/(\*[^*]+\*)/g)
+                  return emphParts.map((ep, k) => {
+                    if (ep.startsWith('*') && ep.endsWith('*')) {
                       return (
-                        <em key={j} className="prose-dialogue">
-                          {part}
+                        <em key={`${j}-${k}`}>
+                          {ep.slice(1, -1)}
                         </em>
                       )
                     }
-                    // Handle emphasis markers
-                    const emphParts = part.split(/(\*[^*]+\*)/g)
-                    return emphParts.map((ep, k) => {
-                      if (ep.startsWith('*') && ep.endsWith('*')) {
-                        return (
-                          <em key={`${j}-${k}`}>
-                            {ep.slice(1, -1)}
-                          </em>
-                        )
-                      }
-                      return ep
-                    })
-                  })}
-                </p>
-              )
-            })}
-          </div>
+                    return ep
+                  })
+                })}
+              </p>
+            )
+          })}
         </div>
       </div>
     </div>

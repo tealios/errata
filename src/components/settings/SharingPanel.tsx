@@ -4,20 +4,7 @@ import { api } from '@/lib/api'
 import type { SharingStatusResponse } from '@/lib/api/types'
 import { cn } from '@/lib/utils'
 import { Lock, Wifi, Globe, Loader2, Copy, Check, AlertTriangle, ShieldCheck } from 'lucide-react'
-
-function Toggle({ on, onToggle, disabled, label }: { on: boolean; onToggle: () => void; disabled?: boolean; label: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={on}
-      className={cn('relative h-[18px] w-[32px] shrink-0 rounded-full transition-colors disabled:opacity-40', on ? 'bg-foreground' : 'bg-muted-foreground/20')}
-    >
-      <span className={cn('absolute top-[2px] h-[14px] w-[14px] rounded-full bg-background transition-[left] duration-150', on ? 'left-[16px]' : 'left-[2px]')} />
-    </button>
-  )
-}
+import { Toggle } from './primitives'
 
 const inputClass = 'h-[28px] w-full rounded-md border border-border/40 bg-background px-2 text-[0.75rem] text-foreground focus:border-foreground/20 focus:outline-none'
 
@@ -148,7 +135,7 @@ export function SharingPanel() {
               <p className="text-[0.75rem] font-medium text-foreground/80">Local network</p>
               <p className="text-[0.625rem] leading-snug text-muted-foreground">Reach Errata from other devices on your Wi-Fi.</p>
             </div>
-            <Toggle on={status?.lan.enabled ?? false} disabled={!canExpose || busy} onToggle={() => lanMut.mutate(!(status?.lan.enabled))} label="Toggle local network" />
+            <Toggle checked={status?.lan.enabled ?? false} disabled={!canExpose || busy} onChange={(next) => lanMut.mutate(next)} label="Toggle local network" />
           </div>
           {status?.lan.enabled && status.lan.url && (
             <ConnectionCard icon={<Wifi className="size-3.5" />} label="LAN" url={status.lan.url} qr={status.lanQr} />
@@ -165,7 +152,7 @@ export function SharingPanel() {
               <p className="text-[0.75rem] font-medium text-foreground/80">Internet (Cloudflare Tunnel)</p>
               <p className="text-[0.625rem] leading-snug text-muted-foreground">A temporary public HTTPS link. cloudflared downloads automatically.</p>
             </div>
-            <Toggle on={status?.tunnel.enabled ?? false} disabled={!canExpose || busy} onToggle={() => tunnelMut.mutate(!(status?.tunnel.enabled))} label="Toggle tunnel" />
+            <Toggle checked={status?.tunnel.enabled ?? false} disabled={!canExpose || busy} onChange={(next) => tunnelMut.mutate(next)} label="Toggle tunnel" />
           </div>
           {status?.tunnel.enabled && tunnelStatusLabel && (
             <div className={cn('flex items-center gap-1.5 pl-6 text-[0.6875rem]', status.tunnel.status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>

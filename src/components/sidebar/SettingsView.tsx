@@ -165,7 +165,11 @@ export function SettingsView({
             ))}
           </nav>
 
-          <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto" data-slot="settings-scroll">
+          <div
+            ref={scrollRef}
+            className="min-w-0 flex-1 snap-y snap-proximity overflow-y-auto"
+            data-slot="settings-scroll"
+          >
             <SettingsPanel
               storyId={storyId}
               story={story}
@@ -174,9 +178,10 @@ export function SettingsView({
               onTogglePluginSidebar={onTogglePluginSidebar}
               pluginSidebarVisibility={pluginSidebarVisibility}
             />
-            {/* Lets the trailing sections scroll to the top so the TOC jump +
-                scroll-spy stay accurate for them. */}
-            <div aria-hidden className="h-[45vh]" />
+            {/* Small tail so the final section's top can still reach the
+                activation line; the min-h-[80vh] sections supply the rest of the
+                height the TOC jump + scroll-spy need. */}
+            <div aria-hidden className="h-[12vh]" />
           </div>
         </div>
       </div>

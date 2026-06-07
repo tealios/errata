@@ -51,7 +51,7 @@ export function CustomCssPanel({ onClose }: CustomCssPanelProps) {
 
       <PanelBody className="px-6 py-6" data-component-id="custom-css-panel-scroll">
         <div className="max-w-3xl w-full mx-auto space-y-4">
-          <Hint size="sm">
+          <Hint className="text-[0.625rem] leading-snug">
             Add your own CSS to customize the interface. Styles are applied globally when Custom CSS is enabled.
           </Hint>
 
