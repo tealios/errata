@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard, Camera, X, ImagePlus } from 'lucide-react'
+import { Plus, Trash2, Sparkles, BookOpen, Users, Scroll, Globe, Upload, ChevronRight, FileJson, AlertCircle, Clipboard, Camera, X, ImagePlus, Settings, Sun, Moon, Contrast } from 'lucide-react'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { ErrataLogo } from '@/components/ErrataLogo'
 import { ImportDialog } from '@/components/ImportDialog'
@@ -34,17 +34,29 @@ import {
 } from '@/lib/importers/tavern-card'
 import { GeneratedCover } from '@/components/GeneratedCover'
 import { useTheme } from '@/lib/theme'
+import { ProviderList, ProviderPanel } from '@/components/settings/ProviderManager'
+import { AboutSection } from '@/components/settings/AboutPanel'
+import { SectionHeading } from '@/components/settings/primitives'
+
+const THEME_OPTIONS = [
+  { value: 'light' as const, label: 'Light', Icon: Sun },
+  { value: 'dark' as const, label: 'Dark', Icon: Moon },
+  { value: 'high-contrast' as const, label: 'High contrast', Icon: Contrast },
+]
 
 export const Route = createFileRoute('/')({ component: StoryListPage })
 
 function StoryListPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { theme, setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [coverImage, setCoverImage] = useState<string | null>(null)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showProviders, setShowProviders] = useState(false)
   const [fileDragOver, setFileDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -396,6 +408,16 @@ function StoryListPage() {
               size="sm"
               variant="ghost"
               className="gap-1.5"
+              onClick={() => setShowSettings(true)}
+              data-component-id="story-settings-button"
+            >
+              <Settings className="size-3.5" />
+              Settings
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5"
               onClick={() => setShowImportDialog(true)}
               data-component-id="story-import-button"
             >
@@ -628,7 +650,11 @@ function StoryListPage() {
           </div>
         )}
 
-        <div className="library-shelf" data-component-id="story-list">
+        <div
+          className="grid gap-x-4 gap-y-7"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}
+          data-component-id="story-list"
+        >
           {sortedStories.map((story, i) => (
             <StoryCard
               key={story.id}
@@ -657,6 +683,49 @@ function StoryListPage() {
 
       <ImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} />
 
+      {/* Global settings reachable from the start page: appearance, providers, about. */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">Settings</DialogTitle>
+          </DialogHeader>
+          <div className="mt-1 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
+            <section>
+              <SectionHeading label="Appearance" />
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {THEME_OPTIONS.map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTheme(value)}
+                    aria-pressed={theme === value}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs transition-colors ${
+                      theme === value
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'
+                    }`}
+                  >
+                    <Icon className="size-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <SectionHeading label="LLM providers" />
+              <div className="mt-2">
+                <ProviderList onManage={() => { setShowSettings(false); setShowProviders(true) }} />
+              </div>
+            </section>
+
+            <AboutSection />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {showProviders && <ProviderPanel onClose={() => setShowProviders(false)} />}
+
       {/* Re-run onboarding */}
       <button
         data-component-id="onboarding-launch-button"
@@ -675,7 +744,6 @@ function StoryListPage() {
 function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: () => void; isRecent?: boolean }) {
   const queryClient = useQueryClient()
   const coverInputRef = useRef<HTMLInputElement>(null)
-  const { theme } = useTheme()
 
   const { data: fragments } = useQuery({
     queryKey: ['fragments', story.id],
@@ -722,8 +790,6 @@ function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: 
 
   const hasStats = stats && (stats.prose + stats.characters + stats.knowledge + stats.guidelines) > 0
   const hasCover = !!story.coverImage
-  // Light-mode generated covers have light parchment backgrounds → need dark text
-  const isLightCover = !hasCover && theme === 'light'
 
   return (
     <div className="relative group">
@@ -736,8 +802,6 @@ function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: 
         onChange={handleCoverFileChange}
       />
 
-      {isRecent && <div className="book-ribbon" aria-hidden title="Last opened" />}
-
       <Link
         to="/story/$storyId"
         params={{ storyId: story.id }}
@@ -746,94 +810,72 @@ function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: 
           localStorage.setItem(`errata:last-accessed:${story.id}`, new Date().toISOString())
         }}
       >
-        <div className="book" data-component-id={`story-${story.id}-card`}>
-          {/* Background layer */}
+        <div
+          className="relative aspect-[3/4] overflow-hidden rounded-lg ring-1 ring-border/60 transition-all duration-200 group-hover:ring-border group-hover:shadow-md"
+          data-component-id={`story-${story.id}-card`}
+        >
           {hasCover ? (
-            <img
-              src={story.coverImage!}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={story.coverImage!} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <GeneratedCover token={story.name} className="absolute inset-0" />
           )}
+          {isRecent && (
+            <span className="absolute left-2 top-2 rounded-full bg-background/85 px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
+              Last opened
+            </span>
+          )}
+        </div>
 
-          {/* Gradient overlay — adapts to cover brightness */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: hasCover
-                ? 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)'
-                : isLightCover
-                  ? 'linear-gradient(to top, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.3) 45%, transparent 100%)'
-                  : 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 50%, transparent 100%)',
-            }}
-          />
-
-          {/* Text content — pinned to bottom */}
-          <div className="absolute inset-x-0 bottom-0 p-4 flex flex-col justify-end">
-            <h2 className={`font-display text-base leading-snug drop-shadow-sm line-clamp-2 group-hover:text-primary transition-colors ${
-              isLightCover ? 'text-stone-800' : 'text-white'
-            }`}>
-              {story.name}
-            </h2>
-            {story.description && (
-              <p className={`text-[0.8125rem] leading-relaxed mt-1 line-clamp-2 ${
-                isLightCover ? 'text-stone-600' : 'text-white/70'
-              }`}>
-                {story.description}
-              </p>
-            )}
-
-            {/* Stats row */}
-            <div className="flex items-center gap-3 mt-2.5 flex-wrap">
-              {hasStats ? (
-                <>
-                  {stats.prose > 0 && (
-                    <span className={`flex items-center gap-1 text-[0.6875rem] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
-                      <BookOpen className="size-3" />
-                      {stats.prose}
-                    </span>
-                  )}
-                  {stats.characters > 0 && (
-                    <span className={`flex items-center gap-1 text-[0.6875rem] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
-                      <Users className="size-3" />
-                      {stats.characters}
-                    </span>
-                  )}
-                  {stats.knowledge > 0 && (
-                    <span className={`flex items-center gap-1 text-[0.6875rem] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.knowledge} knowledge`}>
-                      <Globe className="size-3" />
-                      {stats.knowledge}
-                    </span>
-                  )}
-                  {stats.guidelines > 0 && (
-                    <span className={`flex items-center gap-1 text-[0.6875rem] ${isLightCover ? 'text-stone-500' : 'text-white/50'}`} title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
-                      <Scroll className="size-3" />
-                      {stats.guidelines}
-                    </span>
-                  )}
-                </>
-              ) : null}
-              <span className={`text-[0.6875rem] ml-auto ${isLightCover ? 'text-stone-400' : 'text-white/40'}`}>
-                {new Date(story.updatedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
+        {/* Caption below the cover — no overlay, no gradient. */}
+        <div className="mt-2.5 px-0.5">
+          <h2 className="font-display text-base leading-snug line-clamp-1 transition-colors group-hover:text-primary">
+            {story.name}
+          </h2>
+          {story.description && (
+            <p className="mt-0.5 line-clamp-1 text-[0.8125rem] leading-snug text-muted-foreground">
+              {story.description}
+            </p>
+          )}
+          <div className="mt-1.5 flex items-center gap-3 text-[0.6875rem] text-muted-foreground">
+            {hasStats ? (
+              <>
+                {stats.prose > 0 && (
+                  <span className="flex items-center gap-1" title={`${stats.prose} passage${stats.prose !== 1 ? 's' : ''}`}>
+                    <BookOpen className="size-3" />
+                    {stats.prose}
+                  </span>
+                )}
+                {stats.characters > 0 && (
+                  <span className="flex items-center gap-1" title={`${stats.characters} character${stats.characters !== 1 ? 's' : ''}`}>
+                    <Users className="size-3" />
+                    {stats.characters}
+                  </span>
+                )}
+                {stats.knowledge > 0 && (
+                  <span className="flex items-center gap-1" title={`${stats.knowledge} knowledge`}>
+                    <Globe className="size-3" />
+                    {stats.knowledge}
+                  </span>
+                )}
+                {stats.guidelines > 0 && (
+                  <span className="flex items-center gap-1" title={`${stats.guidelines} guideline${stats.guidelines !== 1 ? 's' : ''}`}>
+                    <Scroll className="size-3" />
+                    {stats.guidelines}
+                  </span>
+                )}
+              </>
+            ) : null}
+            <span className="ml-auto">
+              {new Date(story.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
           </div>
         </div>
       </Link>
 
-      {/* Hover action buttons — outside Link to prevent navigation */}
-      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+      {/* Hover action buttons — over the cover, outside the Link to prevent navigation */}
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         <button
-          className={`size-7 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${
-            isLightCover
-              ? 'bg-white/60 text-stone-600 hover:bg-white/80 hover:text-stone-800'
-              : 'bg-black/50 text-white/80 hover:bg-black/70 hover:text-white'
-          }`}
+          className="grid size-7 place-items-center rounded-full bg-black/55 text-white/85 transition-colors hover:bg-black/75 hover:text-white"
           title="Set cover image"
           onClick={() => coverInputRef.current?.click()}
         >
@@ -841,7 +883,7 @@ function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: 
         </button>
         {hasCover && (
           <button
-            className="size-7 rounded-full bg-black/50 backdrop-blur-sm text-white/80 flex items-center justify-center hover:bg-black/70 hover:text-white transition-colors"
+            className="grid size-7 place-items-center rounded-full bg-black/55 text-white/85 transition-colors hover:bg-black/75 hover:text-white"
             title="Remove cover"
             onClick={() => updateCoverMutation.mutate(null)}
           >
@@ -849,11 +891,7 @@ function StoryCard({ story, onDelete, isRecent }: { story: StoryMeta; onDelete: 
           </button>
         )}
         <button
-          className={`size-7 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${
-            isLightCover
-              ? 'bg-white/60 text-stone-600 hover:bg-red-500/80 hover:text-white'
-              : 'bg-black/50 text-white/80 hover:bg-red-600/80 hover:text-white'
-          }`}
+          className="grid size-7 place-items-center rounded-full bg-black/55 text-white/85 transition-colors hover:bg-red-600/85 hover:text-white"
           title={`Delete "${story.name}"`}
           data-component-id={`story-${story.id}-delete-button`}
           onClick={onDelete}
