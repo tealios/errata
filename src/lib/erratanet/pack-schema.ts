@@ -123,6 +123,18 @@ export function parseGlobalPackId(id: string): { handle: string; slug: string } 
 }
 
 /**
+ * Front-facing URL of a pack's page on the hub site. The page lives at
+ * `{hubUrl}/@handle/slug` (the same `@handle/slug` the browser's URL parser
+ * extracts from a pasted pack link). Returns null when the hub URL is missing
+ * or the id is not a valid global pack id, so callers can hide the link.
+ */
+export function packPageUrl(hubUrl: string | null | undefined, id: string): string | null {
+  const base = (hubUrl ?? '').trim().replace(/\/+$/, '')
+  if (!base || !parseGlobalPackId(id)) return null
+  return `${base}/${id}`
+}
+
+/**
  * MVP trust gate. A pack is safe to install only when it declares no
  * capabilities and carries no scripts. blockConfig / agentBlockConfig and any
  * executable surface are rejected upstream; this guards the manifest side.
