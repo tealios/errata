@@ -69,7 +69,9 @@ export function onDesktopBridgeReady(
   const intervalMs = options.intervalMs ?? 50
   const startedAt = Date.now()
   let disposed = false
-  let timer: ReturnType<typeof window.setTimeout> | undefined
+  // window.setTimeout returns a number in the browser; typing it as ReturnType<...> picks up
+  // the Node Timeout overload from @types/node and mismatches the value at the call site.
+  let timer: number | undefined
 
   const poll = () => {
     if (disposed) return
