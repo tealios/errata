@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment } from '@/lib/api'
 import type { ErratapackManifest } from '@/lib/erratanet/pack-schema'
-import { GLOBAL_PACK_ID_REGEX } from '@/lib/erratanet/pack-schema'
+import { GLOBAL_PACK_ID_REGEX, packPageUrl } from '@/lib/erratanet/pack-schema'
 import { serializeBundle } from '@/lib/fragment-clipboard'
 import { parseVisualRefs } from '@/lib/fragment-visuals'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,7 @@ import {
   Check,
   AlertTriangle,
   X,
+  ExternalLink,
   Image as ImageIcon,
 } from 'lucide-react'
 
@@ -134,6 +135,12 @@ export function PublishPackDialog({
   const { data: account } = useQuery({
     queryKey: ['erratanet-account'],
     queryFn: () => api.erratanet.getAccount(),
+    enabled: open,
+  })
+  // The configured hub, used to build a hotlink to the published pack's page.
+  const { data: config } = useQuery({
+    queryKey: ['erratanet-config'],
+    queryFn: () => api.erratanet.getConfig(),
     enabled: open,
   })
   const handle = account?.handle ?? null
@@ -372,6 +379,20 @@ export function PublishPackDialog({
               <p className="mt-1 font-mono text-[0.8125rem] text-muted-foreground">{publishedId}</p>
               <p className="mt-1 text-[0.6875rem] text-muted-foreground">version {nextVersion}</p>
             </div>
+            {(() => {
+              const packUrl = packPageUrl(config?.hubUrl, publishedId)
+              return packUrl ? (
+                <a
+                  href={packUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border/40 px-3 py-1.5 text-[0.75rem] text-foreground/80 transition-colors hover:border-border hover:text-foreground"
+                >
+                  View on ErrataNet
+                  <ExternalLink className="size-3.5" />
+                </a>
+              ) : null
+            })()}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-5 py-1 pr-1">
@@ -380,7 +401,7 @@ export function PublishPackDialog({
               <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500/80" />
                 <p className="text-[0.6875rem] leading-snug text-amber-600/80 dark:text-amber-400/80">
-                  No hub account connected. Sign in under Settings, Remote before publishing.
+                  No hub account connected. Sign in from the ErrataNet panel before publishing.
                 </p>
               </div>
             )}
