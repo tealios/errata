@@ -1,16 +1,16 @@
 /**
  * Desktop-only Updates controls. Renders nothing in the browser build. Inside the Electron
  * shell it drives electron-updater: a manual check, confirm-to-download (or skip), download
- * progress, restart-to-install, and an "install automatically" toggle. By default every
- * update asks for confirmation; stories are backed up before any update is applied. Update
- * state is pushed from the main process (see desktop/updater.ts) via the preload bridge.
+ * progress, and restart-to-install. Updates are never checked, downloaded, or installed until
+ * the user asks. Stories are backed up before any update is applied. Update state is pushed
+ * from the main process (see desktop/updater.ts) via the preload bridge.
  *
  * No em dashes in copy, per project convention.
  */
 import { useEffect, useState } from 'react'
 import { RefreshCw, Download } from 'lucide-react'
 import { desktop, type DesktopUpdateState } from '@/lib/desktop'
-import { SectionHeading, SettingsCard, SettingRow, Toggle } from './primitives'
+import { SettingsCard, SettingRow } from './primitives'
 
 const primaryBtn =
   'flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1 text-[0.6875rem] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40'
@@ -34,19 +34,17 @@ function statusText(state: DesktopUpdateState): string {
     case 'error':
       return `Update check failed: ${state.error ?? 'unknown error'}`
     default:
-      return 'Updates are checked on launch.'
+      return 'Check manually when you want to look for a new release.'
   }
 }
 
 export function DesktopUpdatesControls() {
   const [state, setState] = useState<DesktopUpdateState>({ status: 'idle' })
-  const [autoInstall, setAutoInstall] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!desktop) return
     desktop.getUpdateState().then(setState).catch(() => {})
-    desktop.getUpdatePrefs().then((p) => setAutoInstall(p.autoInstall)).catch(() => {})
     return desktop.onUpdateState(setState)
   }, [])
 
@@ -62,23 +60,19 @@ export function DesktopUpdatesControls() {
     }
   }
 
-  const toggleAuto = async (next: boolean) => {
-    setAutoInstall(next)
-    try {
-      const p = await bridge.setAutoInstall(next)
-      setAutoInstall(p.autoInstall)
-    } catch {
-      setAutoInstall(!next)
-    }
-  }
-
   const checking = busy || state.status === 'checking'
+  const checkButton = (
+    <button type="button" className={ghostBtn} onClick={check} disabled={checking}>
+      <RefreshCw className={`size-3 ${checking ? 'animate-spin' : ''}`} />
+      Check for updates
+    </button>
+  )
 
   const actions = () => {
     switch (state.status) {
       case 'available':
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <button type="button" className={primaryBtn} onClick={() => bridge.downloadUpdate()}>
               <Download className="size-3" />
               Download and install
@@ -86,14 +80,18 @@ export function DesktopUpdatesControls() {
             <button type="button" className={ghostBtn} onClick={() => bridge.skipUpdate(state.version ?? '')}>
               Skip
             </button>
+            {checkButton}
           </div>
         )
       case 'skipped':
         return (
-          <button type="button" className={ghostBtn} onClick={() => bridge.downloadUpdate()}>
-            <Download className="size-3" />
-            Download
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <button type="button" className={ghostBtn} onClick={() => bridge.downloadUpdate()}>
+              <Download className="size-3" />
+              Download
+            </button>
+            {checkButton}
+          </div>
         )
       case 'downloaded':
         return (
@@ -106,31 +104,19 @@ export function DesktopUpdatesControls() {
       case 'checking':
         return null
       default:
-        return (
-          <button type="button" className={ghostBtn} onClick={check} disabled={checking}>
-            <RefreshCw className={`size-3 ${checking ? 'animate-spin' : ''}`} />
-            Check for updates
-          </button>
-        )
+        return checkButton
     }
   }
 
   return (
     <div>
-      <SectionHeading label="Updates" />
       <SettingsCard>
-        <SettingRow
-          label="Install updates automatically"
-          description="Skip the confirmation and update in the background. Stories are backed up first."
-        >
-          <Toggle checked={autoInstall} onChange={toggleAuto} label="Install updates automatically" />
-        </SettingRow>
-        <SettingRow label="Status" description={statusText(state)}>
+        <SettingRow label="Desktop updates" description={statusText(state)}>
           {actions()}
         </SettingRow>
       </SettingsCard>
       <p className="mt-1.5 px-3 text-[0.625rem] leading-snug text-muted-foreground">
-        Your stories are backed up before every update.
+        Errata only checks for updates when you click the button. Your stories are backed up before every install.
       </p>
     </div>
   )

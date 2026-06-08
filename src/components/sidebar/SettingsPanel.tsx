@@ -9,7 +9,6 @@ import { TtsSettings } from '@/components/settings/TtsSettings'
 import { SharingPanel } from '@/components/settings/SharingPanel'
 import { ProseColorsControls } from '@/components/settings/ProseColorsPanel'
 import { CustomTransformsControls } from '@/components/settings/CustomTransformsPanel'
-import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
 import { AboutSection } from '@/components/settings/AboutPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
@@ -921,11 +920,7 @@ export function SettingsPanel({
 
       {/* About: version, links (docs, Discord, GitHub, releases), attribution + desktop updates */}
       <SettingsSection id="set-about" label="About" group="System">
-        <div className="space-y-4">
-          <AboutSection />
-          {/* Desktop app updates (Electron only; renders nothing in the browser) */}
-          <DesktopUpdatesControls />
-        </div>
+        <AboutSection />
       </SettingsSection>
     </div>
   )

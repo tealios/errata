@@ -1,10 +1,8 @@
 /**
  * Auto-update wiring around electron-updater.
  *
- * Default behavior is confirm-before-update: nothing downloads automatically. When an update
- * is found the renderer is notified and the user chooses to download + install, or to skip
- * that version (which can still be downloaded later from Settings). Turning on "Install
- * updates automatically" (persisted) restores silent background download + install on quit.
+ * Updates are fully user-initiated: Errata only checks when the renderer asks, nothing
+ * downloads automatically, and installation only happens after the user confirms it.
  *
  * Before any update is applied, the stories/data directory is copied to userData/backups.
  *
@@ -37,7 +35,7 @@ export interface UpdateState {
 }
 
 export interface UpdatePrefs {
-  /** Skip the confirmation prompt: download + install in the background. */
+  /** Deprecated. Kept in the bridge shape for compatibility with older renderer builds. */
   autoInstall: boolean
   /** A version the user chose to skip; not prompted again until something newer appears. */
   skippedVersion: string | null
@@ -57,7 +55,7 @@ async function loadPrefs() {
   try {
     const parsed = JSON.parse(await readFile(prefsPath(), 'utf-8'))
     prefs = {
-      autoInstall: Boolean(parsed.autoInstall),
+      autoInstall: false,
       skippedVersion: typeof parsed.skippedVersion === 'string' ? parsed.skippedVersion : null,
     }
   } catch {
@@ -134,10 +132,7 @@ function wireUpdaterEvents() {
   autoUpdater.on('checking-for-update', () => setState({ status: 'checking', error: undefined }))
   autoUpdater.on('update-available', (info) => {
     const version = info.version
-    if (prefs.autoInstall) {
-      setState({ status: 'downloading', version, percent: 0 })
-      startDownload()
-    } else if (version === prefs.skippedVersion) {
+    if (version === prefs.skippedVersion) {
       setState({ status: 'skipped', version })
     } else {
       setState({ status: 'available', version })
@@ -159,13 +154,9 @@ export function setupUpdater(window: BrowserWindow) {
   ipcMain.handle('errata:update:get-state', () => state)
   ipcMain.handle('errata:update:get-prefs', () => prefs)
 
-  ipcMain.handle('errata:update:set-auto-install', (_e, enabled: boolean) => {
-    prefs.autoInstall = Boolean(enabled)
+  ipcMain.handle('errata:update:set-auto-install', () => {
+    prefs.autoInstall = false
     void savePrefs()
-    // If turning automation on while an update awaits a decision, proceed with it now.
-    if (prefs.autoInstall && (state.status === 'available' || state.status === 'skipped')) {
-      startDownload()
-    }
     return prefs
   })
 
@@ -185,6 +176,8 @@ export function setupUpdater(window: BrowserWindow) {
 
   // Confirm a download (also used to download a previously-skipped version).
   ipcMain.handle('errata:update:download', () => {
+    prefs.skippedVersion = null
+    void savePrefs()
     if (app.isPackaged) startDownload()
   })
 
@@ -203,19 +196,5 @@ export function setupUpdater(window: BrowserWindow) {
 
   void loadPrefs().then(() => {
     wireUpdaterEvents()
-    // Give the window a beat to load before the first network check.
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(() => {
-        /* surfaced via the error event */
-      })
-    }, 3_000)
-  })
-
-  // Auto-install mode applies the downloaded update on quit, after a backup.
-  app.on('before-quit', (event) => {
-    if (prefs.autoInstall && state.status === 'downloaded' && !applying) {
-      event.preventDefault()
-      void applyUpdate()
-    }
   })
 }
