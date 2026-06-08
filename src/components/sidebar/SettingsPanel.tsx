@@ -9,9 +9,11 @@ import { TtsSettings } from '@/components/settings/TtsSettings'
 import { SharingPanel } from '@/components/settings/SharingPanel'
 import { ProseColorsControls } from '@/components/settings/ProseColorsPanel'
 import { CustomTransformsControls } from '@/components/settings/CustomTransformsPanel'
+import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
 import { AboutSection } from '@/components/settings/AboutPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
+import { desktop } from '@/lib/desktop'
 import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
 import {
   SettingsSection,
@@ -840,6 +842,13 @@ export function SettingsPanel({
       <SettingsSection id="set-erratanet" label="ErrataNet" group="System">
         <ErrataNetSection />
       </SettingsSection>
+
+      {/* Updates */}
+      {desktop && (
+        <SettingsSection id="set-updates" label="Updates" group="System">
+          <DesktopUpdatesControls />
+        </SettingsSection>
+      )}
 
       {/* Plugins */}
       <SettingsSection id="set-plugins" label="Plugins" group="System">

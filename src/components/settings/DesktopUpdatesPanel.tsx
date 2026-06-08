@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Download } from 'lucide-react'
 import { desktop, type DesktopUpdateState } from '@/lib/desktop'
-import { SettingsCard, SettingRow } from './primitives'
+import { SectionHeading, SettingsCard, SettingRow } from './primitives'
 
 const primaryBtn =
   'flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1 text-[0.6875rem] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40'
@@ -110,6 +110,7 @@ export function DesktopUpdatesControls() {
 
   return (
     <div>
+      <SectionHeading label="Updates" />
       <SettingsCard>
         <SettingRow label="Desktop updates" description={statusText(state)}>
           {actions()}

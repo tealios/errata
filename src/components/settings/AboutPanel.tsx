@@ -5,7 +5,6 @@
  */
 import { ExternalLink } from 'lucide-react'
 import { SectionHeading, SettingsCard } from './primitives'
-import { DesktopUpdatesControls } from './DesktopUpdatesPanel'
 
 const LINKS: { label: string; href: string }[] = [
   { label: 'Documentation', href: 'https://github.com/tealios/errata/tree/master/docs' },
@@ -46,10 +45,6 @@ export function AboutSection() {
           </a>
         ))}
       </SettingsCard>
-
-      <div className="mt-4">
-        <DesktopUpdatesControls />
-      </div>
 
       <p className="mt-2 text-center text-[0.625rem] leading-relaxed text-muted-foreground">
         Built by{' '}

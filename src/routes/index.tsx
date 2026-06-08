@@ -36,6 +36,7 @@ import { GeneratedCover } from '@/components/GeneratedCover'
 import { useTheme } from '@/lib/theme'
 import { ProviderList, ProviderPanel } from '@/components/settings/ProviderManager'
 import { AboutSection } from '@/components/settings/AboutPanel'
+import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
 import { SectionHeading } from '@/components/settings/primitives'
 
 const THEME_OPTIONS = [
@@ -719,6 +720,7 @@ function StoryListPage() {
               </div>
             </section>
 
+            <DesktopUpdatesControls />
             <AboutSection />
           </div>
         </DialogContent>
