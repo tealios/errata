@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react'
 import { RefreshCw, Download } from 'lucide-react'
-import { desktop, type DesktopUpdateState } from '@/lib/desktop'
+import { getDesktopBridge, onDesktopBridgeReady, type DesktopUpdateState, type ErrataDesktop } from '@/lib/desktop'
 import { SectionHeading, SettingsCard, SettingRow } from './primitives'
 
 const primaryBtn =
@@ -39,17 +39,24 @@ function statusText(state: DesktopUpdateState): string {
 }
 
 export function DesktopUpdatesControls() {
+  const [bridge, setBridge] = useState<ErrataDesktop | null>(() => getDesktopBridge())
   const [state, setState] = useState<DesktopUpdateState>({ status: 'idle' })
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!desktop) return
-    desktop.getUpdateState().then(setState).catch(() => {})
-    return desktop.onUpdateState(setState)
+    let unsubscribeUpdates: (() => void) | undefined
+    const stopWaiting = onDesktopBridgeReady((currentBridge) => {
+      setBridge(currentBridge)
+      currentBridge.getUpdateState().then(setState).catch(() => {})
+      unsubscribeUpdates = currentBridge.onUpdateState(setState)
+    })
+    return () => {
+      stopWaiting()
+      unsubscribeUpdates?.()
+    }
   }, [])
 
-  if (!desktop) return null
-  const bridge = desktop
+  if (!bridge) return null
 
   const check = async () => {
     setBusy(true)

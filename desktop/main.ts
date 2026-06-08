@@ -5,6 +5,7 @@
  */
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { startSidecar, type SidecarHandle } from './sidecar'
 import { setupUpdater } from './updater'
 
@@ -14,6 +15,14 @@ const BACKGROUND_COLOR = '#efe7d6'
 let mainWindow: BrowserWindow | null = null
 let sidecar: SidecarHandle | null = null
 let quitting = false
+
+function resolvePreloadPath(): string {
+  const candidates = [
+    join(app.getAppPath(), 'preload.cjs'),
+    join(process.cwd(), 'dist-electron', 'preload.cjs'),
+  ]
+  return candidates.find((path) => existsSync(path)) ?? candidates[0]
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -26,7 +35,7 @@ function createWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
+      preload: resolvePreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

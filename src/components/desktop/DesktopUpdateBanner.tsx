@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
-import { desktop, type DesktopUpdateState } from '@/lib/desktop'
+import { getDesktopBridge, onDesktopBridgeReady, type DesktopUpdateState, type ErrataDesktop } from '@/lib/desktop'
 
 const primaryBtn =
   'flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1 text-[0.6875rem] font-medium text-background transition-opacity hover:opacity-90'
@@ -15,17 +15,24 @@ const ghostBtn =
   'rounded-md px-2 py-1 text-[0.6875rem] text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground/70'
 
 export function DesktopUpdateBanner() {
+  const [bridge, setBridge] = useState<ErrataDesktop | null>(() => getDesktopBridge())
   const [state, setState] = useState<DesktopUpdateState>({ status: 'idle' })
   const [dismissedKey, setDismissedKey] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!desktop) return
-    desktop.getUpdateState().then(setState).catch(() => {})
-    return desktop.onUpdateState(setState)
+    let unsubscribeUpdates: (() => void) | undefined
+    const stopWaiting = onDesktopBridgeReady((currentBridge) => {
+      setBridge(currentBridge)
+      currentBridge.getUpdateState().then(setState).catch(() => {})
+      unsubscribeUpdates = currentBridge.onUpdateState(setState)
+    })
+    return () => {
+      stopWaiting()
+      unsubscribeUpdates?.()
+    }
   }, [])
 
-  if (!desktop) return null
-  const bridge = desktop
+  if (!bridge) return null
 
   // Only prompt for states that need attention.
   const visibleStatus =

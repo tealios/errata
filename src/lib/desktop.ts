@@ -46,7 +46,49 @@ export interface ErrataDesktop {
   onUpdateState(cb: (state: DesktopUpdateState) => void): () => void
 }
 
-export const desktop: ErrataDesktop | null =
-  typeof window !== 'undefined' && window.errataDesktop ? window.errataDesktop : null
+export function getDesktopBridge(): ErrataDesktop | null {
+  return typeof window !== 'undefined' && window.errataDesktop ? window.errataDesktop : null
+}
+
+export function onDesktopBridgeReady(
+  cb: (bridge: ErrataDesktop) => void,
+  options: { timeoutMs?: number; intervalMs?: number } = {},
+): () => void {
+  const bridge = getDesktopBridge()
+  if (bridge) {
+    cb(bridge)
+    return () => {}
+  }
+
+  if (typeof window === 'undefined') return () => {}
+
+  const timeoutMs = options.timeoutMs ?? 1500
+  const intervalMs = options.intervalMs ?? 50
+  const startedAt = Date.now()
+  let disposed = false
+  let timer: ReturnType<typeof window.setTimeout> | undefined
+
+  const poll = () => {
+    if (disposed) return
+
+    const nextBridge = getDesktopBridge()
+    if (nextBridge) {
+      cb(nextBridge)
+      return
+    }
+
+    if (Date.now() - startedAt >= timeoutMs) return
+    timer = window.setTimeout(poll, intervalMs)
+  }
+
+  timer = window.setTimeout(poll, intervalMs)
+
+  return () => {
+    disposed = true
+    if (timer !== undefined) window.clearTimeout(timer)
+  }
+}
+
+export const desktop: ErrataDesktop | null = getDesktopBridge()
 
 export const isDesktop = desktop !== null

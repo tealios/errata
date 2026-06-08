@@ -51,15 +51,22 @@ export function SettingsView({
   useEffect(() => {
     const root = scrollRef.current
     if (!root) return
-    const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-toc]'))
-    setToc(sections.map((s) => ({ id: s.id, label: s.dataset.toc || s.id, group: s.dataset.tocGroup || '' })))
-    setActiveId((prev) => prev || sections[0]?.id || '')
+    let sections: HTMLElement[] = []
+
+    const refreshToc = () => {
+      sections = Array.from(root.querySelectorAll<HTMLElement>('[data-toc]'))
+      setToc(sections.map((s) => ({ id: s.id, label: s.dataset.toc || s.id, group: s.dataset.tocGroup || '' })))
+      setActiveId((prev) => {
+        if (prev && sections.some((s) => s.id === prev)) return prev
+        return sections[0]?.id || ''
+      })
+    }
 
     const atBottom = () => root.scrollTop + root.clientHeight >= root.scrollHeight - 4
-    const lastId = sections[sections.length - 1]?.id
 
     const resolveActive = () => {
       if (Date.now() < clickLockRef.current) return
+      const lastId = sections[sections.length - 1]?.id
       // When scrolled to the very end, the last section is active.
       if (atBottom() && lastId) { setActiveId(lastId); return }
       // Otherwise: the last section whose top has passed the activation line.
@@ -72,9 +79,18 @@ export function SettingsView({
       if (current) setActiveId(current)
     }
 
+    refreshToc()
     resolveActive()
     root.addEventListener('scroll', resolveActive, { passive: true })
-    return () => root.removeEventListener('scroll', resolveActive)
+    const observer = new MutationObserver(() => {
+      refreshToc()
+      resolveActive()
+    })
+    observer.observe(root, { childList: true, subtree: true })
+    return () => {
+      root.removeEventListener('scroll', resolveActive)
+      observer.disconnect()
+    }
   }, [])
 
   // Escape to close; focus the panel when it opens.

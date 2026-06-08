@@ -13,7 +13,7 @@ import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPane
 import { AboutSection } from '@/components/settings/AboutPanel'
 import { ModelSelect } from '@/components/settings/ModelSelect'
 import { ProviderSelect } from '@/components/settings/ProviderSelect'
-import { desktop } from '@/lib/desktop'
+import { getDesktopBridge, onDesktopBridgeReady } from '@/lib/desktop'
 import { resolveProvider, getInheritLabel } from '@/lib/model-role-helpers'
 import {
   SettingsSection,
@@ -419,6 +419,11 @@ export function SettingsPanel({
   const [fontPrefs, setFont, resetFonts] = useFontPreferences()
   const hasCustomFonts = Object.keys(fontPrefs).length > 0
   const [, customCssEnabled, , setCustomCssEnabled] = useCustomCss()
+  const [hasDesktopBridge, setHasDesktopBridge] = useState(() => getDesktopBridge() !== null)
+
+  useEffect(() => {
+    return onDesktopBridgeReady(() => setHasDesktopBridge(true))
+  }, [])
 
   const summaryCompact = story.settings.summaryCompact ?? { maxCharacters: 12000, targetCharacters: 9000 }
 
@@ -844,7 +849,7 @@ export function SettingsPanel({
       </SettingsSection>
 
       {/* Updates */}
-      {desktop && (
+      {hasDesktopBridge && (
         <SettingsSection id="set-updates" label="Updates" group="System">
           <DesktopUpdatesControls />
         </SettingsSection>
