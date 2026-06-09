@@ -281,20 +281,55 @@ code {
   50% { opacity: 0.45; }
 }
 
+/* Rotation runs on the wrapping HTML layers (not the SVG <g>), so each group
+   is composited once and spun on the GPU. will-change promotes the layer up
+   front; transform-origin keeps the spin centred. See issue #36. */
 @utility animate-guilloche {
   animation-name: guilloche-rotate;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  transform-origin: center;
+  will-change: transform;
 }
 
 @utility animate-guilloche-reverse {
   animation-name: guilloche-rotate-reverse;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  transform-origin: center;
+  will-change: transform;
 }
 
 @utility animate-guilloche-breathe {
   animation: guilloche-breathe 40s ease-in-out infinite;
+}
+
+/* Radial fade applied as a CSS mask on the container, replacing the in-SVG
+   <mask> + gradient (which forced a per-frame software paint). */
+.guilloche-fade {
+  -webkit-mask-image: radial-gradient(
+    circle at center,
+    black 0%,
+    rgba(0, 0, 0, 0.6) 35%,
+    transparent 70%
+  );
+  mask-image: radial-gradient(
+    circle at center,
+    black 0%,
+    rgba(0, 0, 0, 0.6) 35%,
+    transparent 70%
+  );
+}
+
+/* Respect reduced-motion: hold the guilloche still. Its presence is the
+   decoration; the rotation and breathe are the flourish. (.impeccable.md §5) */
+@media (prefers-reduced-motion: reduce) {
+  .animate-guilloche,
+  .animate-guilloche-reverse,
+  .animate-guilloche-breathe {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 /* ── Onboarding animations ──────────────────────────── */

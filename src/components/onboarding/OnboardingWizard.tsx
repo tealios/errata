@@ -39,12 +39,22 @@ const GUILLOCHE_GROUPS = [
   { waves: 7, amplitude: 14, rMin: 45, rMax: 265, spacing: 11, dur: 240, rev: true },
 ] as const
 
+/** Sine rings are smooth; 140 segments is visually indistinguishable from 360 here. */
+const RING_STEPS = 140
+
+/**
+ * Each wave-group is its own layer so the rotation animates an HTML element
+ * (GPU-composited) rather than an SVG <g> (re-rasterized every frame). The
+ * radial fade is a CSS mask on the container instead of an in-SVG <mask>,
+ * which avoids a per-frame software mask evaluation. Together this keeps the
+ * onboarding background off the main-thread paint path. See issue #36.
+ */
 function GuillocheBackground() {
   const groups = useMemo(
     () => GUILLOCHE_GROUPS.map((g) => {
       const paths: string[] = []
       for (let r = g.rMin; r <= g.rMax; r += g.spacing) {
-        paths.push(wavyRingPath(r, g.amplitude, g.waves, 360))
+        paths.push(wavyRingPath(r, g.amplitude, g.waves, RING_STEPS))
       }
       return paths
     }),
@@ -52,43 +62,33 @@ function GuillocheBackground() {
   )
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none animate-guilloche-breathe" aria-hidden="true">
-      <svg
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%]"
-        viewBox="-300 -300 600 600"
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <defs>
-          <radialGradient id="g-fade">
-            <stop offset="0%" stopColor="white" stopOpacity="1" />
-            <stop offset="50%" stopColor="white" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="white" stopOpacity="0" />
-          </radialGradient>
-          <mask id="g-mask">
-            <rect x="-300" y="-300" width="600" height="600" fill="url(#g-fade)" />
-          </mask>
-        </defs>
-        <g mask="url(#g-mask)">
-          {GUILLOCHE_GROUPS.map((group, gi) => (
-            <g
-              key={gi}
-              className={group.rev ? 'animate-guilloche-reverse' : 'animate-guilloche'}
-              style={{ animationDuration: `${group.dur}s` }}
-            >
-              {groups[gi].map((d, ri) => (
-                <path
-                  key={ri}
-                  d={d}
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth="0.4"
-                  strokeOpacity="0.06"
-                />
-              ))}
-            </g>
-          ))}
-        </g>
-      </svg>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none guilloche-fade animate-guilloche-breathe" aria-hidden="true">
+      {GUILLOCHE_GROUPS.map((group, gi) => (
+        <div
+          key={gi}
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] ${
+            group.rev ? 'animate-guilloche-reverse' : 'animate-guilloche'
+          }`}
+          style={{ animationDuration: `${group.dur}s` }}
+        >
+          <svg
+            className="w-full h-full"
+            viewBox="-300 -300 600 600"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            {groups[gi].map((d, ri) => (
+              <path
+                key={ri}
+                d={d}
+                fill="none"
+                stroke="var(--primary)"
+                strokeWidth="0.4"
+                strokeOpacity="0.06"
+              />
+            ))}
+          </svg>
+        </div>
+      ))}
     </div>
   )
 }
