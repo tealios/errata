@@ -6,6 +6,8 @@
   - Context block system: structured LLM prompt blocks, the `beforeBlocks` plugin hook, Block Editor UI, custom blocks (simple + script), and block configuration API.
 - `docs/summarization-and-memory.md`
   - Technical reference for rolling story memory: deferred summary application, latest-analysis dedupe for reanalysis safety, structured summary signals, compaction thresholds, settings/API wiring, and test coverage.
+- `docs/story-graph.md`
+  - Design spec for the story graph system: a derived, per-branch graph projection (nodes + typed edges) assembled from fragments, associations, prose-chain, and librarian analyses, giving the librarian structural traversal (neighbors, paths, character arcs, thread traces) instead of substring search. Covers data model, module layout, query layer, librarian integration, phasing, and risks.
 - `docs/character-chat.md`
   - Character Chat architecture and API: conversation storage model, NDJSON streaming chat endpoint, persona modes, model/provider resolution, and frontend integration points.
 - `docs/prose-writing-panel.md`
