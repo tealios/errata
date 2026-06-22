@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { GitBranch, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 import { MetaLabel } from '@/components/ui/prose-text'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface TimelineManagerPanelProps {
   storyId: string
@@ -12,6 +13,7 @@ interface TimelineManagerPanelProps {
 
 export function TimelineManagerPanel({ storyId }: TimelineManagerPanelProps) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [creatingTimeline, setCreatingTimeline] = useState(false)
   const [newTimelineName, setNewTimelineName] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -206,8 +208,8 @@ export function TimelineManagerPanel({ storyId }: TimelineManagerPanelProps) {
                   {!isMain && (
                     <button
                       className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                      onClick={() => {
-                        if (window.confirm(`Delete timeline "${branch.name}"?`)) {
+                      onClick={async () => {
+                        if (await confirm({ title: `Delete timeline "${branch.name}"?`, description: 'This cannot be undone.', confirmText: 'Delete', destructive: true })) {
                           deleteMutation.mutate(branch.id)
                         }
                       }}

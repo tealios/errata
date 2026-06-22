@@ -11,6 +11,7 @@ import { type ThoughtStep } from './InlineGenerationInput'
 import { buildAnnotationHighlighter, formatDialogue, composeTextTransforms, stripEmphasisInDialogue, type Annotation } from '@/lib/character-mentions'
 import { RefreshCw, Undo2, PenLine, Bug, Trash2, GitBranch, MessageSquare, ChevronLeft, ChevronRight, Info, BookOpen, Volume2, Square } from 'lucide-react'
 import { Caption } from '@/components/ui/prose-text'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useTtsSettings, useIsReadingFragment, playFragment, stopTts } from '@/lib/tts'
 
 interface ProseBlockProps {
@@ -125,6 +126,7 @@ export const ProseBlock = memo(function ProseBlock({
     queryFn: () => api.stories.get(storyId),
     select: (s) => s.settings.expandThoughtsByDefault,
   })
+  const confirm = useConfirm()
   const [actionMode, setActionMode] = useState<'regenerate' | null>(null)
   const [showUndo, setShowUndo] = useState(false)
   const [isStreamingAction, setIsStreamingAction] = useState(false)
@@ -700,8 +702,8 @@ export const ProseBlock = memo(function ProseBlock({
                     <button
                       className="p-1 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-25"
                       disabled={deleteMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm('Remove this passage? It will be archived.')) {
+                      onClick={async () => {
+                        if (await confirm({ title: 'Remove this passage?', description: 'It will be archived.', confirmText: 'Remove', destructive: true })) {
                           deleteMutation.mutate()
                           setShowActions(false)
                         }

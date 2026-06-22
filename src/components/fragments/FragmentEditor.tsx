@@ -13,6 +13,7 @@ import type { FrozenSection } from '@/lib/api/types'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { copyFragmentToClipboard } from '@/lib/fragment-clipboard'
 import { CropDialog } from '@/components/fragments/CropDialog'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Hint, EmptyHint, MetaLabel } from '@/components/ui/prose-text'
 
 export interface FragmentPrefill {
@@ -37,6 +38,7 @@ export function FragmentEditor({
   onSaved,
 }: FragmentEditorProps) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
@@ -541,8 +543,8 @@ export function FragmentEditor({
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    if (confirm('Archive this fragment?')) {
+                  onClick={async () => {
+                    if (await confirm({ title: 'Archive this fragment?', confirmText: 'Archive' })) {
                       archiveMutation.mutate()
                     }
                   }}
@@ -578,8 +580,8 @@ export function FragmentEditor({
                     size="sm"
                     variant="ghost"
                     className="h-7 text-xs gap-1 text-destructive/70 hover:text-destructive"
-                    onClick={() => {
-                      if (confirm('Permanently delete this fragment? This cannot be undone.')) {
+                    onClick={async () => {
+                      if (await confirm({ title: 'Permanently delete this fragment?', description: 'This cannot be undone.', confirmText: 'Delete', destructive: true })) {
                         deleteMutation.mutate()
                       }
                     }}

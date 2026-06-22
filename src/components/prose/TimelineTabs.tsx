@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { GitBranch, Plus, MoreVertical, Pencil, Trash2, EyeOff } from 'lucide-react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface TimelineTabsProps {
   storyId: string
@@ -19,6 +20,7 @@ interface TimelineTabsProps {
 
 export function TimelineTabs({ storyId, branches, activeBranchId, onHide }: TimelineTabsProps) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [creatingTimeline, setCreatingTimeline] = useState(false)
@@ -126,8 +128,8 @@ export function TimelineTabs({ storyId, branches, activeBranchId, onHide }: Time
                   {!isMain && (
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onClick={() => {
-                        if (window.confirm(`Delete timeline "${branch.name}"? This cannot be undone.`)) {
+                      onClick={async () => {
+                        if (await confirm({ title: `Delete timeline "${branch.name}"?`, description: 'This cannot be undone.', confirmText: 'Delete', destructive: true })) {
                           deleteMutation.mutate(branch.id)
                         }
                       }}

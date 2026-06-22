@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner, EmptyState } from '@/components/ui/async-view'
 import { Undo2, Trash2, Archive } from 'lucide-react'
 import { componentId } from '@/lib/dom-ids'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 interface ArchivePanelProps {
   storyId: string
@@ -16,6 +17,7 @@ interface ArchivePanelProps {
 
 export function ArchivePanel({ storyId, onSelect }: ArchivePanelProps) {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [search, setSearch] = useState('')
 
   const { data: archivedFragments, isLoading } = useQuery({
@@ -118,9 +120,9 @@ export function ArchivePanel({ storyId, onSelect }: ArchivePanelProps) {
                   size="icon"
                   variant="ghost"
                   className="size-7 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation()
-                    if (confirm('Permanently delete this fragment? This cannot be undone.')) {
+                    if (await confirm({ title: 'Permanently delete this fragment?', description: 'This cannot be undone.', confirmText: 'Delete', destructive: true })) {
                       deleteMutation.mutate(fragment.id)
                     }
                   }}

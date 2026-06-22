@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { ThemeProvider } from '@/lib/theme'
 import { HelpProvider } from '@/hooks/use-help'
 import { HelpPanel } from '@/components/help/HelpPanel'
@@ -114,12 +115,14 @@ function RootComponent() {
       <CustomCssProvider />
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <HelpProvider>
-            <Outlet />
-            <HelpPanel />
-            <TtsPlayerBar />
-            <DesktopUpdateBanner />
-          </HelpProvider>
+          <ConfirmProvider>
+            <HelpProvider>
+              <Outlet />
+              <HelpPanel />
+              <TtsPlayerBar />
+              <DesktopUpdateBanner />
+            </HelpProvider>
+          </ConfirmProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

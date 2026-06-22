@@ -40,6 +40,7 @@ import { AboutSection } from '@/components/settings/AboutPanel'
 import { DesktopUpdatesControls } from '@/components/settings/DesktopUpdatesPanel'
 import { SectionHeading, SettingRow, SettingsCard, Toggle } from '@/components/settings/primitives'
 import { getStoryDisplayName } from '@/lib/story-display'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 const THEME_OPTIONS = [
   { value: 'light' as const, label: 'Light', Icon: Sun },
@@ -51,6 +52,7 @@ export const Route = createFileRoute('/')({ component: StoryListPage })
 
 function StoryListPage() {
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
   const [interactionSounds, setInteractionSounds] = useInteractionSounds()
@@ -665,8 +667,8 @@ function StoryListPage() {
               key={story.id}
               story={story}
               isRecent={i === 0 && sortedStories.length > 1}
-              onDelete={() => {
-                if (confirm(`Delete "${getStoryDisplayName(story.name)}"?`)) {
+              onDelete={async () => {
+                if (await confirm({ title: `Delete "${getStoryDisplayName(story.name)}"?`, description: 'This permanently deletes the story and all its fragments.', confirmText: 'Delete', destructive: true })) {
                   deleteMutation.mutate(story.id)
                 }
               }}
