@@ -56,6 +56,7 @@ export interface StoryMeta {
     guidedSceneSettingPrompt?: string
     guidedSuggestPrompt?: string
     disableThinking?: boolean
+    expandThoughtsByDefault?: boolean
     /** erratanet provenance: installed-from pack and/or where this story is published. */
     erratanet?: {
       pack?: string

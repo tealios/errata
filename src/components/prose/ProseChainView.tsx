@@ -92,6 +92,10 @@ function StreamingSection({
   const followRef = useRef(true)
   const lastTopRef = useRef(0)
   const queryClient = useQueryClient()
+  const { data: story } = useQuery({
+    queryKey: ['story', storyId],
+    queryFn: () => api.stories.get(storyId),
+  })
 
   // Auto-follow the bottom while generating. Any user scroll-up disengages it; returning to the
   // bottom re-engages. The pin only ever moves scrollTop toward the bottom, so a decrease is the user.
@@ -155,6 +159,7 @@ function StreamingSection({
                 steps={thoughtSteps}
                 streaming={isGenerating}
                 hasText={!!streamedText}
+                defaultExpanded={story?.settings.expandThoughtsByDefault ?? true}
               />
             )}
             <StreamMarkdown content={streamedText} streaming={isGenerating} variant="prose" />

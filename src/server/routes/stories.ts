@@ -42,6 +42,7 @@ export function storyRoutes(dataDir: string) {
           disableLibrarianDirections: false,
           disableLibrarianSuggestions: false,
           disableThinking: false,
+          expandThoughtsByDefault: true,
           contextOrderMode: 'simple' as const,
           fragmentOrder: [],
           customFragmentTypes: [],
@@ -170,6 +171,7 @@ export function storyRoutes(dataDir: string) {
         ...(body.summaryCompact !== undefined ? { summaryCompact: body.summaryCompact } : {}),
         ...(body.enableHierarchicalSummary !== undefined ? { enableHierarchicalSummary: body.enableHierarchicalSummary } : {}),
         ...(body.disableThinking !== undefined ? { disableThinking: body.disableThinking } : {}),
+        ...(body.expandThoughtsByDefault !== undefined ? { expandThoughtsByDefault: body.expandThoughtsByDefault } : {}),
       }
 
       const applyGuidedPrompt = (
@@ -238,6 +240,7 @@ export function storyRoutes(dataDir: string) {
         guidedSceneSettingPrompt: t.Optional(t.String()),
         guidedSuggestPrompt: t.Optional(t.String()),
         disableThinking: t.Optional(t.Boolean()),
+        expandThoughtsByDefault: t.Optional(t.Boolean()),
       }),
       detail: { summary: 'Update story settings' },
     })

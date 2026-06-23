@@ -651,6 +651,14 @@ export function SettingsPanel({
                 label="Toggle disable thinking"
               />
             </SettingRow>
+            <SettingRow label="Expand thinking by default" description="Show the model's thinking expanded while it generates, instead of collapsed">
+              <Toggle
+                checked={story.settings.expandThoughtsByDefault ?? true}
+                onChange={(next) => updateMutation.mutate({ expandThoughtsByDefault: next })}
+                disabled={updateMutation.isPending}
+                label="Toggle expand thinking by default"
+              />
+            </SettingRow>
           </SettingsGroup>
 
           <SettingsGroup title="Context" description="How the prompt is assembled before generation starts.">

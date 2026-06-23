@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ChainOfThought,
   ChainOfThoughtContent,
+  ChainOfThoughtHeader,
   ChainOfThoughtStep,
 } from '@/components/ui/chain-of-thought'
 import { Loader2, Brain, Wrench, CheckCircle2, PenLine, FileText } from 'lucide-react'
@@ -49,35 +50,38 @@ export function GenerationThoughts({
   steps,
   streaming,
   hasText,
+  defaultExpanded = true,
 }: {
   steps: ThoughtStep[]
   streaming: boolean
   hasText: boolean
+  defaultExpanded?: boolean
 }) {
   // Determine if reasoning is still actively streaming (no text yet, last step is reasoning)
   const lastStep = steps[steps.length - 1]
   const isThinking = streaming && !hasText && lastStep?.type === 'reasoning'
 
+  // Open per the story setting while generating, then collapse once it completes
+  const [open, setOpen] = useState(defaultExpanded)
+  useEffect(() => {
+    setOpen(streaming ? defaultExpanded : false)
+  }, [streaming, defaultExpanded])
 
   return (
     <div className="mb-4" data-component-id="generation-thoughts-root">
-      <ChainOfThought defaultOpen={true}>
+      <ChainOfThought open={open} onOpenChange={setOpen}>
+        <ChainOfThoughtHeader>{isThinking ? 'Thinking' : 'Thoughts'}</ChainOfThoughtHeader>
         <ChainOfThoughtContent>
           {steps.map((step, i) => {
             if (step.type === 'reasoning') {
+              // Reasoning text sits directly under the header — the header is its label
               return (
-                <ChainOfThoughtStep
+                <StreamingText
                   key={`reasoning-${i}`}
-                  icon={Brain}
-                  label="Thinking"
-                  status={isThinking && i === steps.length - 1 ? 'active' : 'complete'}
-                >
-                  <StreamingText
-                    text={step.text}
-                    active={isThinking && i === steps.length - 1}
-                    className="text-[0.625rem] text-muted-foreground italic font-mono whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto"
-                  />
-                </ChainOfThoughtStep>
+                  text={step.text}
+                  active={isThinking && i === steps.length - 1}
+                  className="text-[0.625rem] text-muted-foreground italic font-mono whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto"
+                />
               )
             }
             if (step.type === 'prewriter-text') {
