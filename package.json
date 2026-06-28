@@ -21,7 +21,8 @@
     "docs:sync": "bun scripts/sync-docs-from-commits.ts",
     "preview": "bun install --frozen-lockfile && vite preview",
     "test": "bun install --frozen-lockfile && vitest run --config vitest.config.ts",
-    "test:watch": "bun install --frozen-lockfile && vitest --config vitest.config.ts"
+    "test:watch": "bun install --frozen-lockfile && vitest --config vitest.config.ts",
+    "postbuild": "bun scripts/postbuild.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.30",

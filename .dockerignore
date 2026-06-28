@@ -1,0 +1,58 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+
+# Git
+.git
+.gitignore
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode
+
+# Environment
+.env
+.env.*
+
+# Data
+data/
+_data
+data_
+
+# Test artifacts
+junit.xml
+count.txt
+todos.json
+
+# Agent files
+AGENTS.md
+CLAUDE.md
+.agent/
+docs/site/
+.claude
+
+# Docs (not needed in production)
+docs/
+PLAN.md
+BACKEND-STRESSTEST.md
+FRONTEND-STRESSTEST.md
+README.md
+
+# Tests
+tests/
+
+# Windows / setup
+run.bat
+setup-dev.bat
+setup.ps1

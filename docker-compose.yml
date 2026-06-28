@@ -1,0 +1,19 @@
+services:
+  errata:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: "${BUILD_VERSION:-dev}"
+    container_name: errata
+    restart: unless-stopped
+    ports:
+      - "${ERRATA_PORT:-7739}:7739"
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=7739
+    volumes:
+      - errata-data:/app/data
+
+volumes:
+  errata-data:
