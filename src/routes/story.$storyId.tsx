@@ -24,6 +24,7 @@ import {
 import { FragmentImportDialog } from '@/components/fragments/FragmentImportDialog'
 import { TavernCardImportDialog } from '@/components/fragments/TavernCardImportDialog'
 import { CharacterCardImportDialog } from '@/components/fragments/CharacterCardImportDialog'
+import { LorebookImportDialog } from '@/components/fragments/LorebookImportDialog'
 import {
   parseErrataExport,
   readFileAsText,
@@ -34,7 +35,9 @@ import {
   isTavernCardPng,
   extractParsedCard,
   parseCardJson,
+  parseSillyTavernLorebook,
   type ParsedCharacterCard,
+  type ParsedLorebook,
 } from '@/lib/importers/tavern-card'
 import {
   Dialog,
@@ -76,6 +79,8 @@ function StoryEditorPage() {
   const [showCardImport, setShowCardImport] = useState(false)
   const [cardImportData, setCardImportData] = useState<ParsedCharacterCard | null>(null)
   const [cardImportImageUrl, setCardImportImageUrl] = useState<string | null>(null)
+  const [showLorebookImport, setShowLorebookImport] = useState(false)
+  const [lorebookImportData, setLorebookImportData] = useState<ParsedLorebook | null>(null)
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [pluginSidebarVisibility, setPluginSidebarVisibility] = useState<Record<string, boolean>>({})
   const [pluginCloseReturnSection, setPluginCloseReturnSection] = useState<SidebarSection>(null)
@@ -339,6 +344,11 @@ function StoryEditorPage() {
     setShowTavernImport(true)
   }, [])
 
+  const handleOpenLorebookImport = useCallback(() => {
+    setLorebookImportData(null)
+    setShowLorebookImport(true)
+  }, [])
+
   const handleJsonCardDetected = useCallback((data: ParsedCharacterCard) => {
     setShowTavernImport(false)
     setCardImportData(data)
@@ -424,6 +434,14 @@ function StoryEditorPage() {
         setCardImportData(cardParsed)
         setCardImportImageUrl(null)
         setShowCardImport(true)
+        return
+      }
+
+      // Try SillyTavern standalone lorebook
+      const lorebookParsed = parseSillyTavernLorebook(text)
+      if (lorebookParsed) {
+        setLorebookImportData(lorebookParsed)
+        setShowLorebookImport(true)
         return
       }
 
@@ -572,6 +590,7 @@ function StoryEditorPage() {
         onLaunchWizard={handleLaunchWizard}
         onImportFragment={handleOpenImport}
         onImportCard={handleOpenTavernImport}
+        onImportLorebook={handleOpenLorebookImport}
         onExport={() => {
           setShowExportPanel(true)
           notifyPluginPanelOpen({ panel: 'export' }, { storyId })
@@ -828,6 +847,13 @@ function StoryEditorPage() {
         onOpenChange={setShowCardImport}
         initialCardData={cardImportData}
         imageDataUrl={cardImportImageUrl}
+      />
+
+      <LorebookImportDialog
+        storyId={storyId}
+        open={showLorebookImport}
+        onOpenChange={setShowLorebookImport}
+        initialData={lorebookImportData}
       />
 
       <ErratanetIntroPrompt />
