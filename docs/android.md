@@ -11,6 +11,7 @@ android/                        Capacitor project (committed; edit like any Andr
 capacitor.config.ts             appId, webDir, plugin config
 mobile/
   shell/index.html              loader page the WebView boots into
+  shell/webspeech-shim.js       speechSynthesis on Android TTS (injected by MainActivity)
   node/main.cjs                 entry the embedded Node runtime executes
   node/boot.cjs                 polyfills, env, health polling (unit-tested)
   www/                          generated: loader + nodejs/ project (gitignored)
@@ -29,6 +30,14 @@ Launch sequence:
 
 From then on the WebView is just a browser pointed at a local Errata. Everything the
 web app does (generation, librarian, TTS via WASM, plugins) works as on desktop.
+
+One gap is patched natively: the Android System WebView has no Web Speech API, so the
+"Browser" read-aloud engine had nothing to call. `MainActivity` exposes Android's
+TextToSpeech as `window.ErrataNativeTts` (`NativeTts.java`) and injects
+`mobile/shell/webspeech-shim.js` at document start on the app origin, which builds
+`speechSynthesis` / `SpeechSynthesisUtterance` on top of it. The web app is unchanged and
+the voice picker lists the phone's installed voices. Android TTS cannot pause, so pause
+stops and resume restarts the current sentence-sized chunk.
 
 ## Prerequisites
 

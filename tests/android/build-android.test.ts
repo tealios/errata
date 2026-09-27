@@ -33,7 +33,9 @@ describe('assembleMobileWww', () => {
   it('lays out the loader page and a bootable node project', async () => {
     await assembleMobileWww({ root: REPO_ROOT, outputDir, wwwDir })
 
-    expect((await readdir(wwwDir)).sort()).toEqual(['index.html', 'nodejs'])
+    expect((await readdir(wwwDir)).sort()).toEqual(['index.html', 'nodejs', 'webspeech-shim.js'])
+    // Injected by MainActivity so read-aloud works in the Android WebView (no Web Speech API there).
+    expect(await readFile(join(wwwDir, 'webspeech-shim.js'), 'utf8')).toContain('ErrataNativeTts')
     const html = await readFile(join(wwwDir, 'index.html'), 'utf8')
     expect(html).toContain('errata:status')
 

@@ -83,6 +83,8 @@ export async function assembleMobileWww({
   await mkdir(nodeDir, { recursive: true })
 
   await cp(join(root, 'mobile', 'shell', 'index.html'), join(wwwDir, 'index.html'))
+  // Web Speech shim, injected by MainActivity at document start (see the file header).
+  await cp(join(root, 'mobile', 'shell', 'webspeech-shim.js'), join(wwwDir, 'webspeech-shim.js'))
   await cp(join(root, 'mobile', 'node', 'main.cjs'), join(nodeDir, 'main.cjs'))
   await cp(join(root, 'mobile', 'node', 'boot.cjs'), join(nodeDir, 'boot.cjs'))
   await cp(serverDir, join(nodeDir, 'server'), { recursive: true })
