@@ -322,7 +322,7 @@ export function DetailPanel({
     return (
       <div
         ref={containerRef}
-        className={`fixed inset-0 z-40 flex flex-col bg-background transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 z-40 flex flex-col bg-background p-safe transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onTransitionEnd={handleTransitionEnd}
         data-cuelume-surface="bloom"
         data-cuelume-close="none"

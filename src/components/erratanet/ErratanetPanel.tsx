@@ -246,7 +246,7 @@ export function ErratanetPanel({ storyId, story, onExport }: ErratanetPanelProps
       {browseOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[60] bg-background"
+            className="fixed inset-0 z-[60] bg-background p-safe"
             data-cuelume-surface="bloom"
             data-component-id="erratanet-browser-overlay"
           >

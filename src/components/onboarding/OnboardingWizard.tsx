@@ -205,7 +205,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   return (
     <div className="fixed inset-0 bg-background z-50" data-component-id="onboarding-root">
       <GuillocheBackground />
-      <div className="relative z-10 h-full overflow-auto">
+      <div className="relative z-10 h-full overflow-auto p-safe">
         <Wizard step={step}>
           <Wizard.Step stepKey="theme" transition="fade">
             <div className="flex items-center justify-center min-h-full">

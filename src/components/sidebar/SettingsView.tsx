@@ -137,7 +137,7 @@ export function SettingsView({
         tabIndex={-1}
         onTransitionEnd={(e) => { if (e.target === e.currentTarget) onTransitionEnd() }}
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-full flex-col border-r border-border/50 bg-background shadow-[8px_0_40px_-12px_rgba(0,0,0,0.35)] outline-none',
+          'fixed inset-y-0 left-0 z-50 flex w-full flex-col border-r border-border/50 bg-background pt-safe pb-safe pl-safe shadow-[8px_0_40px_-12px_rgba(0,0,0,0.35)] outline-none',
           'sm:w-[min(46rem,55vw)]',
           'transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
           visible ? 'translate-x-0' : '-translate-x-full',

@@ -1268,7 +1268,7 @@ function FullscreenSummaryEditor({
       aria-modal="true"
       aria-label={`Summary editor: ${fragment.name}`}
       data-cuelume-surface="bloom"
-      className="fixed inset-0 z-50 flex flex-col bg-background animate-onboarding-fade-in"
+      className="fixed inset-0 z-50 flex flex-col bg-background p-safe animate-onboarding-fade-in"
     >
       {/* Header — serif identity, meta row, actions on the right */}
       <header className="shrink-0 flex items-start justify-between gap-4 px-6 py-3 border-b border-border/40">

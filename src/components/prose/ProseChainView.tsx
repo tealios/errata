@@ -549,7 +549,7 @@ export function ProseChainView({
           </div>
         )}
         <CharacterMentionProvider characters={characterFragments} mediaById={mediaById}>
-        <div className="mx-auto w-full py-6 px-4 sm:py-12 sm:px-8" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
+        <div className="mx-auto w-full pt-16 pb-6 px-4 sm:pb-12 sm:px-8 md:pt-12" style={{ maxWidth: PROSE_WIDTH_VALUES[proseWidth] }}>
           {orderedItems.length > 0 ? (
             useVirtual ? (
               /* Virtualized rendering for long stories */
@@ -725,7 +725,7 @@ export function ProseChainView({
           </button>
           {mobileTocOpen && (
             <div
-              className="md:hidden fixed inset-0 z-40 bg-background animate-in fade-in duration-150"
+              className="md:hidden fixed inset-0 z-40 bg-background p-safe animate-in fade-in duration-150"
               data-cuelume-surface="bloom"
               data-component-id="prose-mobile-toc-overlay"
             >

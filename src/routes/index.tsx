@@ -402,7 +402,7 @@ function StoryListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background" data-component-id="stories-page">
+    <div className="min-h-screen bg-background p-safe" data-component-id="stories-page">
       {/* Header */}
       <header className="border-b border-border/50" data-component-id="stories-header">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 px-4 sm:px-8 py-4 sm:py-6">

@@ -318,7 +318,7 @@ function ExpandedScriptView({
       aria-modal="true"
       aria-label="Expanded script editor"
       data-cuelume-surface="bloom"
-      className="fixed inset-0 z-50 flex flex-col bg-background animate-onboarding-fade-in"
+      className="fixed inset-0 z-50 flex flex-col bg-background p-safe animate-onboarding-fade-in"
     >
       {/* Header — block identity on the left, controls on the right.
           Two-line layout: block name (serif display) above a small meta row. */}

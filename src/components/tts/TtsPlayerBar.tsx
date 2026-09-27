@@ -86,7 +86,7 @@ export function TtsPlayerBar() {
       role="region"
       aria-label="Read-aloud player"
       className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t border-border/50 bg-card/95 backdrop-blur-md',
+        'fixed inset-x-0 bottom-0 z-40 border-t border-border/50 bg-card/95 backdrop-blur-md pb-safe px-safe',
         'shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.18)]',
         'transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
         'motion-reduce:transition-none',

@@ -105,11 +105,11 @@ export function ChatConfig({
       : 'Custom'
 
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/30 bg-card/30" data-component-id="character-chat-config">
+    <div className="flex min-h-15 items-center gap-1 py-2 pl-14 pr-3 border-b border-border/30 bg-card/30 sm:gap-1.5 md:min-h-0 md:pl-3" data-component-id="character-chat-config">
       {/* Character selector */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs font-medium max-w-[180px]">
+          <Button variant="ghost" size="sm" className="h-7 min-w-0 shrink gap-1.5 text-xs font-medium max-w-[180px]">
             {selectedCharacter && <CharacterThumb character={selectedCharacter} mediaById={mediaById} />}
             <span className="font-display text-sm truncate">
               {selectedCharacter?.name ?? 'Select character'}
@@ -139,12 +139,12 @@ export function ChatConfig({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <span className="text-muted-foreground text-xs select-none">/</span>
+      <span className="hidden sm:inline text-muted-foreground text-xs select-none">/</span>
 
       {/* Persona selector */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
+          <Button variant="ghost" size="sm" className="h-7 min-w-0 shrink gap-1.5 text-xs text-muted-foreground">
             {persona.type === 'character' && <Users className="size-3" />}
             {persona.type === 'stranger' && <User className="size-3" />}
             {persona.type === 'custom' && <Sparkles className="size-3" />}
@@ -197,12 +197,12 @@ export function ChatConfig({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <span className="text-muted-foreground text-xs select-none">/</span>
+      <span className="hidden sm:inline text-muted-foreground text-xs select-none">/</span>
 
       {/* Story point picker */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground">
+          <Button variant="ghost" size="sm" className="h-7 min-w-0 shrink gap-1.5 text-xs text-muted-foreground">
             <BookOpen className="size-3" />
             <span className="truncate max-w-[80px]">{storyPointLabel}</span>
             <ChevronDown className="size-3 shrink-0 opacity-50" />
