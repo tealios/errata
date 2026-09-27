@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Parchment (the app background, oklch 0.975 0.004 75) and ink (favicon mark). -->
+    <color name="ic_launcher_background">#F8F6F4</color>
+    <color name="errata_mark">#2D2520</color>
 </resources>
