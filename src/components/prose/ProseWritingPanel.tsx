@@ -769,7 +769,8 @@ export function ProseWritingPanel({
               onClick={handleSave}
               disabled={saveState === 'saving' || isTransformingSelection || !editor}
             >
-              Ctrl+S
+              {/* The shortcut doubles as the label with a keyboard; touch gets a word. */}
+              {isCoarsePointer ? 'Save' : 'Ctrl+S'}
             </Button>
             <Button
               size="sm"
@@ -864,12 +865,19 @@ export function ProseWritingPanel({
 
         {/* Footer */}
         <div className="shrink-0 border-t border-border/30 px-4 py-2 sm:px-6 flex items-center justify-between gap-4">
-          <span className="text-[0.625rem] text-muted-foreground hidden sm:inline">
-            Ctrl+S save &middot; Esc close &middot; Alt+&uarr;&darr; passages
-          </span>
-          <span className="text-[0.625rem] text-muted-foreground sm:hidden">
-            Ctrl+S &middot; Esc
-          </span>
+          {isCoarsePointer ? (
+            // No keyboard shortcuts to advertise on touch; keep the stats right-aligned.
+            <span aria-hidden />
+          ) : (
+            <>
+              <span className="text-[0.625rem] text-muted-foreground hidden sm:inline">
+                Ctrl+S save &middot; Esc close &middot; Alt+&uarr;&darr; passages
+              </span>
+              <span className="text-[0.625rem] text-muted-foreground sm:hidden">
+                Ctrl+S &middot; Esc
+              </span>
+            </>
+          )}
           <span className="text-[0.625rem] text-muted-foreground font-mono tabular-nums">
             {editorStats.words.toLocaleString()}w
             &middot; {editorStats.chars.toLocaleString()}c

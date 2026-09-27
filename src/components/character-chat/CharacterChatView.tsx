@@ -1,3 +1,4 @@
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ChatEvent, type Fragment } from '@/lib/api'
@@ -245,12 +246,14 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
     }
   }, [input, isStreaming, characterId, messages, conversationId, storyId, persona, storyPointId, queryClient])
 
+  // Touch keyboards have no Shift+Enter: Enter makes a new line, the button sends.
+  const isCoarsePointer = useIsCoarsePointer()
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isCoarsePointer) {
       e.preventDefault()
       handleSend()
     }
-  }, [handleSend])
+  }, [handleSend, isCoarsePointer])
 
   return (
     <div className="flex flex-col h-full relative" data-component-id="character-chat-view">
@@ -398,9 +401,11 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
             </Button>
           </div>
 
-          <p className="text-[0.625rem] text-muted-foreground text-center mt-2">
-            Enter to send · Shift+Enter for newline
-          </p>
+          {!isCoarsePointer && (
+            <p className="text-[0.625rem] text-muted-foreground text-center mt-2">
+              Enter to send · Shift+Enter for newline
+            </p>
+          )}
         </div>
       </div>
 

@@ -144,11 +144,11 @@ export function ChatConfig({
       {/* Persona selector */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button variant="ghost" size="sm" className="h-7 min-w-0 shrink gap-1.5 text-xs text-muted-foreground">
+          <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground" title={`You: ${personaLabel}`} aria-label={`Persona: ${personaLabel}`}>
             {persona.type === 'character' && <Users className="size-3" />}
             {persona.type === 'stranger' && <User className="size-3" />}
             {persona.type === 'custom' && <Sparkles className="size-3" />}
-            <span className="truncate max-w-[80px]">{personaLabel}</span>
+            <span className="hidden sm:inline truncate max-w-[80px]">{personaLabel}</span>
             <ChevronDown className="size-3 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
@@ -202,9 +202,9 @@ export function ChatConfig({
       {/* Story point picker */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild disabled={disabled}>
-          <Button variant="ghost" size="sm" className="h-7 min-w-0 shrink gap-1.5 text-xs text-muted-foreground">
+          <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-foreground" title={`Story point: ${storyPointLabel}`} aria-label={`Story point: ${storyPointLabel}`}>
             <BookOpen className="size-3" />
-            <span className="truncate max-w-[80px]">{storyPointLabel}</span>
+            <span className="hidden sm:inline truncate max-w-[80px]">{storyPointLabel}</span>
             <ChevronDown className="size-3 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>

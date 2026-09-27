@@ -1,3 +1,4 @@
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowUp, Check, Circle, FileText, Minus, Square, X } from 'lucide-react'
@@ -301,8 +302,10 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
     send(input)
   }
 
+  // Touch keyboards have no Shift+Enter: Enter makes a new line, the button sends.
+  const isCoarsePointer = useIsCoarsePointer()
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !isCoarsePointer) {
       event.preventDefault()
       send(input)
     }

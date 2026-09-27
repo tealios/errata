@@ -1,3 +1,4 @@
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ChatEvent } from '@/lib/api'
@@ -208,12 +209,14 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
     }
   }, [input, isStreaming, messages, storyId, conversationId, queryClient, historyQueryKey])
 
+  // Touch keyboards have no Shift+Enter: Enter makes a new line, the button sends.
+  const isCoarsePointer = useIsCoarsePointer()
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isCoarsePointer) {
       e.preventDefault()
       handleSend()
     }
-  }, [handleSend])
+  }, [handleSend, isCoarsePointer])
 
   return (
     <div className="flex flex-col h-full" data-component-id="librarian-chat-root">
@@ -291,9 +294,11 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
           </Button>
         </div>
 
-        <p className="text-[0.625rem] text-muted-foreground text-center">
-          Enter to send, Shift+Enter for newline
-        </p>
+        {!isCoarsePointer && (
+          <p className="text-[0.625rem] text-muted-foreground text-center">
+            Enter to send, Shift+Enter for newline
+          </p>
+        )}
       </div>
     </div>
   )
