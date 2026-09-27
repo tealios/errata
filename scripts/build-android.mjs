@@ -113,7 +113,7 @@ async function main() {
 
   if (args.has('--apk')) {
     console.info('[android] gradle assembleDebug')
-    const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
+    const gradlew = process.platform === 'win32' ? join(REPO_ROOT, 'android', 'gradlew.bat') : './gradlew'
     run(gradlew, ['assembleDebug'], { cwd: join(REPO_ROOT, 'android') })
     console.info('[android] APK: android/app/build/outputs/apk/debug/app-debug.apk')
   }
