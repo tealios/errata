@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { mkdir, writeFile, readFile, readdir, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { createTempDir } from '../setup'
-import { assembleMobileWww } from '../../scripts/build-android.mjs'
+import { assembleMobileWww, productionBuildEnv } from '../../scripts/build-android.mjs'
 
 const REPO_ROOT = resolve(__dirname, '..', '..')
 
@@ -70,5 +70,21 @@ describe('assembleMobileWww', () => {
     await expect(assembleMobileWww({ root: REPO_ROOT, outputDir: join(tmp, 'nope'), wwwDir })).rejects.toThrow(
       /bun run build/,
     )
+  })
+
+  it('refuses a server bundle built in development JSX mode', async () => {
+    // A leaked NODE_ENV=development makes vite emit jsxDEV calls, which crash on boot
+    // against React's production runtime (jsxDEV is undefined there).
+    await mkdir(join(outputDir, 'server', '_ssr'), { recursive: true })
+    await writeFile(join(outputDir, 'server', '_ssr', 'router.mjs'), 'jsxDevRuntimeExports.jsxDEV("div", {})\n')
+    await expect(assembleMobileWww({ root: REPO_ROOT, outputDir, wwwDir })).rejects.toThrow(/NODE_ENV/)
+  })
+})
+
+describe('productionBuildEnv', () => {
+  it('forces NODE_ENV=production over an inherited development value', () => {
+    const env = productionBuildEnv({ NODE_ENV: 'development', PATH: '/bin' })
+    expect(env.NODE_ENV).toBe('production')
+    expect(env.PATH).toBe('/bin')
   })
 })
