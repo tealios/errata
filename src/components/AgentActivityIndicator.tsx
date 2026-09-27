@@ -175,7 +175,7 @@ export function AgentActivityIndicator({ storyId }: { storyId: string }) {
       role="status"
       aria-live="polite"
       aria-label="Agent activity"
-      className="absolute z-20 flex flex-col-reverse items-start gap-2.5 pointer-events-auto bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))]"
+      className="absolute z-20 flex flex-col items-start gap-2.5 pointer-events-auto top-16 left-3 md:top-auto md:flex-col-reverse md:bottom-4 md:left-4"
     >
       {wisps.map((wisp, i) => (
         <Wisp

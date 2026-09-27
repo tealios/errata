@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useWritingTransforms, useTransformContext, TRANSFORM_CONTEXT_CHARS } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { Caption } from '@/components/ui/prose-text'
 
 type SelectionTransformMode = 'rewrite' | 'expand' | 'compress' | 'custom'
@@ -372,6 +373,9 @@ export function ProseWritingPanel({
 
   // Track selection reactively
   const [hasSelection, setHasSelection] = useState(false)
+  // Touch: the OS selection menu (Cut/Copy/…) sits above the selection, so
+  // drop the transform menu below it, clear of the selection handles.
+  const isCoarsePointer = useIsCoarsePointer()
   useEffect(() => {
     if (!editor) return
     const update = () => setHasSelection(!editor.state.selection.empty)
@@ -588,6 +592,94 @@ export function ProseWritingPanel({
 
   const isDirty = dirtyRef.current
 
+  // Selection transform menu. Floats over the selection with a mouse; on touch
+  // it docks above the keyboard instead, since the OS selection menu
+  // (Cut/Copy/…) already claims the space around the selection.
+  const renderSelectionMenu = (docked: boolean) => (
+    <>
+      {/* Primary transforms */}
+      <div className="flex items-center gap-0.5 p-1.5">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2.5 text-xs gap-1.5"
+          onClick={() => applySelectionTransform('rewrite')}
+          disabled={isTransformingSelection || !hasSelection}
+        >
+          {isTransformingSelection && selectionTransformMode === 'rewrite' ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+          Rewrite
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2.5 text-xs gap-1.5"
+          onClick={() => applySelectionTransform('expand')}
+          disabled={isTransformingSelection || !hasSelection}
+        >
+          {isTransformingSelection && selectionTransformMode === 'expand' ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
+          Expand
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2.5 text-xs gap-1.5"
+          onClick={() => applySelectionTransform('compress')}
+          disabled={isTransformingSelection || !hasSelection}
+        >
+          {isTransformingSelection && selectionTransformMode === 'compress' ? <Loader2 className="size-3 animate-spin" /> : <Minimize2 className="size-3" />}
+          Compress
+        </Button>
+        {showTransformUndo && !isTransformingSelection && (
+          <div className="flex items-center ml-auto pl-1 border-l border-border/30">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[0.625rem] gap-1 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                editor?.commands.undo()
+                setShowTransformUndo(false)
+              }}
+            >
+              <Undo2 className="size-2.5" />
+              Undo
+            </Button>
+          </div>
+        )}
+      </div>
+      {/* Custom transforms */}
+      {enabledTransforms.length > 0 && (
+        <div className={cn('flex items-center gap-1 px-1.5 pb-1.5 border-t border-border/30 pt-1.5', docked ? 'flex-nowrap overflow-x-auto overscroll-x-contain [scrollbar-width:none]' : 'flex-wrap')}>
+          {enabledTransforms.map(t => (
+            <Button
+              key={t.id}
+              size="sm"
+              variant="ghost"
+              className={cn('h-6 px-2 text-[0.625rem] text-muted-foreground hover:text-foreground/80', docked && 'h-8 shrink-0 text-xs')}
+              onClick={() => applySelectionTransform('custom', t.instruction, t.label)}
+              disabled={isTransformingSelection || !hasSelection}
+            >
+              {isTransformingSelection && selectionTransformMode === 'custom' && customTransformLabel === t.label
+                ? <Loader2 className="size-2.5 animate-spin mr-1" />
+                : null}
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      )}
+      {/* Reasoning stream */}
+      {(isTransformingSelection || selectionTransformReasoning.trim()) && (
+        <div className="border-t border-border/50 px-2.5 py-2">
+          <p className="mb-1 text-[0.625rem] uppercase tracking-wide text-muted-foreground">Reasoning</p>
+          <div className={cn('overflow-y-auto overscroll-contain pr-1', docked ? 'max-h-14' : 'max-h-36')}>
+            <p className="text-[0.6875rem] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              {selectionTransformReasoning.trim() || 'Thinking\u2026'}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div className="flex h-full" data-component-id="prose-writing-panel">
       {/* Editor area */}
@@ -702,96 +794,19 @@ export function ProseWritingPanel({
 
         {/* Editor with context strips */}
         <div className="relative min-h-0 flex-1 overflow-y-auto">
-          {/* Floating selection toolbar */}
-          <FloatingElement
-            editor={editor}
-            shouldShow={hasSelection || isTransformingSelection}
-            placement="top"
-            offsetValue={8}
-          >
-            <div className="rounded-xl border border-border/60 bg-popover/95 shadow-2xl backdrop-blur-md w-[min(34rem,calc(100vw-2rem))]">
-              {/* Primary transforms */}
-              <div className="flex items-center gap-0.5 p-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => applySelectionTransform('rewrite')}
-                  disabled={isTransformingSelection || !hasSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'rewrite' ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
-                  Rewrite
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => applySelectionTransform('expand')}
-                  disabled={isTransformingSelection || !hasSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'expand' ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
-                  Expand
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => applySelectionTransform('compress')}
-                  disabled={isTransformingSelection || !hasSelection}
-                >
-                  {isTransformingSelection && selectionTransformMode === 'compress' ? <Loader2 className="size-3 animate-spin" /> : <Minimize2 className="size-3" />}
-                  Compress
-                </Button>
-                {showTransformUndo && !isTransformingSelection && (
-                  <div className="flex items-center ml-auto pl-1 border-l border-border/30">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[0.625rem] gap-1 text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        editor?.commands.undo()
-                        setShowTransformUndo(false)
-                      }}
-                    >
-                      <Undo2 className="size-2.5" />
-                      Undo
-                    </Button>
-                  </div>
-                )}
+          {/* Floating selection toolbar (mouse) */}
+          {!isCoarsePointer && (
+            <FloatingElement
+              editor={editor}
+              shouldShow={hasSelection || isTransformingSelection}
+              placement="top"
+              offsetValue={8}
+            >
+              <div className="rounded-xl border border-border/60 bg-popover/95 shadow-2xl backdrop-blur-md w-[min(34rem,calc(100vw-2rem))]">
+                {renderSelectionMenu(false)}
               </div>
-              {/* Custom transforms */}
-              {enabledTransforms.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1 px-1.5 pb-1.5 border-t border-border/30 pt-1.5">
-                  {enabledTransforms.map(t => (
-                    <Button
-                      key={t.id}
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[0.625rem] text-muted-foreground hover:text-foreground/80"
-                      onClick={() => applySelectionTransform('custom', t.instruction, t.label)}
-                      disabled={isTransformingSelection || !hasSelection}
-                    >
-                      {isTransformingSelection && selectionTransformMode === 'custom' && customTransformLabel === t.label
-                        ? <Loader2 className="size-2.5 animate-spin mr-1" />
-                        : null}
-                      {t.label}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {/* Reasoning stream */}
-              {(isTransformingSelection || selectionTransformReasoning.trim()) && (
-                <div className="border-t border-border/50 px-2.5 py-2">
-                  <p className="mb-1 text-[0.625rem] uppercase tracking-wide text-muted-foreground">Reasoning</p>
-                  <div className="max-h-36 overflow-y-auto overscroll-contain pr-1">
-                    <p className="text-[0.6875rem] leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                      {selectionTransformReasoning.trim() || 'Thinking\u2026'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </FloatingElement>
+            </FloatingElement>
+          )}
 
           {/* Previous passage context strip */}
           {prevFragment && (
@@ -834,6 +849,18 @@ export function ProseWritingPanel({
             </button>
           )}
         </div>
+
+        {/* Docked selection toolbar (touch) */}
+        {isCoarsePointer && (hasSelection || isTransformingSelection) && (
+          <div
+            className="shrink-0 border-t border-border/40 bg-popover/95 backdrop-blur-md"
+            // Keep focus (and the selection) in the editor when tapping a transform.
+            onMouseDown={(e) => e.preventDefault()}
+            data-component-id="prose-writing-selection-dock"
+          >
+            {renderSelectionMenu(true)}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="shrink-0 border-t border-border/30 px-4 py-2 sm:px-6 flex items-center justify-between gap-4">

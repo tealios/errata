@@ -17,3 +17,21 @@ export function useIsMobile() {
 
   return !!isMobile
 }
+
+/**
+ * True on touch-first devices. Used to keep custom floating UI out of the way
+ * of the OS text-selection menu, which Android and iOS draw above a selection.
+ */
+export function useIsCoarsePointer() {
+  const [coarse, setCoarse] = React.useState(false)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(pointer: coarse)")
+    const onChange = () => setCoarse(mql.matches)
+    mql.addEventListener("change", onChange)
+    setCoarse(mql.matches)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return coarse
+}
