@@ -26,6 +26,7 @@ export function useIsCoarsePointer() {
   const [coarse, setCoarse] = React.useState(false)
 
   React.useEffect(() => {
+    if (typeof window.matchMedia !== "function") return
     const mql = window.matchMedia("(pointer: coarse)")
     const onChange = () => setCoarse(mql.matches)
     mql.addEventListener("change", onChange)

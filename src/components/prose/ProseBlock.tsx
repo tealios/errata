@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
+import { useIsCoarsePointer } from '@/hooks/use-mobile'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Fragment, type ProseChainEntry } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -160,6 +162,9 @@ export const ProseBlock = memo(function ProseBlock({
   const [promptExpanded, setPromptExpanded] = useState(false)
   const [promptOverflows, setPromptOverflows] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
+  // On touch the OS selection bar (Copy/Translate/…) is drawn above a selection,
+  // right where the toolbar would float — so dock the toolbar to the bottom.
+  const isCoarsePointer = useIsCoarsePointer()
   const actionPanelRef = useRef<HTMLDivElement>(null)
   const actionInputRef = useRef<HTMLTextAreaElement>(null)
   const promptInputRef = useRef<HTMLTextAreaElement>(null)
@@ -196,7 +201,9 @@ export const ProseBlock = memo(function ProseBlock({
   useEffect(() => {
     if (!showActions && !actionMode && !editingPrompt) return
     const handler = (e: MouseEvent) => {
-      if (blockRef.current && !blockRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (actionPanelRef.current?.contains(target)) return
+      if (blockRef.current && !blockRef.current.contains(target)) {
         setShowActions(false)
         setActionMode(null)
         setActionInput('')
@@ -694,13 +701,24 @@ export const ProseBlock = memo(function ProseBlock({
       </div>
       )}
 
-      {/* Action toolbar — compact pill near click point */}
-      {(showActions || actionMode) && !isStreamingAction && !editingContent && (
+      {/* Action toolbar — compact pill near click point (mouse), docked to the bottom (touch).
+          Docked is portaled: the virtualized chain's transformed ancestors would trap `fixed`. */}
+      {(showActions || actionMode) && !isStreamingAction && !editingContent && (() => {
+        const toolbar = (
         <div
           ref={actionPanelRef}
-          className="absolute left-0 right-0 z-10 flex justify-center animate-in fade-in zoom-in-95 duration-150"
-          style={toolbarPlacement(clickY)}
+          className={isCoarsePointer
+            ? 'fixed inset-x-0 bottom-0 z-50 flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-150'
+            : 'absolute left-0 right-0 z-10 flex justify-center animate-in fade-in zoom-in-95 duration-150'}
+          style={isCoarsePointer
+            ? {
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+                paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 0.75rem)',
+                paddingRight: 'calc(env(safe-area-inset-right, 0px) + 0.75rem)',
+              }
+            : toolbarPlacement(clickY)}
           data-component-id="prose-block-actions"
+          data-docked={isCoarsePointer || undefined}
         >
           {actionMode ? (
             /* Regenerate input — inline textarea */
@@ -917,7 +935,9 @@ export const ProseBlock = memo(function ProseBlock({
             </div>
           )}
         </div>
-      )}
+        )
+        return isCoarsePointer ? createPortal(toolbar, document.body) : toolbar
+      })()}
 
       {showUndo && (
         <div className="flex items-center gap-2 mt-1 px-4">

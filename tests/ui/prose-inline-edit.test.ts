@@ -216,4 +216,55 @@ describe('ProseBlock action toolbar placement', () => {
     expect(toolbar.style.top).toBe('288px')
     expect(toolbar.style.transform).toBe('translateY(-100%)')
   })
+
+  it('docks to the bottom of the screen on touch, clear of the OS selection bar', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+    try {
+      const client = new QueryClient()
+      const { container } = render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(
+            ConfirmProvider,
+            null,
+            createElement(ProseBlock, {
+              storyId: 's1',
+              fragment: makeFragment(),
+              displayIndex: 0,
+              sectionIndex: 0,
+              chainEntry: null,
+              isLast: true,
+              onSelect: () => {},
+              quickSwitch: false,
+            }),
+          ),
+        ),
+      )
+      const surface = container.querySelector('[data-component-id="prose-pr-abcd-select"]') as HTMLElement
+      fireEvent.click(surface, { clientY: 300 })
+      // Portaled out of the block so transformed (virtualized) ancestors can't trap `fixed`.
+      expect(container.querySelector('[data-component-id="prose-block-actions"]')).toBeNull()
+      const toolbar = document.body.querySelector('[data-component-id="prose-block-actions"]') as HTMLElement
+      expect(toolbar).not.toBeNull()
+      expect(toolbar.className).toContain('fixed')
+      expect(toolbar.className).toContain('bottom-0')
+      expect(toolbar.style.top).toBe('')
+      // Tapping inside the docked toolbar must not dismiss it as an outside click.
+      fireEvent.mouseDown(toolbar)
+      expect(document.body.querySelector('[data-component-id="prose-block-actions"]')).not.toBeNull()
+    } finally {
+      window.matchMedia = original
+    }
+  })
 })
