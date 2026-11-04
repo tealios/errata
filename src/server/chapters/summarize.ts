@@ -69,11 +69,12 @@ export async function summarizeChapter(
     proseFragments: proseContent.length,
   })
 
-  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'librarian' })
+  const resolvedModel = await getModel(dataDir, storyId, { role: 'librarian' })
+  const { model, modelId, temperature } = resolvedModel
   requestLogger.info('Resolved model', { modelId })
 
   const story = await getStory(dataDir, storyId)
-  const providerOptions = buildProviderOptions(story?.settings.disableThinking ?? false)
+  const providerOptions = buildProviderOptions(story?.settings.disableThinking ?? false, resolvedModel)
 
   const agent = new ToolLoopAgent({
     model,

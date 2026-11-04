@@ -20,7 +20,8 @@ export const PROVIDER_PRESETS = {
   gemini: {
     name: 'Google Gemini',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-3.5-flash',
+    defaultModel: 'gemini-3.8-flash',
+    models: ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.5-flash', 'gemini-2.5-flash'],
   },
   openrouter: {
     name: 'OpenRouter',

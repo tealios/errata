@@ -1,6 +1,6 @@
-import { tool, ToolLoopAgent, stepCountIs, hasToolCall, type ToolSet, type ProviderOptions } from 'ai'
+import { tool, ToolLoopAgent, stepCountIs, hasToolCall, type ToolSet } from 'ai'
 import { z } from 'zod/v4'
-import { getModel } from './client'
+import { getModel, buildProviderOptions } from './client'
 import { compileBlocks, expandMessagesFragmentTags, type ContextBlock, type ContextMessage } from './context-builder'
 import { compileAgentContext } from '../agents/compile-agent-context'
 import { instructionRegistry } from '../instructions'
@@ -168,7 +168,8 @@ export interface RunPrewriterArgs {
   maxSteps?: number
   abortSignal?: AbortSignal
   onEvent?: (event: PrewriterEvent) => void
-  providerOptions?: ProviderOptions
+  /** Story-level "disable thinking" preference; provider options are built for the prewriter's own model. */
+  disableThinking?: boolean
   /** Allow the prewriter to ask clarifying questions via the askQuestions tool. */
   clarifyEnabled?: boolean
   /** Prior question/answer pairs from earlier clarify rounds, rendered into the prompt. */
@@ -199,12 +200,14 @@ export interface PrewriterResult {
  * that the writer will use instead of the full context.
  */
 export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterResult> {
-  const { dataDir, storyId, compiledMessages, authorInput, mode, tools, maxSteps = 3, abortSignal, onEvent, providerOptions, clarifyEnabled = false, clarifications = [], round = 0, reasoning = 'normal' } = args
+  const { dataDir, storyId, compiledMessages, authorInput, mode, tools, maxSteps = 3, abortSignal, onEvent, disableThinking = false, clarifyEnabled = false, clarifications = [], round = 0, reasoning = 'normal' } = args
   const requestLogger = logger.child({ storyId })
   const canAskQuestions = clarifyEnabled && round < MAX_CLARIFY_ROUNDS
 
   const startTime = Date.now()
-  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'generation.prewriter' })
+  const resolvedModel = await getModel(dataDir, storyId, { role: 'generation.prewriter' })
+  const { model, modelId, temperature } = resolvedModel
+  const providerOptions = buildProviderOptions(disableThinking, resolvedModel)
   requestLogger.info('Prewriter model resolved', { modelId })
 
   // Build the prewriter prompt from blocks (allows user customization via block editor)

@@ -11,6 +11,7 @@ import {
   maskApiKey,
 } from '../config/storage'
 import { ProviderConfigSchema } from '../config/schema'
+import { isGeminiProvider, normalizeGeminiBaseURL, isGeminiChatModel, minimalGeminiThinking } from '../llm/gemini'
 import {
   createOpenRouterOAuthAuthorizationUrl,
   ensureOpenRouterOAuthCallbackBridge,
@@ -31,14 +32,6 @@ function maskConfigProviders<T extends { providers: Array<{ apiKey: string }> }>
 
 function isOpenRouterProvider(provider: { preset?: string; baseURL: string }) {
   return provider.preset === 'openrouter' || provider.baseURL.includes('openrouter.ai')
-}
-
-function isGeminiProvider(provider: { preset?: string; baseURL: string }) {
-  return provider.preset === 'gemini' || provider.baseURL.includes('generativelanguage.googleapis.com')
-}
-
-function normalizeGeminiBaseURL(baseURL: string) {
-  return baseURL.replace(/\/+$/, '').replace(/\/openai$/, '')
 }
 
 async function fetchProviderModels(provider: {
@@ -63,7 +56,7 @@ async function fetchProviderModels(provider: {
       models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>
     }
     const models = (json.models ?? [])
-      .filter(model => model.name && model.supportedGenerationMethods?.includes('generateContent'))
+      .filter(model => model.name && model.supportedGenerationMethods?.includes('generateContent') && isGeminiChatModel(model.name))
       .map(model => ({
         id: model.name!.replace(/^models\//, ''),
         owned_by: 'google',
@@ -275,7 +268,9 @@ export function configRoutes(dataDir: string) {
             },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: 'Hello! (keep your response short)' }] }],
-              generationConfig: { maxOutputTokens: 64 },
+              // Thinking models spend their whole budget on thoughts at default
+              // levels and return an empty reply; use the family's floor instead.
+              generationConfig: { maxOutputTokens: 256, thinkingConfig: minimalGeminiThinking(model) },
             }),
           })
           if (!res.ok) {

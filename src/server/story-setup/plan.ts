@@ -52,9 +52,10 @@ export async function generateStorySetupPlan(
   if (!story) throw new Error(`Story ${storyId} not found`)
 
   const existingFragments = await listFragments(dataDir, storyId)
-  const { model, temperature } = await getModel(dataDir, storyId, { role: 'story-setup.plan' })
-  const providerOptions = buildProviderOptions(story.settings.disableThinking ?? false) as
-    | Record<string, Record<string, string>>
+  const resolvedModel = await getModel(dataDir, storyId, { role: 'story-setup.plan' })
+  const { model, temperature } = resolvedModel
+  const providerOptions = buildProviderOptions(story.settings.disableThinking ?? false, resolvedModel) as
+    | Parameters<typeof generateText>[0]['providerOptions']
     | undefined
 
   const submitStorySetupPlan = tool({

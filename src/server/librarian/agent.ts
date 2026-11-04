@@ -1,5 +1,5 @@
 import { getModel, buildProviderOptions } from '../llm/client'
-import { ToolLoopAgent, stepCountIs, type ProviderOptions } from 'ai'
+import { ToolLoopAgent, stepCountIs } from 'ai'
 import {
   getStory,
   listFragments,
@@ -114,7 +114,8 @@ async function runLibrarianInner(
   }
 
   // Resolve model early so modelId is available for instruction resolution
-  const { model, modelId, providerId, config, temperature } = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
+  const resolvedModel = await getModel(dataDir, storyId, { role: 'librarian.analyze' })
+  const { model, modelId, providerId, config, temperature } = resolvedModel
 
   // Build agent block context
   const blockContext: AgentBlockContext = {
@@ -165,7 +166,7 @@ async function runLibrarianInner(
     systemMessage.content = buildAnalyzeSystemPrompt({ disableDirections, disableSuggestions }).trim()
   }
 
-  const providerOptions = buildProviderOptions(story.settings.disableThinking ?? false)
+  const providerOptions = buildProviderOptions(story.settings.disableThinking ?? false, resolvedModel)
   const agent = new ToolLoopAgent({
     model,
     instructions: systemMessage?.content || 'You are a helpful assistant.',

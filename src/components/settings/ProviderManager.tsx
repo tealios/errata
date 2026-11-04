@@ -10,7 +10,7 @@ const PRESETS = {
   deepseek: { name: 'DeepSeek', baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-flash', models: ['deepseek-v4-flash', 'deepseek-v4-pro'] },
   openai: { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-5.2' },
   anthropic: { name: 'Anthropic', baseURL: 'https://api.anthropic.com/v1', defaultModel: 'claude-opus-4-6' },
-  gemini: { name: 'Google Gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModel: 'gemini-3.5-flash', models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'] },
+  gemini: { name: 'Google Gemini', baseURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModel: 'gemini-3.8-flash', models: ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.5-flash', 'gemini-2.5-flash'] },
   kimi: { name: 'Kimi', baseURL: 'https://api.moonshot.ai/v1', defaultModel: 'kimi-k2.5' },
   'kimi-code': { name: 'Kimi Code', baseURL: 'https://api.kimi.com/coding/v1', defaultModel: 'kimi-for-coding' },
   openrouter: { name: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'deepseek/deepseek-chat-v3-0324' },

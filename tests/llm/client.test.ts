@@ -3,7 +3,7 @@ import { streamText } from 'ai'
 import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import { saveGlobalConfig } from '@/server/config/storage'
-import { getModel } from '@/server/llm/client'
+import { getModel, buildProviderOptions } from '@/server/llm/client'
 import type { StoryMeta } from '@/server/fragments/schema'
 
 function makeStory(): StoryMeta {
@@ -158,7 +158,32 @@ describe('llm client model resolution', () => {
 
     expect(resolved.providerId).toBe('gemini')
     expect(resolved.modelId).toBe('gemini-3.5-flash')
+    expect(resolved.kind).toBe('gemini')
     expect((resolved.model as unknown as { provider: string }).provider).toBe('google.generative-ai')
+  })
+
+  it('falls back to the preset default model for new Gemini generations', async () => {
+    await saveGlobalConfig(dataDir, {
+      defaultProviderId: 'gemini',
+      providers: [{
+        id: 'gemini',
+        name: 'Google Gemini',
+        preset: 'gemini',
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: 'test-gemini-key',
+        defaultModel: 'gemini-4-argon',
+        enabled: true,
+        customHeaders: {},
+        temperature: undefined,
+        createdAt: new Date().toISOString(),
+      }],
+    })
+    await createStory(dataDir, makeStory())
+
+    const resolved = await getModel(dataDir, 'story-test')
+    expect(resolved.kind).toBe('gemini')
+    expect(resolved.modelId).toBe('gemini-4-argon')
+    expect((resolved.model as unknown as { modelId: string }).modelId).toBe('gemini-4-argon')
   })
 
   it('migrates Google OpenAI-compatible endpoints to the native Gemini provider', async () => {
@@ -251,5 +276,37 @@ describe('llm client model resolution', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe('buildProviderOptions', () => {
+  it('keeps the OpenAI-compatible behaviour for non-Gemini models', () => {
+    expect(buildProviderOptions(false)).toBeUndefined()
+    expect(buildProviderOptions(true)).toEqual({ openaiCompatible: { reasoningEffort: 'none' } })
+    expect(buildProviderOptions(false, { kind: 'openai-compatible', modelId: 'deepseek-v4-flash' })).toBeUndefined()
+    expect(buildProviderOptions(true, { kind: 'openai-compatible', modelId: 'deepseek-v4-flash' })).toEqual({
+      openaiCompatible: { reasoningEffort: 'none' },
+    })
+  })
+
+  it('uses the lowest supported thinking level when thinking is disabled on Gemini', () => {
+    expect(buildProviderOptions(true, { kind: 'gemini', modelId: 'gemini-3.8-flash' })).toEqual({
+      google: { thinkingConfig: { thinkingLevel: 'low' } },
+    })
+    expect(buildProviderOptions(true, { kind: 'gemini', modelId: 'gemini-4-argon' })).toEqual({
+      google: { thinkingConfig: { thinkingLevel: 'low' } },
+    })
+    expect(buildProviderOptions(true, { kind: 'gemini', modelId: 'gemini-3.5-flash' })).toEqual({
+      google: { thinkingConfig: { thinkingLevel: 'minimal' } },
+    })
+    expect(buildProviderOptions(true, { kind: 'gemini', modelId: 'gemini-2.5-flash' })).toEqual({
+      google: { thinkingConfig: { thinkingBudget: 0 } },
+    })
+  })
+
+  it('streams Gemini thought summaries when thinking stays enabled', () => {
+    expect(buildProviderOptions(false, { kind: 'gemini', modelId: 'gemini-3.8-flash' })).toEqual({
+      google: { thinkingConfig: { includeThoughts: true } },
+    })
   })
 })

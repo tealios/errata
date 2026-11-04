@@ -152,6 +152,9 @@ describe('config routes', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         models: [
           { name: 'models/gemini-3.5-flash', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/gemini-4-argon', supportedGenerationMethods: ['generateContent', 'countTokens'] },
+          { name: 'models/gemini-3.8-flash-tts', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/antigravity-preview-latest', supportedGenerationMethods: ['generateContent'] },
           { name: 'models/gemini-embedding-001', supportedGenerationMethods: ['embedContent'] },
         ],
       }), { status: 200, headers: { 'content-type': 'application/json' } }))
@@ -164,12 +167,15 @@ describe('config routes', () => {
       `http://localhost/api/config/providers/${config.providers[0].id}/models`,
     ))
     const modelsBody = await modelsRes.json() as { models: Array<{ id: string }> }
-    expect(modelsBody.models).toEqual([{ id: 'gemini-3.5-flash', owned_by: 'google', isFree: false }])
+    expect(modelsBody.models).toEqual([
+      { id: 'gemini-3.5-flash', owned_by: 'google', isFree: false },
+      { id: 'gemini-4-argon', owned_by: 'google', isFree: false },
+    ])
 
     const testRes = await app.fetch(new Request('http://localhost/api/config/test-connection', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ providerId: config.providers[0].id, model: 'gemini-3.5-flash' }),
+      body: JSON.stringify({ providerId: config.providers[0].id, model: 'gemini-3.8-flash' }),
     }))
     expect(await testRes.json()).toEqual({ ok: true, reply: 'Hello from Gemini' })
 
@@ -178,11 +184,15 @@ describe('config routes', () => {
       expect.objectContaining({ headers: expect.objectContaining({ 'x-goog-api-key': 'gemini-key' }) }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(2,
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'x-goog-api-key': 'gemini-key' }),
       }),
     )
+    // 3.8+ rejects `minimal` and ignores `thinkingBudget`; the test ping must use `low`
+    // or medium thinking eats the whole output budget and the reply comes back empty.
+    const testBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    expect(testBody.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'low' })
   })
 })

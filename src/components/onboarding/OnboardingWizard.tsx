@@ -131,8 +131,8 @@ const PROVIDER_CARDS = {
   gemini: {
     name: 'Google Gemini',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-3.5-flash',
-    models: ['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'],
+    defaultModel: 'gemini-3.8-flash',
+    models: ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.5-flash', 'gemini-2.5-flash'],
     description: 'Native Gemini models with tool use and long-context reasoning.',
     accent: 'indigo',
     customHeaders: {},

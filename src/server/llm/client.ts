@@ -5,8 +5,9 @@ import { getStory } from '../fragments/storage'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { ensureCoreAgentsRegistered } from '../agents/register-core'
 import { extractReasoningMiddleware, wrapLanguageModel } from 'ai'
-import type { LanguageModel } from 'ai'
+import type { LanguageModel, streamText } from 'ai'
 import { createLogger } from '../logging'
+import { isGeminiProvider, normalizeGeminiBaseURL, geminiThinkingConfig } from './gemini'
 
 // Normalize old camelCase modelOverrides keys to dot-separated agent names
 const OVERRIDE_KEY_ALIASES: Record<string, string> = {
@@ -47,14 +48,6 @@ const LEGACY_FIELD_MAP: Record<string, { providerId: string; modelId: string }> 
 const providerCache = new Map<string, ReturnType<typeof createOpenAICompatible>>()
 const googleProviderCache = new Map<string, ReturnType<typeof createGoogleGenerativeAI>>()
 
-function isGeminiProvider(provider: { preset?: string; baseURL: string }) {
-  return provider.preset === 'gemini' || provider.baseURL.includes('generativelanguage.googleapis.com')
-}
-
-function normalizeGeminiBaseURL(baseURL: string) {
-  return baseURL.replace(/\/+$/, '').replace(/\/openai$/, '')
-}
-
 function getCachedProvider(id: string, baseURL: string, apiKey: string, name: string, customHeaders?: Record<string, string>) {
   const headerStr = customHeaders ? JSON.stringify(customHeaders) : ''
   const cacheKey = `${id}:${baseURL}:${apiKey}:${headerStr}`
@@ -92,19 +85,39 @@ function getCachedGoogleProvider(
   return provider
 }
 
-export type ProviderOptions = Record<string, Record<string, unknown>>
+/** Provider-specific options as accepted by `streamText` / `generateText` / `ToolLoopAgent`. */
+export type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>
+
+/** Which SDK provider a resolved model runs through. */
+export type ResolvedModelKind = 'gemini' | 'openai-compatible'
 
 /**
- * Build providerOptions that suppress extended thinking / reasoning.
- * Returns undefined when thinking should remain enabled.
+ * Build providerOptions controlling extended thinking / reasoning for the
+ * resolved model.
+ *
+ * - OpenAI-compatible endpoints: `reasoningEffort: 'none'` when thinking is
+ *   disabled, nothing otherwise.
+ * - Native Gemini: the lowest thinking setting the model family accepts when
+ *   disabled (families differ, see `gemini.ts`); otherwise ask for thought
+ *   summaries so reasoning streams into the UI.
+ *
+ * Without a resolved model (legacy callers) the OpenAI-compatible behaviour is
+ * assumed.
  */
-export function buildProviderOptions(disableThinking: boolean): ProviderOptions | undefined {
+export function buildProviderOptions(
+  disableThinking: boolean,
+  resolved?: { kind: ResolvedModelKind; modelId: string },
+): ProviderOptions | undefined {
+  if (resolved?.kind === 'gemini') {
+    return { google: { thinkingConfig: geminiThinkingConfig(resolved.modelId, { disableThinking }) } }
+  }
   if (!disableThinking) return undefined
   return { openaiCompatible: { reasoningEffort: 'none' } }
 }
 
 export interface ResolvedModel {
   model: LanguageModel
+  kind: ResolvedModelKind
   providerId: string | null
   modelId: string
   temperature?: number
@@ -216,8 +229,9 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
         })
     // Story-level temperature takes precedence over provider-level
     const temperature = targetTemperature ?? provider.temperature
-    const toReturn = {
+    const toReturn: ResolvedModel = {
       model,
+      kind: nativeGemini ? 'gemini' : 'openai-compatible',
       providerId: provider.id,
       modelId,
       temperature,

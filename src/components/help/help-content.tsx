@@ -288,9 +288,11 @@ export const HELP_SECTIONS: HelpSection[] = [
         content: (
           <>
             <P>
-              Some OpenAI-compatible models support extended reasoning or thinking modes. When
+              Many models support extended reasoning or thinking modes. When
               <strong className="text-foreground/75"> Disable thinking</strong> is enabled, Errata
-              asks supported providers to suppress that mode.
+              asks supported providers to suppress that mode. Newer Gemini models (3.8 Flash,
+              4 Argon) cannot switch thinking off entirely, so Errata drops them to their lowest
+              thinking level instead.
             </P>
             <P>
               This can reduce hidden reasoning overhead, make responses feel more direct, and help

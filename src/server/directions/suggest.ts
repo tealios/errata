@@ -48,7 +48,8 @@ export async function suggestDirections(
   // Load story to get custom prompt if configured
   const story = await getStory(dataDir, storyId)
 
-  const { model, modelId, temperature } = await getModel(dataDir, storyId, { role: 'directions.suggest' })
+  const resolvedModel = await getModel(dataDir, storyId, { role: 'directions.suggest' })
+  const { model, modelId, temperature } = resolvedModel
 
   const resolvedTemplate = instructionRegistry.resolve('directions.suggest-template', modelId)
   const promptTemplate = story?.settings.guidedSuggestPrompt || resolvedTemplate
@@ -83,7 +84,7 @@ export async function suggestDirections(
 
   requestLogger.info('Generating suggestions', { modelId, count })
 
-  const providerOptions = buildProviderOptions(story?.settings.disableThinking ?? false)
+  const providerOptions = buildProviderOptions(story?.settings.disableThinking ?? false, resolvedModel)
   const agent = new ToolLoopAgent({
     model,
     instructions: systemMsg?.content || instructionRegistry.resolve('directions.system', modelId),

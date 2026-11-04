@@ -96,7 +96,6 @@ export function generationRoutes(dataDir: string) {
       const librarianConfig = await getAgentBlockConfig(dataDir, params.storyId, 'librarian.analyze')
       const disableLibrarianAutoAnalysis = (story.settings.disableLibrarianAutoAnalysis ?? false) || (librarianConfig.disableAutoAnalysis ?? false)
       const disableThinking = story.settings.disableThinking ?? false
-      const providerOptions = buildProviderOptions(disableThinking)
       const modeLabel = mode === 'regenerate'
         ? 'Regenerate'
         : mode === 'refine'
@@ -160,7 +159,9 @@ export function generationRoutes(dataDir: string) {
       requestLogger.info('BeforeContext hooks completed')
 
       // Resolve model early so modelId is available for instruction resolution
-      const { model, modelId: resolvedModelId, temperature } = await getModel(dataDir, params.storyId, { role: 'generation.writer' })
+      const resolvedModel = await getModel(dataDir, params.storyId, { role: 'generation.writer' })
+      const { model, modelId: resolvedModelId, temperature } = resolvedModel
+      const providerOptions = buildProviderOptions(disableThinking, resolvedModel)
       requestLogger.info('Resolved model', { resolvedModelId })
       ctxState.modelId = resolvedModelId
 
@@ -307,7 +308,7 @@ export function generationRoutes(dataDir: string) {
                   tools,
                   maxSteps: prewriterMaxSteps,
                   abortSignal: abortController.signal,
-                  providerOptions,
+                  disableThinking,
                   clarifyEnabled,
                   clarifications,
                   round: clarifyRound,
