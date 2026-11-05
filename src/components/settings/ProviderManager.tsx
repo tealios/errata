@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type ProviderConfigSafe } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -132,7 +132,17 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
     setOauthStatus(null)
   }
 
+  const oauthPollRef = useRef<number | null>(null)
+  const stopOauthPoll = useCallback(() => {
+    if (oauthPollRef.current !== null) {
+      window.clearInterval(oauthPollRef.current)
+      oauthPollRef.current = null
+    }
+  }, [])
+  useEffect(() => stopOauthPoll, [stopOauthPoll])
+
   const connectOpenRouter = async () => {
+    stopOauthPoll()
     setOauthStarting(true)
     setOauthStatus(null)
     try {
@@ -146,9 +156,11 @@ export function ProviderPanel({ onClose }: { onClose: () => void }) {
         await invalidate()
         const latest = queryClient.getQueryData<{ providers?: Array<{ preset?: string; baseURL?: string }> }>(['global-config'])
         if (latest?.providers?.some((p) => p.preset === 'openrouter' || p.baseURL?.includes('openrouter.ai')) || attempts >= 30) {
+          if (oauthPollRef.current === poll) oauthPollRef.current = null
           window.clearInterval(poll)
         }
       }, 2000)
+      oauthPollRef.current = poll
     } catch (err) {
       setOauthStatus({ type: 'error', message: err instanceof Error ? err.message : 'Failed to start OpenRouter sign-in.' })
     } finally {
