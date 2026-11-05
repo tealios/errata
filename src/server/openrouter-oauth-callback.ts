@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer, type Server, type ServerResponse } from 'node:http'
-import { getGlobalConfig, saveGlobalConfig } from './config/storage'
+import { updateGlobalConfig } from './config/storage'
 import { ProviderConfigSchema } from './config/schema'
 
 const CALLBACK_PORT = 3000
@@ -83,38 +83,37 @@ async function exchangeCodeForKey(code: string, verifier: string) {
 }
 
 export async function saveOpenRouterOAuthProvider(dataDir: string, apiKey: string) {
-  const config = await getGlobalConfig(dataDir)
-  const existingIdx = config.providers.findIndex((p) => isOpenRouterProvider(p))
-  const now = new Date().toISOString()
+  return updateGlobalConfig(dataDir, (config) => {
+    const existingIdx = config.providers.findIndex((p) => isOpenRouterProvider(p))
+    const now = new Date().toISOString()
 
-  if (existingIdx === -1) {
-    const provider = ProviderConfigSchema.parse({
-      id: `prov-${Date.now().toString(36)}`,
-      name: 'OpenRouter',
-      preset: 'openrouter',
-      baseURL: OPENROUTER_BASE_URL,
-      apiKey,
-      defaultModel: OPENROUTER_FREE_MODEL_ID,
-      enabled: true,
-      customHeaders: {},
-      createdAt: now,
-    })
-    config.providers.push(provider)
-    if (!config.defaultProviderId) config.defaultProviderId = provider.id
-  } else {
-    config.providers[existingIdx] = {
-      ...config.providers[existingIdx],
-      name: config.providers[existingIdx].name || 'OpenRouter',
-      preset: 'openrouter',
-      baseURL: OPENROUTER_BASE_URL,
-      apiKey,
-      defaultModel: config.providers[existingIdx].defaultModel || OPENROUTER_FREE_MODEL_ID,
-      enabled: true,
+    if (existingIdx === -1) {
+      const provider = ProviderConfigSchema.parse({
+        id: `prov-${Date.now().toString(36)}`,
+        name: 'OpenRouter',
+        preset: 'openrouter',
+        baseURL: OPENROUTER_BASE_URL,
+        apiKey,
+        defaultModel: OPENROUTER_FREE_MODEL_ID,
+        enabled: true,
+        customHeaders: {},
+        createdAt: now,
+      })
+      config.providers.push(provider)
+      if (!config.defaultProviderId) config.defaultProviderId = provider.id
+    } else {
+      config.providers[existingIdx] = {
+        ...config.providers[existingIdx],
+        name: config.providers[existingIdx].name || 'OpenRouter',
+        preset: 'openrouter',
+        baseURL: OPENROUTER_BASE_URL,
+        apiKey,
+        defaultModel: config.providers[existingIdx].defaultModel || OPENROUTER_FREE_MODEL_ID,
+        enabled: true,
+      }
     }
-  }
 
-  await saveGlobalConfig(dataDir, config)
-  return config
+  })
 }
 
 export async function exchangeAndSaveOpenRouterOAuthCode(dataDir: string, code: string, verifier: string) {
