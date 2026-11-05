@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { agentRegistry } from '../agents/registry'
+import { ChatTranscriptMessageSchema } from '../agents/tool-record'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
 import { instructionRegistry } from '../instructions'
@@ -8,10 +9,7 @@ import { STORY_SETUP_SYSTEM_PROMPT, buildStorySetupPreviewContext, createStorySe
 import { storySetupChat } from './chat'
 
 const StorySetupChatInputSchema = z.object({
-  messages: z.array(z.object({
-    role: z.union([z.literal('user'), z.literal('assistant')]),
-    content: z.string(),
-  })),
+  messages: z.array(ChatTranscriptMessageSchema),
 })
 
 declare module '../agents/agent-instance' {

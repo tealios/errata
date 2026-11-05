@@ -212,6 +212,7 @@ Instructions:
 7. You can make multiple tool calls in sequence to accomplish complex tasks.
 8. Keep fragment descriptions within the 250 character limit.
 9. Be concise but thorough in your responses.
+10. Nothing changes unless a tool call succeeds in the current turn. Earlier assistant messages are a transcript, annotated with the tool activity that actually happened; never claim a fragment was created, edited, or deleted unless a tool returned success in this turn. If a tool returns an error, say so and what you will try instead.
 
 Fragment ID prefixes: pr- (prose), ch- (character), gl- (guideline), kn- (knowledge).
 `

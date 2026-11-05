@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { ChatTranscriptMessageSchema } from '../agents/tool-record'
 import { agentRegistry } from '../agents/registry'
 import { agentBlockRegistry } from '../agents/agent-block-registry'
 import { modelRoleRegistry } from '../agents/model-role-registry'
@@ -38,10 +39,7 @@ const RefineInputSchema = z.object({
 })
 
 const ChatInputSchema = z.object({
-  messages: z.array(z.object({
-    role: z.union([z.literal('user'), z.literal('assistant')]),
-    content: z.string(),
-  })),
+  messages: z.array(ChatTranscriptMessageSchema),
   maxSteps: z.int().positive().optional(),
 })
 

@@ -1,10 +1,11 @@
 import { createStreamingRunner } from '../agents/create-streaming-runner'
 import { tool } from 'ai'
+import { toModelMessages, type ChatTranscriptMessage } from '../agents/tool-record'
 import { StorySetupSnapshotSchema } from './schema'
 import { listStorySetupFragmentContext, syncStorySetupSnapshot } from './sync'
 
 export interface StorySetupChatOptions {
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  messages: ChatTranscriptMessage[]
 }
 
 export const storySetupChat = createStreamingRunner<StorySetupChatOptions>({
@@ -39,7 +40,7 @@ export const storySetupChat = createStreamingRunner<StorySetupChatOptions>({
   // Room for a failed save, a corrected retry, and the conversational reply.
   maxSteps: 5,
   messages: ({ opts }) => opts.messages.length > 0
-    ? opts.messages
+    ? toModelMessages(opts.messages)
     : [{
         role: 'user',
         content: 'Begin the story setup conversation. Ask what starting point I have, and make it clear that an incomplete idea is welcome.',

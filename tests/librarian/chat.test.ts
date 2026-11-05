@@ -511,4 +511,58 @@ describe('librarian chat endpoint', () => {
     expect(history.messages[1].role).toBe('assistant')
     expect(history.messages[1].content).toBe('Here is my response.')
   })
+
+  it('replays tool activity records from history and persists new ones', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    mockAgentStream.mockResolvedValue({
+      fullStream: createMockFullStream([
+        { type: 'tool-call', toolCallId: 'tc-1', toolName: 'createFragment', input: { type: 'character', name: 'Mara', description: 'Courier', content: 'Mara.' } },
+        { type: 'tool-error', toolCallId: 'tc-1', toolName: 'createFragment', input: {}, error: 'disk full' },
+        { type: 'text-delta', text: 'The save failed.' },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+      text: Promise.resolve('The save failed.'),
+      reasoning: Promise.resolve(''),
+      toolCalls: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+      steps: Promise.resolve([]),
+    })
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stories/${story.id}/librarian/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'user', content: 'Add Orin.' },
+            { role: 'assistant', content: 'Added Orin.', toolCalls: [{ toolName: 'createFragment', result: { ok: true, id: 'ch-orin' } }] },
+            { role: 'user', content: 'Now add Mara.' },
+          ],
+        }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain('"type":"tool-error"')
+
+    const call = mockAgentStream.mock.calls.at(-1)?.[0] as { messages: Array<{ role: string; content: string }> }
+    const replayed = call.messages.find((m) => m.content.startsWith('Added Orin.'))
+    expect(replayed?.content).toContain('ch-orin')
+
+    // History is written after the stream completes.
+    const { getChatHistory } = await import('@/server/librarian/storage')
+    let history = await getChatHistory(dataDir, story.id)
+    for (let i = 0; i < 20 && history.messages.length < 4; i++) {
+      await new Promise((r) => setTimeout(r, 25))
+      history = await getChatHistory(dataDir, story.id)
+    }
+    const last = history.messages.at(-1)!
+    expect(last.role).toBe('assistant')
+    expect(last.toolCalls).toEqual([
+      expect.objectContaining({ toolName: 'createFragment', error: 'disk full' }),
+    ])
+    expect(history.messages[1].toolCalls).toEqual([{ toolName: 'createFragment', result: { ok: true, id: 'ch-orin' } }])
+  })
 })

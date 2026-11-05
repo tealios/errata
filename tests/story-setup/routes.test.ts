@@ -375,4 +375,32 @@ describe('story setup routes', () => {
     expect(response.status).toBe(422)
     expect(mockGenerateText).not.toHaveBeenCalled()
   })
+
+  it('replays recorded tool activity next to earlier assistant turns', async () => {
+    mockChatResponse('Who else lives in the city?')
+    const messages = [
+      { role: 'user', content: 'Add fifteen side characters.' },
+      {
+        role: 'assistant',
+        content: 'Added them all.',
+        toolCalls: [{ toolName: 'updateStorySetup', args: {}, error: 'Invalid input: too many fragments' }],
+      },
+      { role: 'user', content: 'I do not see them.' },
+    ]
+
+    const response = await app.fetch(new Request(
+      'http://localhost/api/stories/story-setup-test/setup/chat',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      },
+    ))
+
+    expect(response.status).toBe(200)
+    const call = mockAgentStream.mock.calls.at(-1)?.[0] as { messages: Array<{ role: string; content: string }> }
+    expect(call.messages[1].role).toBe('assistant')
+    expect(call.messages[1].content).toMatch(/Added them all\.[\s\S]*updateStorySetup[\s\S]*failed[\s\S]*too many fragments/)
+    expect(call.messages[2]).toEqual({ role: 'user', content: 'I do not see them.' })
+  })
 })

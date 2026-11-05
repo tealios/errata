@@ -236,8 +236,15 @@ export interface LibrarianAcceptSuggestionResponse {
   createdFragmentId: string | null
 }
 
+export interface ChatToolCallRecord {
+  toolName: string
+  args?: Record<string, unknown>
+  result?: unknown
+  error?: string
+}
+
 export interface ChatHistory {
-  messages: Array<{ role: 'user' | 'assistant'; content: string; reasoning?: string }>
+  messages: Array<{ role: 'user' | 'assistant'; content: string; reasoning?: string; toolCalls?: ChatToolCallRecord[] }>
   updatedAt: string
 }
 

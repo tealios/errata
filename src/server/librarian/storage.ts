@@ -1,4 +1,5 @@
 import { mkdir, readdir, readFile, unlink } from 'node:fs/promises'
+import type { ChatToolCallRecord } from '../agents/tool-record'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
@@ -398,6 +399,8 @@ export interface ChatHistoryMessage {
   role: 'user' | 'assistant'
   content: string
   reasoning?: string
+  /** Tool calls that backed this assistant turn, compacted for storage. */
+  toolCalls?: ChatToolCallRecord[]
 }
 
 export interface ChatHistory {

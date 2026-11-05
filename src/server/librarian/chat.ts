@@ -16,15 +16,14 @@ import { runLibrarian } from './agent'
 import { withBranch } from '../fragments/branches'
 import type { ChatStreamEvent, ChatResult } from '../agents/stream-types'
 import type { AgentBlockContext } from '../agents/agent-block-context'
+import { toModelMessages, type ChatTranscriptMessage } from '../agents/tool-record'
 
 export type { ChatStreamEvent, ChatResult }
 
 const logger = createLogger('librarian-chat')
 
-export interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
+/** A transcript turn. Assistant turns may carry the tool activity that backed them. */
+export type ChatMessage = ChatTranscriptMessage
 
 export interface ChatOptions {
   messages: ChatMessage[]
@@ -185,14 +184,14 @@ async function librarianChatInner(
     temperature,
   })
 
-  // Build messages: context as first user message, then conversation history
+  // Build messages: context as first user message, then conversation history.
+  // Earlier assistant turns are replayed with a record of the tool calls that
+  // actually backed them, so the model cannot mistake its own past claims for
+  // saved changes.
   const aiMessages = [
     { role: 'user' as const, content: `Here is the current story context for reference:\n\n${userMessage?.content ?? ''}\n\nI'm ready to chat about this story. Please acknowledge briefly.` },
     { role: 'assistant' as const, content: 'I have the story context. How can I help you with your fragments?' },
-    ...opts.messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
+    ...toModelMessages(opts.messages),
   ]
 
   // Stream with write tools

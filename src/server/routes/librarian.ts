@@ -7,6 +7,7 @@ import {
 import { getLibrarianRuntimeStatus, triggerLibrarian } from '../librarian/scheduler'
 import { createSSEStream } from '../librarian/analysis-stream'
 import { createAgentInstance, listAgentRuns } from '../agents'
+import { compactToolCallRecord } from '../agents/tool-record'
 import {
   getState as getLibrarianState,
   listAnalyses as listLibrarianAnalyses,
@@ -409,6 +410,7 @@ export function librarianRoutes(dataDir: string) {
               role: 'assistant' as const,
               content: result.text,
               ...(result.reasoning ? { reasoning: result.reasoning } : {}),
+              toolCalls: result.toolCalls.map(compactToolCallRecord),
             },
           ]
           await saveLibrarianChatHistory(dataDir, params.storyId, fullHistory)
@@ -430,6 +432,12 @@ export function librarianRoutes(dataDir: string) {
         messages: t.Array(t.Object({
           role: t.Union([t.Literal('user'), t.Literal('assistant')]),
           content: t.String(),
+          toolCalls: t.Optional(t.Array(t.Object({
+            toolName: t.String(),
+            args: t.Optional(t.Record(t.String(), t.Any())),
+            result: t.Optional(t.Any()),
+            error: t.Optional(t.String()),
+          }))),
         })),
       }),
       detail: { summary: 'Chat with the librarian (streaming NDJSON)' },
@@ -485,6 +493,7 @@ export function librarianRoutes(dataDir: string) {
               role: 'assistant' as const,
               content: result.text,
               ...(result.reasoning ? { reasoning: result.reasoning } : {}),
+              toolCalls: result.toolCalls.map(compactToolCallRecord),
             },
           ]
           await saveConversationHistory(dataDir, params.storyId, params.conversationId, fullHistory)
@@ -506,6 +515,12 @@ export function librarianRoutes(dataDir: string) {
         messages: t.Array(t.Object({
           role: t.Union([t.Literal('user'), t.Literal('assistant')]),
           content: t.String(),
+          toolCalls: t.Optional(t.Array(t.Object({
+            toolName: t.String(),
+            args: t.Optional(t.Record(t.String(), t.Any())),
+            result: t.Optional(t.Any()),
+            error: t.Optional(t.String()),
+          }))),
         })),
       }),
       detail: { summary: 'Chat in a conversation (streaming NDJSON)' },
