@@ -5,6 +5,7 @@ import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { getContentRoot, initBranches } from './branches'
 import { createLogger } from '../logging'
 import { writeJsonAtomic } from '../fs-utils'
+import { withKeyLock } from '../async-lock'
 import { assertFragmentId, assertStoryId, isValidFragmentId, isValidStoryId } from '../safe-id'
 
 const requestLogger = createLogger('fragment-storage')
@@ -181,20 +182,52 @@ export async function listFragments(
   return fragments
 }
 
+/**
+ * Serialize read-modify-write cycles on a single fragment. Lock-holding code
+ * must use the unlocked `writeFragment` helper, never `updateFragment` /
+ * `mutateFragment` (same key would deadlock).
+ */
+function withFragmentLock<T>(storyId: string, fragmentId: string, fn: () => Promise<T>): Promise<T> {
+  return withKeyLock(`fragment:${storyId}:${fragmentId}`, fn)
+}
+
+async function writeFragment(dataDir: string, storyId: string, fragment: Fragment): Promise<void> {
+  const path = await fragmentPath(dataDir, storyId, fragment.id)
+  requestLogger.info('Updating fragment', { path })
+  await writeJson(path, normalizeFragment(fragment))
+}
+
+/**
+ * Atomically read, transform and write one fragment under the per-fragment
+ * lock. Returns null when the fragment doesn't exist. If `fn` returns the
+ * object it was given, nothing is written.
+ */
+export async function mutateFragment(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string,
+  fn: (fragment: Fragment) => Fragment | Promise<Fragment>,
+): Promise<Fragment | null> {
+  if (!isValidFragmentId(fragmentId)) return null
+  return withFragmentLock(storyId, fragmentId, async () => {
+    const existing = await getFragment(dataDir, storyId, fragmentId)
+    if (!existing) return null
+    const next = await fn(existing)
+    if (next !== existing) await writeFragment(dataDir, storyId, next)
+    return next
+  })
+}
+
 export async function archiveFragment(
   dataDir: string,
   storyId: string,
   fragmentId: string
 ): Promise<Fragment | null> {
-  const fragment = await getFragment(dataDir, storyId, fragmentId)
-  if (!fragment) return null
-  const updated: Fragment = {
+  return mutateFragment(dataDir, storyId, fragmentId, (fragment) => ({
     ...fragment,
     archived: true,
     updatedAt: new Date().toISOString(),
-  }
-  await writeJson(await fragmentPath(dataDir, storyId, fragmentId), updated)
-  return updated
+  }))
 }
 
 export async function restoreFragment(
@@ -202,15 +235,11 @@ export async function restoreFragment(
   storyId: string,
   fragmentId: string
 ): Promise<Fragment | null> {
-  const fragment = await getFragment(dataDir, storyId, fragmentId)
-  if (!fragment) return null
-  const updated: Fragment = {
+  return mutateFragment(dataDir, storyId, fragmentId, (fragment) => ({
     ...fragment,
     archived: false,
     updatedAt: new Date().toISOString(),
-  }
-  await writeJson(await fragmentPath(dataDir, storyId, fragmentId), updated)
-  return updated
+  }))
 }
 
 export async function updateFragment(
@@ -218,21 +247,28 @@ export async function updateFragment(
   storyId: string,
   fragment: Fragment
 ): Promise<void> {
-  const normalized = normalizeFragment(fragment)
-  const path = await fragmentPath(dataDir, storyId, fragment.id)
-  requestLogger.info('Updating fragment', { path })
-  await writeJson(path, normalized)
+  assertFragmentId(fragment.id)
+  await withFragmentLock(storyId, fragment.id, () => writeFragment(dataDir, storyId, fragment))
 }
+
+type VersionedUpdates = Partial<Pick<Fragment, 'name' | 'description' | 'content'>>
 
 export async function updateFragmentVersioned(
   dataDir: string,
   storyId: string,
   fragmentId: string,
-  updates: Partial<Pick<Fragment, 'name' | 'description' | 'content'>>,
-  opts?: { reason?: string }
+  updatesOrFn: VersionedUpdates | ((existing: Fragment) => VersionedUpdates),
+  opts?: {
+    reason?: string
+    /** Non-versioned fields written in the same locked operation. */
+    extra?: Partial<Pick<Fragment, 'sticky' | 'order' | 'placement' | 'meta'>>
+  }
 ): Promise<Fragment | null> {
+  if (!isValidFragmentId(fragmentId)) return null
+  return withFragmentLock(storyId, fragmentId, async () => {
   const existing = await getFragment(dataDir, storyId, fragmentId)
   if (!existing) return null
+  const updates = typeof updatesOrFn === 'function' ? updatesOrFn(existing) : updatesOrFn
 
   const nextName = updates.name ?? existing.name
   const nextDescription = updates.description ?? existing.description
@@ -261,8 +297,18 @@ export async function updateFragmentVersioned(
         updatedAt: now,
       }
 
-  await updateFragment(dataDir, storyId, updated)
-  return updated
+  const withExtra: Fragment = opts?.extra
+    ? {
+        ...updated,
+        ...(opts.extra.sticky !== undefined ? { sticky: opts.extra.sticky } : {}),
+        ...(opts.extra.order !== undefined ? { order: opts.extra.order } : {}),
+        ...(opts.extra.placement !== undefined ? { placement: opts.extra.placement } : {}),
+        ...(opts.extra.meta !== undefined ? { meta: opts.extra.meta } : {}),
+      }
+    : updated
+  await writeFragment(dataDir, storyId, withExtra)
+  return withExtra
+  })
 }
 
 export async function listFragmentVersions(
@@ -281,6 +327,8 @@ export async function revertFragmentToVersion(
   fragmentId: string,
   targetVersion?: number
 ): Promise<Fragment | null> {
+  if (!isValidFragmentId(fragmentId)) return null
+  return withFragmentLock(storyId, fragmentId, async () => {
   const fragment = await getFragment(dataDir, storyId, fragmentId)
   if (!fragment) return null
 
@@ -307,8 +355,9 @@ export async function revertFragmentToVersion(
     ],
   }
 
-  await updateFragment(dataDir, storyId, updated)
+  await writeFragment(dataDir, storyId, updated)
   return updated
+  })
 }
 
 export async function deleteFragment(

@@ -4,7 +4,7 @@ import {
   createFragment,
   getFragment,
   listFragments,
-  updateFragment,
+  mutateFragment,
   updateFragmentVersioned,
   deleteFragment,
   archiveFragment,
@@ -151,7 +151,8 @@ export function fragmentRoutes(dataDir: string) {
         set.status = 404
         return { error: 'Fragment not found' }
       }
-      const versioned = await updateFragmentVersioned(
+      // Versioned fields and the extras are written in one locked operation.
+      const updated = await updateFragmentVersioned(
         dataDir,
         params.storyId,
         params.fragmentId,
@@ -160,21 +161,20 @@ export function fragmentRoutes(dataDir: string) {
           description: body.description,
           content: body.content,
         },
-        { reason: 'manual-update' },
+        {
+          reason: 'manual-update',
+          extra: {
+            ...(body.sticky !== undefined ? { sticky: body.sticky } : {}),
+            ...(body.order !== undefined ? { order: body.order } : {}),
+            ...(body.placement !== undefined ? { placement: body.placement } : {}),
+            ...(body.meta !== undefined ? { meta: body.meta } : {}),
+          },
+        },
       )
-      if (!versioned) {
+      if (!updated) {
         set.status = 404
         return { error: 'Fragment not found' }
       }
-      const updated: Fragment = {
-        ...versioned,
-        ...(body.sticky !== undefined ? { sticky: body.sticky } : {}),
-        ...(body.order !== undefined ? { order: body.order } : {}),
-        ...(body.placement !== undefined ? { placement: body.placement } : {}),
-        ...(body.meta !== undefined ? { meta: body.meta } : {}),
-        updatedAt: new Date().toISOString(),
-      }
-      await updateFragment(dataDir, params.storyId, updated)
 
       if (existing.type === 'prose' && hasMaterialProseChange(existing, updated)) {
         await reanalyzeAfterProseChange(dataDir, params.storyId, updated).catch((err) => {
@@ -214,12 +214,12 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'oldText not found in fragment content' }
       }
       // Function replacer: newText is literal, `$&` / `$1` etc. must not be expanded.
-      const newContent = existing.content.replace(body.oldText, () => body.newText)
+      // Re-derive from the locked read so concurrent edits aren't clobbered.
       const updated = await updateFragmentVersioned(
         dataDir,
         params.storyId,
         params.fragmentId,
-        { content: newContent },
+        (current) => ({ content: current.content.replace(body.oldText, () => body.newText) }),
         { reason: 'manual-edit' },
       )
       if (!updated) {
@@ -362,17 +362,15 @@ export function fragmentRoutes(dataDir: string) {
 
     // --- Sticky toggle ---
     .patch('/stories/:storyId/fragments/:fragmentId/sticky', async ({ params, body, set }) => {
-      const existing = await getFragment(dataDir, params.storyId, params.fragmentId)
-      if (!existing) {
-        set.status = 404
-        return { error: 'Fragment not found' }
-      }
-      const updated: Fragment = {
+      const updated = await mutateFragment(dataDir, params.storyId, params.fragmentId, (existing) => ({
         ...existing,
         sticky: body.sticky,
         updatedAt: new Date().toISOString(),
+      }))
+      if (!updated) {
+        set.status = 404
+        return { error: 'Fragment not found' }
       }
-      await updateFragment(dataDir, params.storyId, updated)
       return { ok: true, sticky: body.sticky }
     }, {
       detail: { summary: 'Toggle the sticky flag' },
@@ -387,15 +385,11 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'Story not found' }
       }
       for (const item of body.items) {
-        const fragment = await getFragment(dataDir, params.storyId, item.id)
-        if (fragment && fragment.order !== item.order) {
-          const updated: Fragment = {
-            ...fragment,
-            order: item.order,
-            updatedAt: new Date().toISOString(),
-          }
-          await updateFragment(dataDir, params.storyId, updated)
-        }
+        await mutateFragment(dataDir, params.storyId, item.id, (fragment) =>
+          fragment.order === item.order
+            ? fragment
+            : { ...fragment, order: item.order, updatedAt: new Date().toISOString() },
+        )
       }
       return { ok: true }
     }, {
@@ -410,17 +404,15 @@ export function fragmentRoutes(dataDir: string) {
 
     // --- Fragment placement ---
     .patch('/stories/:storyId/fragments/:fragmentId/placement', async ({ params, body, set }) => {
-      const existing = await getFragment(dataDir, params.storyId, params.fragmentId)
-      if (!existing) {
-        set.status = 404
-        return { error: 'Fragment not found' }
-      }
-      const updated: Fragment = {
+      const updated = await mutateFragment(dataDir, params.storyId, params.fragmentId, (existing) => ({
         ...existing,
         placement: body.placement,
         updatedAt: new Date().toISOString(),
+      }))
+      if (!updated) {
+        set.status = 404
+        return { error: 'Fragment not found' }
       }
-      await updateFragment(dataDir, params.storyId, updated)
       return { ok: true, placement: body.placement }
     }, {
       detail: { summary: 'Change fragment placement' },
@@ -487,13 +479,12 @@ export function fragmentRoutes(dataDir: string) {
         return { error: 'No previous version to revert to' }
       }
 
-      const updated: Fragment = {
-        ...fragment,
+      const updated = await mutateFragment(dataDir, params.storyId, params.fragmentId, (current) => ({
+        ...current,
         content: previousContent,
-        meta: { ...fragment.meta, previousContent: undefined },
+        meta: { ...current.meta, previousContent: undefined },
         updatedAt: new Date().toISOString(),
-      }
-      await updateFragment(dataDir, params.storyId, updated)
+      }))
       return updated
     }, { detail: { summary: 'Revert to previous version' } })
 }
