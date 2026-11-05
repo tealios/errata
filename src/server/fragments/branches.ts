@@ -6,6 +6,7 @@ import type { BranchesIndex, BranchMeta, ProseChain } from './schema'
 import { generateBranchId } from '@/lib/fragment-ids'
 import { writeJsonAtomic } from '../fs-utils'
 import { assertBranchId, assertStoryId } from '../safe-id'
+import { withKeyLock } from '../async-lock'
 
 // --- Branch scope (AsyncLocalStorage) ---
 
@@ -134,6 +135,11 @@ export async function saveBranchesIndex(dataDir: string, storyId: string, index:
   await writeJson(branchesIndexPath(dir), index)
 }
 
+/** Serialize read-modify-write of a story's branches.json. Don't nest. */
+function withBranchesLock<T>(dataDir: string, storyId: string, fn: () => Promise<T>): Promise<T> {
+  return withKeyLock(`branches:${dataDir}:${storyId}`, fn)
+}
+
 // --- Branch scope helpers ---
 
 /**
@@ -192,13 +198,15 @@ export async function getActiveBranchId(dataDir: string, storyId: string): Promi
 }
 
 export async function switchActiveBranch(dataDir: string, storyId: string, branchId: string): Promise<void> {
-  const index = await getBranchesIndex(dataDir, storyId)
-  const branch = index.branches.find(b => b.id === branchId)
-  if (!branch) {
-    throw new Error(`Branch '${branchId}' not found`)
-  }
-  index.activeBranchId = branchId
-  await saveBranchesIndex(dataDir, storyId, index)
+  return withBranchesLock(dataDir, storyId, async () => {
+    const index = await getBranchesIndex(dataDir, storyId)
+    const branch = index.branches.find(b => b.id === branchId)
+    if (!branch) {
+      throw new Error(`Branch '${branchId}' not found`)
+    }
+    index.activeBranchId = branchId
+    await saveBranchesIndex(dataDir, storyId, index)
+  })
 }
 
 // --- Branch CRUD ---
@@ -210,46 +218,62 @@ export async function createBranch(
   parentBranchId: string,
   forkAfterIndex?: number,
 ): Promise<BranchMeta> {
-  const dir = storyDir(dataDir, storyId)
-  const index = await getBranchesIndex(dataDir, storyId)
-
-  // Verify parent exists
-  const parent = index.branches.find(b => b.id === parentBranchId)
-  if (!parent) {
-    throw new Error(`Parent branch '${parentBranchId}' not found`)
+  if (forkAfterIndex !== undefined && (!Number.isInteger(forkAfterIndex) || forkAfterIndex < 0)) {
+    throw new Error('forkAfterIndex must be a non-negative integer')
   }
+  return withBranchesLock(dataDir, storyId, async () => {
+    const dir = storyDir(dataDir, storyId)
+    const index = await getBranchesIndex(dataDir, storyId)
 
-  const id = generateBranchId()
-  const sourceDir = branchDir(dir, parentBranchId)
-  const destDir = branchDir(dir, id)
-
-  // Copy parent directory
-  await cp(sourceDir, destDir, { recursive: true })
-
-  // Truncate prose chain at fork point if specified
-  if (forkAfterIndex !== undefined) {
-    const chainPath = join(destDir, 'prose-chain.json')
-    if (existsSync(chainPath)) {
-      const chain = JSON.parse(await readFile(chainPath, 'utf-8')) as ProseChain
-      chain.entries = chain.entries.slice(0, forkAfterIndex + 1)
-      await writeJson(chainPath, chain)
+    // Verify parent exists
+    const parent = index.branches.find(b => b.id === parentBranchId)
+    if (!parent) {
+      throw new Error(`Parent branch '${parentBranchId}' not found`)
     }
-  }
 
-  const branch: BranchMeta = {
-    id,
-    name,
-    order: index.branches.length,
-    parentBranchId,
-    forkAfterIndex,
-    createdAt: new Date().toISOString(),
-  }
+    const id = generateBranchId()
+    const sourceDir = branchDir(dir, parentBranchId)
+    const destDir = branchDir(dir, id)
 
-  index.branches.push(branch)
-  index.activeBranchId = id
-  await saveBranchesIndex(dataDir, storyId, index)
+    try {
+      // Copy parent directory
+      await cp(sourceDir, destDir, { recursive: true })
 
-  return branch
+      // Truncate prose chain at fork point if specified
+      if (forkAfterIndex !== undefined) {
+        const chainPath = join(destDir, 'prose-chain.json')
+        if (existsSync(chainPath)) {
+          const chain = JSON.parse(await readFile(chainPath, 'utf-8')) as ProseChain
+          chain.entries = chain.entries.slice(0, forkAfterIndex + 1)
+          await writeJson(chainPath, chain)
+        }
+      }
+    } catch (err) {
+      // Don't leave a half-copied branch directory behind.
+      await rm(destDir, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
+
+    const branch: BranchMeta = {
+      id,
+      name,
+      order: index.branches.length,
+      parentBranchId,
+      forkAfterIndex,
+      createdAt: new Date().toISOString(),
+    }
+
+    index.branches.push(branch)
+    index.activeBranchId = id
+    try {
+      await saveBranchesIndex(dataDir, storyId, index)
+    } catch (err) {
+      await rm(destDir, { recursive: true, force: true }).catch(() => {})
+      throw err
+    }
+
+    return branch
+  })
 }
 
 export async function deleteBranch(dataDir: string, storyId: string, branchId: string): Promise<void> {
@@ -257,40 +281,44 @@ export async function deleteBranch(dataDir: string, storyId: string, branchId: s
     throw new Error("Cannot delete the 'main' branch")
   }
 
-  const dir = storyDir(dataDir, storyId)
-  const index = await getBranchesIndex(dataDir, storyId)
+  return withBranchesLock(dataDir, storyId, async () => {
+    const dir = storyDir(dataDir, storyId)
+    const index = await getBranchesIndex(dataDir, storyId)
 
-  const branchIdx = index.branches.findIndex(b => b.id === branchId)
-  if (branchIdx === -1) {
-    throw new Error(`Branch '${branchId}' not found`)
-  }
+    const branchIdx = index.branches.findIndex(b => b.id === branchId)
+    if (branchIdx === -1) {
+      throw new Error(`Branch '${branchId}' not found`)
+    }
 
-  // Remove directory
-  const bDir = branchDir(dir, branchId)
-  if (existsSync(bDir)) {
-    await rm(bDir, { recursive: true, force: true })
-  }
+    // Remove directory
+    const bDir = branchDir(dir, branchId)
+    if (existsSync(bDir)) {
+      await rm(bDir, { recursive: true, force: true })
+    }
 
-  // Remove from index
-  index.branches.splice(branchIdx, 1)
+    // Remove from index
+    index.branches.splice(branchIdx, 1)
 
-  // Switch to main if deleting active branch
-  if (index.activeBranchId === branchId) {
-    index.activeBranchId = 'main'
-  }
+    // Switch to main if deleting active branch
+    if (index.activeBranchId === branchId) {
+      index.activeBranchId = 'main'
+    }
 
-  await saveBranchesIndex(dataDir, storyId, index)
+    await saveBranchesIndex(dataDir, storyId, index)
+  })
 }
 
 export async function renameBranch(dataDir: string, storyId: string, branchId: string, name: string): Promise<BranchMeta> {
-  const index = await getBranchesIndex(dataDir, storyId)
-  const branch = index.branches.find(b => b.id === branchId)
-  if (!branch) {
-    throw new Error(`Branch '${branchId}' not found`)
-  }
-  branch.name = name
-  await saveBranchesIndex(dataDir, storyId, index)
-  return branch
+  return withBranchesLock(dataDir, storyId, async () => {
+    const index = await getBranchesIndex(dataDir, storyId)
+    const branch = index.branches.find(b => b.id === branchId)
+    if (!branch) {
+      throw new Error(`Branch '${branchId}' not found`)
+    }
+    branch.name = name
+    await saveBranchesIndex(dataDir, storyId, index)
+    return branch
+  })
 }
 
 // --- Initialize branches for new story ---
