@@ -7,7 +7,7 @@ import {
 import type { FragmentBundleData, FragmentExportEntry } from '@/lib/fragment-clipboard'
 import { createFragment, getFragment, getStory, updateStory } from '../fragments/storage'
 import { generateFragmentId } from '@/lib/fragment-ids'
-import { isValidFragmentId } from '../safe-id'
+import { isValidFragmentId, resolveInside, UnsafePathError } from '../safe-id'
 import { registry } from '../fragments/registry'
 import { remapFragment, type IdMap } from '../fragments/remap'
 import { importStoryFromZip } from '../story-archive'
@@ -144,7 +144,15 @@ export function unwrapPack(zipBytes: Uint8Array): UnwrappedPack {
   const storyFiles: Record<string, Uint8Array> = {}
   for (const [path, bytes] of Object.entries(extracted)) {
     if (!path.startsWith(PAYLOAD_STORY_PREFIX)) continue
-    storyFiles[path.slice(PAYLOAD_STORY_PREFIX.length)] = bytes
+    const rel = path.slice(PAYLOAD_STORY_PREFIX.length)
+    if (rel === '' || rel.endsWith('/')) continue // directory entry
+    try {
+      resolveInside('/pack-root', rel)
+    } catch (err) {
+      if (err instanceof UnsafePathError) throw new Error(`Invalid story pack: ${err.message}`)
+      throw err
+    }
+    storyFiles[rel] = bytes
   }
   if (Object.keys(storyFiles).length === 0) {
     throw new Error(`Invalid story pack: missing ${PAYLOAD_STORY_PREFIX} subtree`)

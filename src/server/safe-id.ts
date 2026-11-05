@@ -8,6 +8,8 @@
  * strict generated-id pattern.
  */
 
+import { isAbsolute, relative, resolve } from 'node:path'
+
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
 const FRAGMENT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/
 
@@ -45,4 +47,35 @@ export function assertBranchId(id: unknown): string {
 export function assertFragmentId(id: unknown): string {
   if (!isValidFragmentId(id)) throw new InvalidIdError('fragment', id)
   return id
+}
+
+export class UnsafePathError extends Error {
+  constructor(entry: string) {
+    super(`Unsafe path in archive: ${JSON.stringify(entry).slice(0, 120)}`)
+    this.name = 'UnsafePathError'
+  }
+}
+
+/**
+ * Resolve an untrusted relative path (e.g. an archive entry) under `base`.
+ * Rejects absolute paths, drive letters, backslashes, NUL bytes, `..` segments
+ * and anything whose resolved target escapes `base`.
+ */
+export function resolveInside(base: string, rel: string): string {
+  if (
+    typeof rel !== 'string' ||
+    rel.length === 0 ||
+    rel.includes(String.fromCharCode(0)) ||
+    rel.includes(String.fromCharCode(92)) ||
+    rel.startsWith('/') ||
+    /^[A-Za-z]:/.test(rel) ||
+    isAbsolute(rel) ||
+    rel.split('/').some((seg) => seg === '..')
+  ) {
+    throw new UnsafePathError(rel)
+  }
+  const target = resolve(base, rel)
+  const rel2 = relative(resolve(base), target)
+  if (rel2 === '' || rel2.startsWith('..') || isAbsolute(rel2)) throw new UnsafePathError(rel)
+  return target
 }

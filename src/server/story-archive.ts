@@ -7,7 +7,7 @@ import { createStory } from './fragments/storage'
 import { saveProseChain } from './fragments/prose-chain'
 import { saveAssociations } from './fragments/associations'
 import { getBranchesIndex, getContentRoot } from './fragments/branches'
-import { isValidStoryId } from './safe-id'
+import { isValidStoryId, isValidBranchId, resolveInside, UnsafePathError } from './safe-id'
 import type { StoryMeta, Fragment, Associations, ProseChain, BranchesIndex } from './fragments/schema'
 
 export class StoryNotFoundError extends Error {
@@ -164,6 +164,16 @@ async function importNewFormat(
     }
   }
 
+  // Branch ids become directory names; refuse anything that isn't a plain segment.
+  if (!Array.isArray(branchesIndex.branches)) {
+    throw new Error('Invalid archive: branches.json has no branches list')
+  }
+  for (const branch of branchesIndex.branches) {
+    if (!isValidBranchId(branch?.id)) {
+      throw new UnsafePathError(`branch id ${String(branch?.id)}`)
+    }
+  }
+
   // Write branches.json (overwrite the default one from createStory)
   await writeFile(join(storyDir, 'branches.json'), JSON.stringify(branchesIndex, null, 2), 'utf-8')
 
@@ -235,7 +245,7 @@ async function importLegacyFormat(
   await mkdir(fragmentsDir, { recursive: true })
   for (const fragment of remappedFragments) {
     await writeFile(
-      join(fragmentsDir, `${fragment.id}.json`),
+      resolveInside(fragmentsDir, `${fragment.id}.json`),
       JSON.stringify(fragment, null, 2),
       'utf-8',
     )
@@ -274,7 +284,7 @@ async function importLegacyFormat(
     if (logData.fragmentId && idMap.has(logData.fragmentId)) {
       logData.fragmentId = idMap.get(logData.fragmentId)
     }
-    await writeFile(join(logsDir, filename), JSON.stringify(logData, null, 2), 'utf-8')
+    await writeFile(resolveInside(logsDir, filename), JSON.stringify(logData, null, 2), 'utf-8')
   }
 
   // Copy all remaining files verbatim (librarian, agent-blocks, block-config, etc.)
@@ -289,7 +299,7 @@ async function importLegacyFormat(
     if (relativePath.startsWith('fragments/')) continue
     if (relativePath === 'prose-chain.json' || relativePath === 'associations.json') continue
     if (handledLegacy.has(path)) continue
-    const targetPath = join(root, relativePath)
+    const targetPath = resolveInside(root, relativePath)
     await mkdir(dirname(targetPath), { recursive: true })
     await writeFile(targetPath, content)
   }
@@ -327,7 +337,7 @@ async function writeBranchFragments(
       meta: remapMeta(fragment.meta, idMap),
     }
     await writeFile(
-      join(bDir, 'fragments', `${newId}.json`),
+      resolveInside(join(bDir, 'fragments'), `${newId}.json`),
       JSON.stringify(remapped, null, 2),
       'utf-8',
     )
@@ -390,7 +400,7 @@ async function writeBranchGenerationLogs(
     const logsDir = join(bDir, 'generation-logs')
     await mkdir(logsDir, { recursive: true })
     const filename = path.split('/').pop()!
-    await writeFile(join(logsDir, filename), JSON.stringify(logData, null, 2), 'utf-8')
+    await writeFile(resolveInside(logsDir, filename), JSON.stringify(logData, null, 2), 'utf-8')
   }
 }
 
@@ -405,7 +415,7 @@ async function copyRemainingBranchFiles(
   for (const [path, content] of Object.entries(extracted)) {
     if (!path.startsWith(prefix) || handled.has(path)) continue
     const relativePath = path.slice(prefix.length)
-    const targetPath = join(bDir, relativePath)
+    const targetPath = resolveInside(bDir, relativePath)
     await mkdir(dirname(targetPath), { recursive: true })
     await writeFile(targetPath, content)
   }
