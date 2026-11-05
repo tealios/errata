@@ -15,6 +15,7 @@ import {
 } from '../fragments/prose-chain'
 import { generateFragmentId } from '@/lib/fragment-ids'
 import { invokeAgent } from '../agents'
+import type { Fragment } from '../fragments/schema'
 
 export function proseChainRoutes(dataDir: string) {
   return new Elysia({ detail: { tags: ['Prose Chain'] } })
@@ -171,7 +172,7 @@ export function proseChainRoutes(dataDir: string) {
 
       const now = new Date().toISOString()
       const id = generateFragmentId('marker')
-      const fragment = await createFragment(dataDir, params.storyId, {
+      const fragment: Fragment = {
         id,
         type: 'marker',
         name: body.name,
@@ -185,7 +186,11 @@ export function proseChainRoutes(dataDir: string) {
         updatedAt: now,
         order: 0,
         meta: {},
-      })
+        archived: false,
+        version: 1,
+        versions: [],
+      }
+      await createFragment(dataDir, params.storyId, fragment)
 
       await insertProseSection(dataDir, params.storyId, id, body.position)
 
