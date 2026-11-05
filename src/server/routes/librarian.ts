@@ -10,7 +10,7 @@ import { createAgentInstance, listAgentRuns } from '../agents'
 import { compactToolCallRecord } from '../agents/tool-record'
 import {
   getState as getLibrarianState,
-  listAnalyses as listLibrarianAnalyses,
+  deleteAnalyses as deleteLibrarianAnalyses,
   getAnalysis as getLibrarianAnalysis,
   saveAnalysis as saveLibrarianAnalysis,
   getChatHistory as getLibrarianChatHistory,
@@ -24,6 +24,7 @@ import {
   getLatestAnalysisIdsByFragment,
 } from '../librarian/storage'
 import { applyFragmentSuggestion } from '../librarian/suggestions'
+import { listAnalysesWithStaleness } from '../librarian/staleness'
 import { createLogger } from '../logging'
 import { encodeStream } from './encode-stream'
 
@@ -94,8 +95,18 @@ export function librarianRoutes(dataDir: string) {
     }, { detail: { summary: 'Stream live analysis events (NDJSON)' } })
 
     .get('/stories/:storyId/librarian/analyses', async ({ params }) => {
-      return listLibrarianAnalyses(dataDir, params.storyId)
+      return listAnalysesWithStaleness(dataDir, params.storyId)
     }, { detail: { summary: 'List all analyses' } })
+
+    .post('/stories/:storyId/librarian/analyses/clear', async ({ params, body }) => {
+      const summaries = await listAnalysesWithStaleness(dataDir, params.storyId)
+      const targets = body.scope === 'all' ? summaries : summaries.filter((s) => s.stale)
+      const removed = await deleteLibrarianAnalyses(dataDir, params.storyId, targets.map((s) => s.id))
+      return { removed: removed.length }
+    }, {
+      body: t.Object({ scope: t.Union([t.Literal('stale'), t.Literal('all')]) }),
+      detail: { summary: 'Delete stale analyses, or all of them' },
+    })
 
     .get('/stories/:storyId/librarian/agent-runs', async ({ params }) => {
       return listAgentRuns(params.storyId)

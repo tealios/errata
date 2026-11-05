@@ -23,6 +23,8 @@ export interface LibrarianAnalysis {
   id: string
   createdAt: string
   fragmentId: string
+  /** Version of the analyzed fragment at analysis time. Absent on legacy analyses. */
+  fragmentVersion?: number
   /** The summary text the librarian intended to record (intent). */
   summaryUpdate: string
   /**
@@ -115,6 +117,7 @@ export interface LibrarianAnalysisSummary {
   timelineEventCount: number
   directionsCount: number
   hasTrace?: boolean
+  fragmentVersion?: number
 }
 
 export interface LibrarianState {
@@ -339,6 +342,47 @@ export async function deleteAnalysis(
   return true
 }
 
+/**
+ * Delete several analyses at once. Returns the IDs that were actually removed.
+ * Index entries pointing at removed analyses fall back to the newest remaining
+ * analysis for that fragment; the rest of the index is left untouched.
+ */
+export async function deleteAnalyses(
+  dataDir: string,
+  storyId: string,
+  analysisIds: string[],
+): Promise<string[]> {
+  const removed: string[] = []
+  for (const id of new Set(analysisIds)) {
+    // IDs arrive from request bodies; never let one escape the analyses dir.
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) continue
+    const path = await analysisPath(dataDir, storyId, id)
+    if (!existsSync(path)) continue
+    await unlink(path)
+    removed.push(id)
+  }
+  if (removed.length === 0) return removed
+
+  const removedSet = new Set(removed)
+  await withIndexLock(storyId, async () => {
+    const index = await getAnalysisIndex(dataDir, storyId)
+    if (!index) return
+    const affected = Object.entries(index.latestByFragmentId)
+      .filter(([, entry]) => removedSet.has(entry.analysisId))
+      .map(([fragmentId]) => fragmentId)
+    if (affected.length === 0) return
+    const latest = selectLatestAnalysesByFragment(await listAnalyses(dataDir, storyId))
+    for (const fragmentId of affected) {
+      const next = latest.get(fragmentId)
+      if (next) index.latestByFragmentId[fragmentId] = analysisSummaryToIndexEntry(next)
+      else delete index.latestByFragmentId[fragmentId]
+    }
+    index.updatedAt = new Date().toISOString()
+    await saveAnalysisIndex(dataDir, storyId, index)
+  })
+  return removed
+}
+
 export async function listAnalyses(
   dataDir: string,
   storyId: string,
@@ -363,6 +407,7 @@ export async function listAnalyses(
       timelineEventCount: analysis.timelineEvents.length,
       directionsCount: analysis.directions?.length ?? 0,
       hasTrace: !!analysis.trace?.length,
+      ...(analysis.fragmentVersion !== undefined ? { fragmentVersion: analysis.fragmentVersion } : {}),
     })
   }
 

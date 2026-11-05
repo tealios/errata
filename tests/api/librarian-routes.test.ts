@@ -151,6 +151,62 @@ describe('librarian API routes', () => {
     })
   })
 
+  describe('POST /stories/:storyId/librarian/analyses/clear', () => {
+    async function seed() {
+      // pr-0001 has two analyses (older one superseded); pr-0002's prose no longer exists.
+      await createFragment(dataDir, storyId, {
+        id: 'pr-0001', type: 'prose', name: 'Scene', description: '', content: 'Prose.',
+        tags: [], refs: [], sticky: false, placement: 'user',
+        createdAt: '2025-01-01T00:00:00.000Z', updatedAt: '2025-01-01T00:00:00.000Z', order: 0, meta: {},
+      })
+      await saveAnalysis(dataDir, storyId, makeAnalysis({ id: 'la-old', createdAt: '2025-01-01T00:00:00.000Z' }))
+      await saveAnalysis(dataDir, storyId, makeAnalysis({ id: 'la-new', createdAt: '2025-01-02T00:00:00.000Z' }))
+      await saveAnalysis(dataDir, storyId, makeAnalysis({ id: 'la-gone', fragmentId: 'pr-0002', createdAt: '2025-01-03T00:00:00.000Z' }))
+    }
+
+    function clear(scope: string) {
+      return app.fetch(new Request(`http://localhost/api/stories/${storyId}/librarian/analyses/clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope }),
+      }))
+    }
+
+    async function remainingIds() {
+      const res = await app.fetch(new Request(`http://localhost/api/stories/${storyId}/librarian/analyses`))
+      return ((await res.json()) as Array<{ id: string }>).map((a) => a.id)
+    }
+
+    it('reports staleness on the list endpoint', async () => {
+      await seed()
+      const res = await app.fetch(new Request(`http://localhost/api/stories/${storyId}/librarian/analyses`))
+      const data = await res.json() as Array<{ id: string; stale: boolean }>
+      expect(Object.fromEntries(data.map((a) => [a.id, a.stale]))).toEqual({
+        'la-old': true, 'la-new': false, 'la-gone': true,
+      })
+    })
+
+    it('removes only stale analyses with scope=stale', async () => {
+      await seed()
+      const res = await clear('stale')
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ removed: 2 })
+      expect(await remainingIds()).toEqual(['la-new'])
+    })
+
+    it('removes everything with scope=all', async () => {
+      await seed()
+      const res = await clear('all')
+      expect(await res.json()).toEqual({ removed: 3 })
+      expect(await remainingIds()).toEqual([])
+    })
+
+    it('rejects an unknown scope', async () => {
+      const res = await clear('everything')
+      expect(res.status).toBeGreaterThanOrEqual(400)
+    })
+  })
+
   describe('GET /stories/:storyId/librarian/agent-runs', () => {
     it('returns empty list when no agent runs exist', async () => {
       const res = await app.fetch(

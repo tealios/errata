@@ -315,6 +315,7 @@ async function runLibrarianInner(
     id: analysisId,
     createdAt: new Date().toISOString(),
     fragmentId,
+    fragmentVersion: fragment.version ?? 1,
     summaryUpdate: collector.summaryUpdate,
     structuredSummary: collector.structuredSummary,
     mentionedCharacters: mentionedCharacterIds,
