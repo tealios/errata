@@ -35,7 +35,6 @@ export function FragmentEditor({
   fragment: fragmentProp,
   mode,
   onClose,
-  onSaved,
 }: FragmentEditorProps) {
   const queryClient = useQueryClient()
   const confirm = useConfirm()
