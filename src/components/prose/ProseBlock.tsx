@@ -290,6 +290,7 @@ export const ProseBlock = memo(function ProseBlock({
       const steps: ThoughtStep[] = []
       let stepsDirty = false
       let rafScheduled = false
+      let rafId: number | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -318,7 +319,8 @@ export const ProseBlock = memo(function ProseBlock({
           const snapshot = accumulated
           const stepsSnapshot = stepsDirty ? [...steps] : null
           stepsDirty = false
-          requestAnimationFrame(() => {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
             setStreamedActionText(snapshot)
             if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
             rafScheduled = false
@@ -326,6 +328,8 @@ export const ProseBlock = memo(function ProseBlock({
         }
       }
 
+      // Drop any pending frame so it can't overwrite the final flush with an older snapshot
+      if (rafId !== null) cancelAnimationFrame(rafId)
       setStreamedActionText(accumulated)
       if (steps.length > 0) setActionThoughtSteps([...steps])
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
@@ -356,6 +360,7 @@ export const ProseBlock = memo(function ProseBlock({
       const steps: ThoughtStep[] = []
       let stepsDirty = false
       let rafScheduled = false
+      let rafId: number | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -384,7 +389,8 @@ export const ProseBlock = memo(function ProseBlock({
           const snapshot = accumulated
           const stepsSnapshot = stepsDirty ? [...steps] : null
           stepsDirty = false
-          requestAnimationFrame(() => {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
             setStreamedActionText(snapshot)
             if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
             rafScheduled = false
@@ -392,6 +398,8 @@ export const ProseBlock = memo(function ProseBlock({
         }
       }
 
+      // Drop any pending frame so it can't overwrite the final flush with an older snapshot
+      if (rafId !== null) cancelAnimationFrame(rafId)
       setStreamedActionText(accumulated)
       if (steps.length > 0) setActionThoughtSteps([...steps])
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
@@ -431,6 +439,7 @@ export const ProseBlock = memo(function ProseBlock({
       const steps: ThoughtStep[] = []
       let stepsDirty = false
       let rafScheduled = false
+      let rafId: number | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -459,7 +468,8 @@ export const ProseBlock = memo(function ProseBlock({
           const snapshot = accumulated
           const stepsSnapshot = stepsDirty ? [...steps] : null
           stepsDirty = false
-          requestAnimationFrame(() => {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
             setStreamedActionText(snapshot)
             if (stepsSnapshot) setActionThoughtSteps(stepsSnapshot)
             rafScheduled = false
@@ -467,6 +477,8 @@ export const ProseBlock = memo(function ProseBlock({
         }
       }
 
+      // Drop any pending frame so it can't overwrite the final flush with an older snapshot
+      if (rafId !== null) cancelAnimationFrame(rafId)
       setStreamedActionText(accumulated)
       if (steps.length > 0) setActionThoughtSteps([...steps])
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })

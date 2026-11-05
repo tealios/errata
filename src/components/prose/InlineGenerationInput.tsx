@@ -192,6 +192,7 @@ export function InlineGenerationInput({
       const thoughtSteps: ThoughtStep[] = []
       let thoughtsDirty = false
       let rafScheduled = false
+      let rafId: number | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -247,7 +248,8 @@ export function InlineGenerationInput({
           const textSnapshot = accumulatedText
           const stepsSnapshot = thoughtsDirty ? [...thoughtSteps] : null
           thoughtsDirty = false
-          requestAnimationFrame(() => {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
             onGenerationStream(textSnapshot)
             if (stepsSnapshot) onGenerationThoughts?.(stepsSnapshot)
             rafScheduled = false
@@ -255,6 +257,8 @@ export function InlineGenerationInput({
         }
       }
 
+      // Drop any pending frame so it can't overwrite the final flush with an older snapshot
+      if (rafId !== null) cancelAnimationFrame(rafId)
       // Final flush
       onGenerationStream(accumulatedText)
       if (thoughtSteps.length > 0) onGenerationThoughts?.([...thoughtSteps])
