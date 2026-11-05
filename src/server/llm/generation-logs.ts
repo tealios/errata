@@ -1,8 +1,12 @@
-import { mkdir, readdir, readFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
 import { writeJsonAtomic } from '../fs-utils'
+import { getActiveProseIds } from '../fragments/prose-chain'
+
+/** Max generation logs kept per story; older ones are pruned on save. */
+export const MAX_GENERATION_LOGS = 200
 import { createLogger } from '../logging'
 
 const logger = createLogger('generation-logs')
@@ -72,6 +76,55 @@ export async function saveGenerationLog(
   const dir = await logsDir(dataDir, storyId)
   await mkdir(dir, { recursive: true })
   await writeJsonAtomic(await logPath(dataDir, storyId, log.id), log)
+  try {
+    await pruneGenerationLogs(dataDir, storyId)
+  } catch (err) {
+    logger.warn('Failed to prune generation logs', { storyId, error: String(err) })
+  }
+}
+
+/**
+ * Delete the oldest logs (by file modification time) beyond `keep`. Logs whose
+ * fragment is still active in the prose chain are never deleted, so the count
+ * can exceed `keep` slightly. Returns the number of logs removed.
+ */
+export async function pruneGenerationLogs(
+  dataDir: string,
+  storyId: string,
+  keep: number = MAX_GENERATION_LOGS,
+): Promise<number> {
+  const dir = await logsDir(dataDir, storyId)
+  if (!existsSync(dir)) return 0
+  const names = (await readdir(dir)).filter((n) => n.endsWith('.json'))
+  if (names.length <= keep) return 0
+
+  const stamped = await Promise.all(names.map(async (name) => {
+    try {
+      return { name, t: (await stat(join(dir, name))).mtimeMs }
+    } catch {
+      return null
+    }
+  }))
+  const sorted = stamped.filter((e): e is { name: string; t: number } => e !== null)
+    .sort((a, b) => b.t - a.t || b.name.localeCompare(a.name))
+  const candidates = sorted.slice(keep)
+  if (candidates.length === 0) return 0
+
+  const active = new Set(await getActiveProseIds(dataDir, storyId).catch(() => [] as string[]))
+  let removed = 0
+  for (const { name } of candidates) {
+    try {
+      if (active.size > 0) {
+        const parsed = JSON.parse(await readFile(join(dir, name), 'utf-8')) as GenerationLog
+        if (parsed.fragmentId && active.has(parsed.fragmentId)) continue
+      }
+      await rm(join(dir, name), { force: true })
+      removed++
+    } catch (err) {
+      logger.warn('Failed to prune generation log', { storyId, name, error: String(err) })
+    }
+  }
+  return removed
 }
 
 export async function getGenerationLog(
