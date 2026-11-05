@@ -6,12 +6,12 @@ import {
   listFragments,
   mutateFragment,
   updateFragmentVersioned,
-  deleteFragment,
   archiveFragment,
   restoreFragment,
   listFragmentVersions,
   revertFragmentToVersion,
 } from '../fragments/storage'
+import { deleteFragmentCascade } from '../fragments/delete'
 import {
   addTag,
   removeTag,
@@ -255,7 +255,7 @@ export function fragmentRoutes(dataDir: string) {
         set.status = 422
         return { error: 'Fragment must be archived before deletion' }
       }
-      await deleteFragment(dataDir, params.storyId, params.fragmentId)
+      await deleteFragmentCascade(dataDir, params.storyId, params.fragmentId)
       return { ok: true }
     }, { detail: { summary: 'Permanently delete an archived fragment' } })
 
