@@ -151,6 +151,10 @@ export interface LibrarianAnalysisSummary {
   timelineEventCount: number
   directionsCount: number
   hasTrace?: boolean
+  fragmentVersion?: number
+  /** True once the analysis no longer describes current prose. */
+  stale?: boolean
+  staleReason?: 'superseded' | 'edited' | 'missing'
 }
 
 export interface LibrarianAnalysis {

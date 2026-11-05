@@ -36,6 +36,11 @@ export const librarian = {
     apiFetch<{ analysis: LibrarianAnalysis }>(`/stories/${storyId}/librarian/analyses/${analysisId}/suggestions/${index}/dismiss`, { method: 'POST' }),
   deleteAnalysis: (storyId: string, analysisId: string) =>
     apiFetch<{ ok: boolean }>(`/stories/${storyId}/librarian/analyses/${analysisId}`, { method: 'DELETE' }),
+  clearAnalyses: (storyId: string, scope: 'stale' | 'all') =>
+    apiFetch<{ removed: number }>(`/stories/${storyId}/librarian/analyses/clear`, {
+      method: 'POST',
+      body: JSON.stringify({ scope }),
+    }),
   refine: (storyId: string, fragmentId: string, instructions?: string, signal?: AbortSignal) =>
     fetchEventStream(`/stories/${storyId}/librarian/refine`, { fragmentId, instructions }, signal),
   transformProseSelection: (

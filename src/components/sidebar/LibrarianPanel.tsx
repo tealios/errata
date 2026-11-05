@@ -36,6 +36,7 @@ import {
   X,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/async-view'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { RefinementPanel } from '@/components/refinement/RefinementPanel'
 import { LibrarianChat } from '@/components/librarian/LibrarianChat'
 
@@ -306,6 +307,9 @@ function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { s
   const [refineTarget, setRefineTarget] = useState<{ fragmentId: string; fragmentName: string; instructions?: string } | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showAllAnalyses, setShowAllAnalyses] = useState(false)
+  const [showStale, setShowStale] = useState(false)
+  const queryClient = useQueryClient()
+  const confirm = useConfirm()
 
   const { data: characters } = useQuery({
     queryKey: ['fragments', storyId, 'character'],
@@ -342,8 +346,32 @@ function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { s
 
   const charName = (id: string) => characters?.find((c) => c.id === id)?.name ?? id
 
-  const totalContradictions = analyses?.reduce((n, a) => n + a.contradictionCount, 0) ?? 0
-  const totalSuggestions = analyses?.reduce((n, a) => n + a.pendingSuggestionCount, 0) ?? 0
+  // Outdated analyses (re-analyzed, edited since, or prose deleted) stay out of
+  // the findings and the list unless asked for.
+  const freshAnalyses = useMemo(() => (analyses ?? []).filter((a) => !a.stale), [analyses])
+  const staleCount = (analyses?.length ?? 0) - freshAnalyses.length
+  const visibleAnalyses = showStale ? (analyses ?? []) : freshAnalyses
+
+  const clearMutation = useMutation({
+    mutationFn: (scope: 'stale' | 'all') => api.librarian.clearAnalyses(storyId, scope),
+    onSuccess: () => {
+      setExpandedId(null)
+      queryClient.invalidateQueries({ queryKey: ['librarian-analyses', storyId] })
+    },
+  })
+
+  const handleClearAll = async () => {
+    const ok = await confirm({
+      title: 'Clear all analyses?',
+      description: 'Every librarian analysis for this story will be deleted, with its contradictions and pending suggestions. Your prose and summaries are untouched.',
+      confirmText: 'Clear all',
+      destructive: true,
+    })
+    if (ok) clearMutation.mutate('all')
+  }
+
+  const totalContradictions = freshAnalyses.reduce((n, a) => n + a.contradictionCount, 0)
+  const totalSuggestions = freshAnalyses.reduce((n, a) => n + a.pendingSuggestionCount, 0)
   const hasMentions = status && Object.keys(status.recentMentions ?? {}).length > 0
   const hasTimeline = status && (status.timeline?.length ?? 0) > 0
   const hasFindings = totalContradictions > 0 || totalSuggestions > 0
@@ -380,7 +408,12 @@ function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { s
             {!hasFindings && <SectionLabel>Analyses</SectionLabel>}
             {hasFindings && <div className="h-2" />}
             <div className="space-y-1.5">
-              {(showAllAnalyses ? analyses : analyses.slice(0, 6)).map((summary) => (
+              {visibleAnalyses.length === 0 && (
+                <p className="text-[0.6875rem] text-muted-foreground italic px-0.5 py-1">
+                  Nothing current. Every analysis predates your latest edits.
+                </p>
+              )}
+              {(showAllAnalyses ? visibleAnalyses : visibleAnalyses.slice(0, 6)).map((summary) => (
                 <AnalysisItem
                   key={summary.id}
                   storyId={storyId}
@@ -392,14 +425,41 @@ function StoryContent({ storyId, status, onOpenChat }: LibrarianPanelProps & { s
                   charName={charName}
                 />
               ))}
-              {!showAllAnalyses && analyses.length > 6 && (
+              {!showAllAnalyses && visibleAnalyses.length > 6 && (
                 <button
                   onClick={() => setShowAllAnalyses(true)}
                   className="w-full text-center text-[0.625rem] text-muted-foreground hover:text-foreground py-1.5 transition-colors"
                 >
-                  Show {analyses.length - 6} more
+                  Show {visibleAnalyses.length - 6} more
                 </button>
               )}
+            </div>
+            <div className="flex items-center gap-2 pt-1.5 px-0.5 text-[0.625rem] text-muted-foreground">
+              {staleCount > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowStale(!showStale)}
+                    className="hover:text-foreground transition-colors"
+                  >
+                    {showStale ? 'Hide' : 'Show'} {staleCount} outdated
+                  </button>
+                  <span aria-hidden className="text-muted-foreground/40">·</span>
+                  <button
+                    onClick={() => clearMutation.mutate('stale')}
+                    disabled={clearMutation.isPending}
+                    className="hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Clear outdated
+                  </button>
+                </>
+              )}
+              <button
+                onClick={handleClearAll}
+                disabled={clearMutation.isPending}
+                className="ml-auto hover:text-destructive transition-colors disabled:opacity-50"
+              >
+                Clear all
+              </button>
             </div>
           </section>
         )}
@@ -508,6 +568,12 @@ function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: Re
   )
 }
 
+const STALE_LABELS: Record<NonNullable<LibrarianAnalysisSummary['staleReason']>, string> = {
+  superseded: 're-analyzed',
+  edited: 'edited since',
+  missing: 'prose deleted',
+}
+
 function AnalysisItem({
   storyId,
   summary,
@@ -580,7 +646,7 @@ function AnalysisItem({
   const pendingSuggestions = summary.pendingSuggestionCount
 
   return (
-    <div className="rounded-md border border-border/25 overflow-hidden">
+    <div className={`rounded-md border border-border/25 overflow-hidden ${summary.stale ? 'opacity-55' : ''}`}>
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-1.5 px-2.5 py-2 text-[0.6875rem] hover:bg-accent/30 transition-colors"
@@ -591,6 +657,9 @@ function AnalysisItem({
         }
         <span className="font-mono text-foreground/60 truncate">{summary.fragmentId}</span>
         <span className="text-muted-foreground shrink-0">{timeStr}</span>
+        {summary.staleReason && (
+          <span className="text-muted-foreground italic truncate">{STALE_LABELS[summary.staleReason]}</span>
+        )}
         <div className="ml-auto flex gap-1 shrink-0 items-center">
           {summary.contradictionCount > 0 && (
             <span className="inline-flex items-center justify-center size-4 rounded-full bg-destructive/15 text-destructive text-[0.5625rem] font-mono">
