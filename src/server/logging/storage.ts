@@ -1,10 +1,11 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { LogEntry, LogSummary } from './types'
 
 const MAX_LOGS_PER_FILE = 1000
 const MAX_LOG_FILES = 5
+const NL = String.fromCharCode(10)
 
 function logsDir(dataDir: string): string {
   return join(dataDir, 'logs')
@@ -14,51 +15,83 @@ function logFilePath(dataDir: string, index: number): string {
   return join(logsDir(dataDir), `app-${index}.jsonl`)
 }
 
-/**
- * Save a log entry to the application log file.
- * Uses rotating log files to prevent unbounded growth.
- */
-export async function saveLogEntry(dataDir: string, entry: LogEntry): Promise<void> {
-  const dir = logsDir(dataDir)
-  await mkdir(dir, { recursive: true })
+interface WriteState {
+  /** Index of the file currently being appended to */
+  index: number
+  /** Lines already in that file */
+  count: number
+}
 
-  // Find the current log file
-  let currentIndex = 0
+/** Per-dataDir write position, initialised lazily from disk */
+const writeStates = new Map<string, WriteState>()
+/** Single promise queue so log writes never interleave */
+let writeQueue: Promise<unknown> = Promise.resolve()
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = writeQueue.then(task, task)
+  writeQueue = run.catch(() => undefined)
+  return run
+}
+
+async function countLines(path: string): Promise<number> {
+  const content = await readFile(path, 'utf-8')
+  let n = 0
+  for (const line of content.split(NL)) if (line.trim()) n++
+  return n
+}
+
+async function initWriteState(dataDir: string): Promise<WriteState> {
+  let index = 0
+  let count = 0
   for (let i = 0; i < MAX_LOG_FILES; i++) {
     const path = logFilePath(dataDir, i)
     if (!existsSync(path)) {
-      currentIndex = i
+      index = i
+      count = 0
       break
     }
-    const stats = await readFile(path, 'utf-8')
-    const lines = stats.split('\n').filter(line => line.trim())
-    if (lines.length < MAX_LOGS_PER_FILE) {
-      currentIndex = i
-      break
-    }
-    currentIndex = i + 1
+    count = await countLines(path)
+    index = i
+    if (count < MAX_LOGS_PER_FILE) break
   }
+  return { index, count }
+}
 
-  // Rotate if needed
-  if (currentIndex >= MAX_LOG_FILES) {
-    // Remove oldest file and shift others
-    for (let i = 0; i < MAX_LOG_FILES - 1; i++) {
-      const oldPath = logFilePath(dataDir, i + 1)
-      const newPath = logFilePath(dataDir, i)
-      if (existsSync(oldPath)) {
-        const content = await readFile(oldPath, 'utf-8')
-        await writeFile(newPath, content, 'utf-8')
+async function rotate(dataDir: string): Promise<void> {
+  // Drop the oldest file, shift the rest down by one.
+  await rm(logFilePath(dataDir, 0), { force: true })
+  for (let i = 1; i < MAX_LOG_FILES; i++) {
+    const from = logFilePath(dataDir, i)
+    if (existsSync(from)) await rename(from, logFilePath(dataDir, i - 1))
+  }
+}
+
+/**
+ * Save a log entry to the application log file.
+ * Writes are serialized and appended; files rotate (oldest dropped) once full.
+ */
+export function saveLogEntry(dataDir: string, entry: LogEntry): Promise<void> {
+  return enqueue(async () => {
+    await mkdir(logsDir(dataDir), { recursive: true })
+
+    let state = writeStates.get(dataDir)
+    if (!state) {
+      state = await initWriteState(dataDir)
+      writeStates.set(dataDir, state)
+    }
+
+    if (state.count >= MAX_LOGS_PER_FILE) {
+      if (state.index + 1 < MAX_LOG_FILES) {
+        state.index++
+      } else {
+        await rotate(dataDir)
       }
+      state.count = 0
     }
-    currentIndex = MAX_LOG_FILES - 1
-  }
 
-  const path = logFilePath(dataDir, currentIndex)
-  const line = JSON.stringify(entry) + '\n'
-  
-  // Append to file
-  const existing = existsSync(path) ? await readFile(path, 'utf-8') : ''
-  await writeFile(path, existing + line, 'utf-8')
+    await appendFile(logFilePath(dataDir, state.index), JSON.stringify(entry) + NL, 'utf-8')
+    state.count++
+  })
 }
 
 /**
@@ -136,14 +169,17 @@ export async function getLogEntry(dataDir: string, logId: string): Promise<LogEn
 /**
  * Clear all application logs.
  */
-export async function clearLogs(dataDir: string): Promise<void> {
-  const dir = logsDir(dataDir)
-  if (!existsSync(dir)) return
+export function clearLogs(dataDir: string): Promise<void> {
+  return enqueue(async () => {
+    writeStates.delete(dataDir)
+    const dir = logsDir(dataDir)
+    if (!existsSync(dir)) return
 
-  const entries = await readdir(dir)
-  for (const entry of entries) {
-    if (entry.startsWith('app-') && entry.endsWith('.jsonl')) {
-      await writeFile(join(dir, entry), '', 'utf-8')
+    const entries = await readdir(dir)
+    for (const entry of entries) {
+      if (entry.startsWith('app-') && entry.endsWith('.jsonl')) {
+        await writeFile(join(dir, entry), '', 'utf-8')
+      }
     }
-  }
+  })
 }
