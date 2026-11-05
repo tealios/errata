@@ -15,14 +15,6 @@ function makeStory(): StoryMeta {
   return { id: STORY_ID, name: 'S', description: '', coverImage: null, summary: '', createdAt: now, updatedAt: now, settings: makeTestSettings() }
 }
 
-function makeFragment(id: string, content = 'c'): Fragment {
-  const now = new Date().toISOString()
-  return {
-    id, type: 'character', name: 'n', description: 'd', content, tags: [], refs: [], sticky: false,
-    placement: 'user', createdAt: now, updatedAt: now, order: 0, meta: {}, archived: false, version: 1, versions: [],
-  }
-}
-
 async function call(path: string, method: string, body?: unknown) {
   return app.fetch(new Request(`http://localhost/api/stories/${STORY_ID}${path}`, {
     method,
@@ -52,6 +44,6 @@ describe('chapter create', () => {
     expect(data.fragment.type).toBe('marker')
     const stored = await listFragments(dataDir, STORY_ID, 'marker')
     expect(stored.map((f) => f.id)).toEqual([data.fragment.id])
-    expect((await getProseChain(dataDir, STORY_ID)).entries).toHaveLength(1)
+    expect((await getProseChain(dataDir, STORY_ID))?.entries).toHaveLength(1)
   })
 })
