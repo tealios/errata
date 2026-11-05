@@ -20,6 +20,7 @@ export function bumpVersion(latest: string | null | undefined, kind: BumpKind): 
   if (!latest) return '1.0.0'
   const core = latest.split(/[-+]/)[0]
   const parts = core.split('.').map((n) => Number.parseInt(n, 10))
+  if (parts.length > 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) return '1.0.0'
   let [major, minor, patch] = [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
   if (kind === 'major') {
     major += 1
