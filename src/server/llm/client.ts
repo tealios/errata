@@ -128,6 +128,17 @@ export interface ResolvedModel {
   }
 }
 
+/** Loggable view of a resolved model: no model object, header values redacted. */
+export function redactResolvedModelForLog(resolved: ResolvedModel): Record<string, unknown> {
+  const redactedHeaders: Record<string, string> = {}
+  for (const name of Object.keys(resolved.config.headers)) redactedHeaders[name] = '[redacted]'
+  return {
+    ...resolved,
+    model: '[hidden]',
+    config: { ...resolved.config, headers: redactedHeaders },
+  }
+}
+
 export interface GetModelOptions {
   role?: string
 }
@@ -241,7 +252,7 @@ export async function getModel(dataDir: string, storyId?: string, opts: GetModel
         headers: { ...(provider.customHeaders ?? {}) },
       },
     }
-    createLogger("models").debug('Resolved model', {...toReturn, model: "[hidden]"}) // Don't log the full model object to avoid spam
+    createLogger("models").debug('Resolved model', redactResolvedModelForLog(toReturn))
     return toReturn
   }
 
