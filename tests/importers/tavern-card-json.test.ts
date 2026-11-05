@@ -525,3 +525,28 @@ describe('tavern-card JSON importer', () => {
     })
   })
 })
+
+describe('lorebook entries without ids', () => {
+  it('assigns unique keys using the array index', () => {
+    const json = JSON.stringify({
+      data: {
+        name: 'NoIds',
+        description: 'd',
+        character_book: {
+          name: 'book',
+          entries: [
+            { keys: ['a'], content: 'first' },
+            { keys: ['b'], content: 'second' },
+            { keys: ['c'], content: 'third' },
+          ],
+        },
+      },
+      spec: 'chara_card_v2',
+    })
+    const parsed = parseCardJson(json)!
+    const ids = parsed.book!.entries.map((e) => e.id)
+    expect(new Set(ids).size).toBe(3)
+    const keys = parsed.items.filter((i) => i.key.startsWith('lorebook-')).map((i) => i.key)
+    expect(new Set(keys).size).toBe(3)
+  })
+})
