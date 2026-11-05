@@ -400,6 +400,18 @@ export async function runPrewriter(args: RunPrewriterArgs): Promise<PrewriterRes
         toolName: (p.toolName as string) ?? '',
         result: p.output,
       })
+    } else if (part.type === 'tool-error') {
+      const err = p.error
+      onEvent?.({
+        type: 'tool-result',
+        id: p.toolCallId as string,
+        toolName: (p.toolName as string) ?? '',
+        result: { error: err instanceof Error ? err.message : String(err) },
+      })
+    } else if (part.type === 'error') {
+      // Provider failure: fail the run rather than hand the writer an empty brief
+      const err = p.error
+      throw err instanceof Error ? err : new Error(typeof err === 'string' ? err : 'Prewriter stream error')
     } else if (part.type === 'finish-step') {
       // One step per LLM round-trip. `finish` (singular) fires once for the
       // whole run, so counting it would always yield 1.

@@ -221,6 +221,27 @@ async function runLibrarianInner(
           })
           break
         }
+        case 'tool-error': {
+          // Record the failure in the trace as an errored tool result
+          const err = p.error
+          const message = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err)
+          pushEvent(buffer, {
+            type: 'tool-result',
+            id: p.toolCallId as string,
+            toolName: (p.toolName as string) ?? '',
+            result: { error: message },
+          })
+          requestLogger.warn('Librarian tool call failed', { toolName: p.toolName, error: message })
+          break
+        }
+        case 'error': {
+          // Provider failure: abort so nothing is saved as an (empty) analysis
+          const err = p.error
+          const message = err instanceof Error
+            ? err.message
+            : typeof err === 'string' ? err : JSON.stringify(err)
+          throw err instanceof Error ? err : new Error(message || 'Librarian stream error')
+        }
         case 'finish-step':
           stepCount++
           break

@@ -670,6 +670,22 @@ describe('librarian agent', () => {
     await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow('LLM connection failed')
   })
 
+  it('fails (saves nothing) when the stream emits an error part', async () => {
+    await createStory(dataDir, makeStory())
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    mockAgentStream.mockImplementation(async () => ({
+      fullStream: (async function* () {
+        yield { type: 'error' as const, error: new Error('provider 401') }
+        yield { type: 'finish' as const, finishReason: 'error' }
+      })(),
+    }))
+
+    await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow('provider 401')
+    expect(await listAnalyses(dataDir, storyId)).toHaveLength(0)
+  })
+
   it('throws when story does not exist', async () => {
     await expect(runLibrarian(dataDir, 'nonexistent', 'pr-0001')).rejects.toThrow(
       'Story nonexistent not found',
