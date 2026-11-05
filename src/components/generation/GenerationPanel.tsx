@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -73,7 +73,7 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
 
       const reader = stream.getReader()
       let accumulated = ''
-      let rafScheduled = false
+      let rafId: number | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -84,18 +84,19 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
           asked = value.questions
         }
 
-        if (!rafScheduled && accumulated) {
-          rafScheduled = true
-          const snapshot = accumulated
-          requestAnimationFrame(() => {
-            setStreamedText(snapshot)
+        if (rafId === null && accumulated) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null
+            setStreamedText(accumulated)
             if (outputRef.current) {
               outputRef.current.scrollTop = outputRef.current.scrollHeight
             }
-            rafScheduled = false
           })
         }
       }
+
+      // Drop any pending frame so it can't overwrite the final text with an older snapshot.
+      if (rafId !== null) cancelAnimationFrame(rafId)
 
       if (asked) {
         setPendingQuestions(asked)
@@ -113,10 +114,16 @@ export function GenerationPanel({ storyId, onBack }: GenerationPanelProps) {
         setError(err instanceof Error ? err.message : 'Generation failed')
       }
     } finally {
-      setIsGenerating(false)
-      abortRef.current = null
+      // Only reset shared state if no newer run has replaced this one.
+      if (abortRef.current === ac) {
+        setIsGenerating(false)
+        abortRef.current = null
+      }
     }
   }, [storyId, queryClient])
+
+  // Abort any in-flight generation on unmount.
+  useEffect(() => () => { abortRef.current?.abort() }, [])
 
   const handleGenerate = useCallback((saveResult: boolean) => {
     if (isGenerating) return
