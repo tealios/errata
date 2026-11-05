@@ -189,4 +189,27 @@ describe('runAfterSave', () => {
     await runAfterSave([plugin], fragment, 'story-1')
     expect(calls).toEqual(['pr-0001:story-1'])
   })
+
+  it('a throwing plugin does not stop later plugins and keeps the previous value', async () => {
+    const bad: WritingPlugin = {
+      manifest: { name: 'bad', version: '1.0.0', description: 'bad' },
+      hooks: { beforeGeneration: () => { throw new Error('boom') } },
+    }
+    const good: WritingPlugin = {
+      manifest: { name: 'good', version: '1.0.0', description: 'good' },
+      hooks: { beforeGeneration: (msgs) => [...msgs, { role: 'user', content: 'added' }] },
+    }
+    const input = makeMessages()
+    const out = await runBeforeGeneration([bad, good], input)
+    expect(out).toHaveLength(input.length + 1)
+    expect(out.at(-1)?.content).toBe('added')
+  })
+
+  it('a throwing afterSave hook does not reject', async () => {
+    const bad: WritingPlugin = {
+      manifest: { name: 'bad', version: '1.0.0', description: 'bad' },
+      hooks: { afterSave: async () => { throw new Error('boom') } },
+    }
+    await expect(runAfterSave([bad], { id: 'pr-1' } as Fragment, 'story-1')).resolves.toBeUndefined()
+  })
 })

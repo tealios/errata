@@ -28,9 +28,18 @@ async function runHook<K extends keyof PluginHooks, T>(
     if (!hook) continue
     const startTime = Date.now()
     log.debug(`Running ${hookName} for plugin: ${plugin.manifest.name}`)
-    result = await invoke(hook as NonNullable<PluginHooks[K]>, result)
-    const durationMs = Date.now() - startTime
-    log.debug(`${hookName} completed for plugin: ${plugin.manifest.name}`, { durationMs })
+    try {
+      result = await invoke(hook as NonNullable<PluginHooks[K]>, result)
+      const durationMs = Date.now() - startTime
+      log.debug(`${hookName} completed for plugin: ${plugin.manifest.name}`, { durationMs })
+    } catch (err) {
+      // One misbehaving plugin must not break generation (or fail after the
+      // fragment has already been saved): keep the previous value and move on.
+      log.error(`${hookName} hook failed for plugin: ${plugin.manifest.name}`, {
+        plugin: plugin.manifest.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
   return result
 }
