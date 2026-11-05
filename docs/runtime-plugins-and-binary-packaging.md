@@ -193,7 +193,7 @@ To trigger: create a release on GitHub (or `gh release create v1.x.x`).
 - Keep API keys and other secrets in environment variables or configure via the UI.
 - Keep story data external via `DATA_DIR`.
 - Use external plugins only from trusted sources (runtime code execution risk).
-- External iframe panels are sandboxed (`allow-scripts allow-same-origin allow-forms`).
+- External iframe panels run with `allow-scripts allow-same-origin allow-forms`. That combination lets a panel lift its own sandbox, so treat a panel as exactly as trusted as the plugin's server code (which already runs with full Node access). It is kept so panels can call `/api/plugins/<name>/*` same-origin.
 
 ## Startup Directory Bootstrapping
 
