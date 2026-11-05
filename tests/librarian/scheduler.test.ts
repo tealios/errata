@@ -93,14 +93,29 @@ describe('librarian scheduler', () => {
 
     await vi.advanceTimersByTimeAsync(2000)
 
-    // Only the last fragment should be used
-    expect(mockedInvokeAgent).toHaveBeenCalledTimes(1)
-    expect(mockedInvokeAgent).toHaveBeenCalledWith({
-      dataDir: '/data',
-      storyId: 'story-1',
-      agentName: 'librarian.analyze',
-      input: { fragmentId: 'pr-0003' },
-    })
+    // Every queued fragment is analyzed, in order
+    expect(mockedInvokeAgent).toHaveBeenCalledTimes(3)
+    expect(mockedInvokeAgent.mock.calls.map(c => (c[0].input as { fragmentId: string }).fragmentId))
+      .toEqual(['pr-0001', 'pr-0002', 'pr-0003'])
+  })
+
+  it('does not go idle when a new run is scheduled while one is running', async () => {
+    let release!: () => void
+    mockedInvokeAgent.mockImplementationOnce(() => new Promise((res) => {
+      release = () => res({} as never)
+    }))
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0001'))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(getLibrarianRuntimeStatus('story-1').runStatus).toBe('running')
+
+    await triggerLibrarian('/data', 'story-1', makeFragment('pr-0002'))
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getLibrarianRuntimeStatus('story-1').runStatus).toBe('scheduled')
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(mockedInvokeAgent).toHaveBeenCalledTimes(2)
+    expect(getLibrarianRuntimeStatus('story-1').runStatus).toBe('idle')
   })
 
   it('runs independently for different stories', async () => {
