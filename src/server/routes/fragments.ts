@@ -21,6 +21,7 @@ import {
   getBackRefs,
 } from '../fragments/associations'
 import { generateFragmentId } from '@/lib/fragment-ids'
+import { isValidFragmentId } from '../safe-id'
 import { registry } from '../fragments/registry'
 import { reanalyzeAfterProseChange } from '../librarian/reanalyze'
 import { createLogger } from '../logging'
@@ -47,7 +48,7 @@ export function fragmentRoutes(dataDir: string) {
       const now = new Date().toISOString()
       // Use provided ID if available and not already taken, otherwise generate
       let id: string
-      if (body.id) {
+      if (body.id && isValidFragmentId(body.id)) {
         const existing = await getFragment(dataDir, params.storyId, body.id)
         id = existing ? generateFragmentId(body.type) : body.id
       } else {

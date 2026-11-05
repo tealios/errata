@@ -7,6 +7,7 @@ import {
 import type { FragmentBundleData, FragmentExportEntry } from '@/lib/fragment-clipboard'
 import { createFragment, getFragment, getStory, updateStory } from '../fragments/storage'
 import { generateFragmentId } from '@/lib/fragment-ids'
+import { isValidFragmentId } from '../safe-id'
 import { registry } from '../fragments/registry'
 import { remapFragment, type IdMap } from '../fragments/remap'
 import { importStoryFromZip } from '../story-archive'
@@ -279,7 +280,7 @@ export async function installFragmentBundle(
 
   for (const entry of bundle.fragments) {
     let newId: string
-    if (entry.id && !taken.has(entry.id) && !(await getFragment(dataDir, storyId, entry.id))) {
+    if (isValidFragmentId(entry.id) && !taken.has(entry.id) && !(await getFragment(dataDir, storyId, entry.id))) {
       newId = entry.id
     } else {
       newId = generateFragmentId(entry.type)
@@ -289,7 +290,9 @@ export async function installFragmentBundle(
     }
     taken.add(newId)
     entryNewIds.push(newId)
-    if (entry.id) idMap.set(entry.id, newId)
+    // First entry wins when a bundle repeats an id; later duplicates get fresh ids
+    // but must not hijack refs that point at the original.
+    if (entry.id && !idMap.has(entry.id)) idMap.set(entry.id, newId)
   }
 
   const created: Fragment[] = []

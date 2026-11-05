@@ -5,6 +5,7 @@ import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { getContentRoot, initBranches } from './branches'
 import { createLogger } from '../logging'
 import { writeJsonAtomic } from '../fs-utils'
+import { assertFragmentId, isValidFragmentId } from '../safe-id'
 
 const requestLogger = createLogger('fragment-storage')
 
@@ -28,6 +29,7 @@ async function fragmentsDir(dataDir: string, storyId: string) {
 }
 
 async function fragmentPath(dataDir: string, storyId: string, fragmentId: string) {
+  assertFragmentId(fragmentId)
   const dir = await fragmentsDir(dataDir, storyId)
   return join(dir, `${fragmentId}.json`)
 }
@@ -143,6 +145,7 @@ export async function getFragment(
   storyId: string,
   fragmentId: string
 ): Promise<Fragment | null> {
+  if (!isValidFragmentId(fragmentId)) return null
   const fragment = await readJson<Fragment>(await fragmentPath(dataDir, storyId, fragmentId))
   return normalizeFragment(fragment)
 }
@@ -311,6 +314,7 @@ export async function deleteFragment(
   storyId: string,
   fragmentId: string
 ): Promise<void> {
+  if (!isValidFragmentId(fragmentId)) return
   const path = await fragmentPath(dataDir, storyId, fragmentId)
   if (existsSync(path)) {
     await rm(path)
