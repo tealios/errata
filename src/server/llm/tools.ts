@@ -7,8 +7,8 @@ import {
   updateStory,
   listFragments,
   updateFragmentVersioned,
-  deleteFragment,
 } from '../fragments/storage'
+import { deleteFragmentCascade } from '../fragments/delete'
 import { getActiveProseIds } from '../fragments/prose-chain'
 import { registry } from '../fragments/registry'
 import { createLogger } from '../logging'
@@ -398,7 +398,7 @@ export function createFragmentTools(
         if (fragment && isFragmentLocked(fragment)) {
           return { error: 'Fragment is locked and cannot be modified by AI tools.' }
         }
-        await deleteFragment(dataDir, storyId, fragmentId)
+        await deleteFragmentCascade(dataDir, storyId, fragmentId)
         return { ok: true, id: fragmentId }
       }),
     })

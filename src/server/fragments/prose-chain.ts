@@ -265,3 +265,37 @@ export async function findSectionIndex(
     entry.proseFragments.includes(fragmentId)
   )
 }
+
+/**
+ * Remove a (deleted) fragment from the prose chain. If it was a variation, the
+ * entry keeps its other variations (re-pointing `active` if needed); if it was
+ * the only one, the whole entry is removed.
+ */
+export async function removeFragmentFromProseChain(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string,
+): Promise<void> {
+  return withKeyLock(lockKey(storyId), async () => {
+    const chain = await getProseChain(dataDir, storyId)
+    if (!chain) return
+    let changed = false
+    const entries: ProseChain['entries'] = []
+    for (const entry of chain.entries) {
+      if (!entry.proseFragments.includes(fragmentId) && entry.active !== fragmentId) {
+        entries.push(entry)
+        continue
+      }
+      changed = true
+      const remaining = entry.proseFragments.filter((id) => id !== fragmentId)
+      if (remaining.length === 0) continue
+      entries.push({
+        ...entry,
+        proseFragments: remaining,
+        active: entry.active === fragmentId ? remaining[remaining.length - 1] : entry.active,
+      })
+    }
+    if (!changed) return
+    await saveProseChain(dataDir, storyId, { ...chain, entries })
+  })
+}

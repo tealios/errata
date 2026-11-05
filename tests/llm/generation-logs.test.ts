@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createTempDir, makeTestSettings } from '../setup'
 import { join } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, utimes } from 'node:fs/promises'
+import { saveProseChain } from '@/server/fragments/prose-chain'
 import { getContentRoot } from '@/server/fragments/branches'
 import { createStory } from '@/server/fragments/storage'
 import {
@@ -9,6 +10,8 @@ import {
   getGenerationLog,
   listGenerationLogs,
   findGenerationLogByFragment,
+  pruneGenerationLogs,
+  MAX_GENERATION_LOGS,
   type GenerationLog,
 } from '@/server/llm/generation-logs'
 
@@ -181,5 +184,39 @@ describe('generation-logs storage', () => {
     const list = await listGenerationLogs(dataDir, storyId)
     expect(list.map(l => l.id)).toEqual(['log-good'])
     expect((await findGenerationLogByFragment(dataDir, storyId, 'pr-good'))?.id).toBe('log-good')
+  })
+
+  describe('pruning', () => {
+    async function saveAged(id: string, ageSec: number, overrides: Partial<GenerationLog> = {}) {
+      await saveGenerationLog(dataDir, storyId, makeLog({ id, ...overrides }))
+      const root = await getContentRoot(dataDir, storyId)
+      const t = new Date(Date.now() - ageSec * 1000)
+      await utimes(join(root, 'generation-logs', `${id}.json`), t, t)
+    }
+
+    it('deletes the oldest logs beyond the keep limit', async () => {
+      for (let i = 0; i < 5; i++) await saveAged(`log-${i}`, 100 - i * 10)
+      const removed = await pruneGenerationLogs(dataDir, storyId, 3)
+      expect(removed).toBe(2)
+      const ids = (await listGenerationLogs(dataDir, storyId)).map((l) => l.id).sort()
+      expect(ids).toEqual(['log-2', 'log-3', 'log-4'])
+    })
+
+    it('keeps logs for fragments still active in the prose chain', async () => {
+      await saveProseChain(dataDir, storyId, { entries: [{ proseFragments: ['pr-keep'], active: 'pr-keep' }] })
+      await saveAged('log-old-active', 1000, { fragmentId: 'pr-keep' })
+      await saveAged('log-old-other', 900, { fragmentId: 'pr-gone' })
+      for (let i = 0; i < 3; i++) await saveAged(`log-new-${i}`, 10 - i)
+      await pruneGenerationLogs(dataDir, storyId, 3)
+      expect(await getGenerationLog(dataDir, storyId, 'log-old-active')).not.toBeNull()
+      expect(await getGenerationLog(dataDir, storyId, 'log-old-other')).toBeNull()
+    })
+
+    it('prunes automatically on save and never throws', async () => {
+      for (let i = 0; i < MAX_GENERATION_LOGS + 3; i++) {
+        await saveGenerationLog(dataDir, storyId, makeLog({ id: `log-${String(i).padStart(4, '0')}` }))
+      }
+      expect((await listGenerationLogs(dataDir, storyId)).length).toBe(MAX_GENERATION_LOGS)
+    }, 30000)
   })
 })

@@ -182,3 +182,44 @@ export async function getBackRefs(
   const assoc = await getAssociations(dataDir, storyId)
   return assoc.refIndex[`__backref:${fragmentId}`] ?? []
 }
+
+/**
+ * Drop every trace of a fragment from the tag and ref indexes (forward keys,
+ * `__backref:` keys, and its appearances inside other fragments' lists).
+ */
+export async function removeFragmentFromAssociations(
+  dataDir: string,
+  storyId: string,
+  fragmentId: string
+): Promise<void> {
+  return withKeyLock(`associations:${dataDir}:${storyId}`, async () => {
+    const assoc = await getAssociations(dataDir, storyId)
+    let changed = false
+
+    for (const tag of Object.keys(assoc.tagIndex)) {
+      const ids = assoc.tagIndex[tag]
+      if (!ids.includes(fragmentId)) continue
+      changed = true
+      const next = ids.filter((id) => id !== fragmentId)
+      if (next.length === 0) delete assoc.tagIndex[tag]
+      else assoc.tagIndex[tag] = next
+    }
+
+    const ownKeys = new Set([fragmentId, `__backref:${fragmentId}`])
+    for (const key of Object.keys(assoc.refIndex)) {
+      if (ownKeys.has(key)) {
+        delete assoc.refIndex[key]
+        changed = true
+        continue
+      }
+      const ids = assoc.refIndex[key]
+      if (!ids.includes(fragmentId)) continue
+      changed = true
+      const next = ids.filter((id) => id !== fragmentId)
+      if (next.length === 0) delete assoc.refIndex[key]
+      else assoc.refIndex[key] = next
+    }
+
+    if (changed) await saveAssociations(dataDir, storyId, assoc)
+  })
+}
