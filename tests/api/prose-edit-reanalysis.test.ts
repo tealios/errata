@@ -142,7 +142,7 @@ describe('prose edit reanalysis trigger', () => {
     )
   })
 
-  it('does not trigger librarian on prose PATCH when replacement is a no-op', async () => {
+  it('does not trigger librarian on prose PATCH when oldText is not found (422)', async () => {
     const { storyId, fragmentId } = await createStoryAndProse()
 
     const res = await apiJson(`/stories/${storyId}/fragments/${fragmentId}`, {
@@ -150,7 +150,7 @@ describe('prose edit reanalysis trigger', () => {
       newText: 'Updated',
     }, 'PATCH')
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(422)
     expect(mockedTriggerLibrarian).not.toHaveBeenCalled()
   })
 
