@@ -1,6 +1,5 @@
 import { readFile, mkdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
-import { existsSync } from 'node:fs'
 import { z } from 'zod/v4'
 import { BlockConfigSchema, type CustomBlockDefinition, type BlockOverride } from '../blocks/schema'
 import { getContentRoot } from '../fragments/branches'

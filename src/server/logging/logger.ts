@@ -1,7 +1,10 @@
 import type { LogEntry, LogLevel } from './types'
 import { saveLogEntry } from './storage'
 
-const DATA_DIR = process.env.DATA_DIR ?? './data'
+/** Resolved at log time so DATA_DIR set after module load is honoured. */
+function defaultDataDir(): string {
+  return process.env.DATA_DIR ?? './data'
+}
 const IS_TEST = process.env.NODE_ENV === 'test' || process.env.VITEST
 
 /**
@@ -11,13 +14,13 @@ const IS_TEST = process.env.NODE_ENV === 'test' || process.env.VITEST
 export class Logger {
   private component: string
   private storyId?: string
-  private dataDir: string
+  private dataDirOverride?: string
   private extra: Record<string, unknown>
 
   constructor(component: string, options: { storyId?: string; dataDir?: string, extra?: Record<string, unknown> } = {}) {
     this.component = component
     this.storyId = options.storyId
-    this.dataDir = options.dataDir ?? DATA_DIR
+    this.dataDirOverride = options.dataDir
     this.extra = {}
   }
 
@@ -27,7 +30,7 @@ export class Logger {
   child(additionalContext: { storyId?: string, extra?: Record<string, unknown> }): Logger {
     return new Logger(this.component, {
       storyId: additionalContext.storyId ?? this.storyId,
-      dataDir: this.dataDir,
+      dataDir: this.dataDirOverride,
       extra: { ...this.extra, ...additionalContext.extra },
     })
   }
@@ -57,7 +60,7 @@ export class Logger {
     if (IS_TEST) return
 
     try {
-      await saveLogEntry(this.dataDir, entry)
+      await saveLogEntry(this.dataDirOverride ?? defaultDataDir(), entry)
     } catch (err) {
       // If logging fails, at least we have console output
       console.error('[logger] Failed to save log entry:', err)
