@@ -3,6 +3,9 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getContentRoot } from '../fragments/branches'
 import { writeJsonAtomic } from '../fs-utils'
+import { createLogger } from '../logging'
+
+const logger = createLogger('generation-logs')
 
 export interface ToolCallLog {
   toolName: string
@@ -94,8 +97,13 @@ export async function listGenerationLogs(
 
   for (const entry of entries) {
     if (!entry.endsWith('.json')) continue
-    const raw = await readFile(join(dir, entry), 'utf-8')
-    const log = JSON.parse(raw) as GenerationLog
+    let log: GenerationLog
+    try {
+      log = JSON.parse(await readFile(join(dir, entry), 'utf-8')) as GenerationLog
+    } catch (err) {
+      logger.warn('Skipping unreadable generation log', { storyId, file: entry, error: err instanceof Error ? err.message : String(err) })
+      continue
+    }
     summaries.push({
       id: log.id,
       createdAt: log.createdAt,
@@ -132,8 +140,13 @@ export async function findGenerationLogByFragment(
   let best: GenerationLog | null = null
   for (const entry of entries) {
     if (!entry.endsWith('.json')) continue
-    const raw = await readFile(join(dir, entry), 'utf-8')
-    const log = JSON.parse(raw) as GenerationLog
+    let log: GenerationLog
+    try {
+      log = JSON.parse(await readFile(join(dir, entry), 'utf-8')) as GenerationLog
+    } catch (err) {
+      logger.warn('Skipping unreadable generation log', { storyId, file: entry, error: err instanceof Error ? err.message : String(err) })
+      continue
+    }
     if (log.fragmentId !== fragmentId) continue
     if (!best || log.createdAt.localeCompare(best.createdAt) > 0) best = log
   }
