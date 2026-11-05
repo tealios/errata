@@ -235,6 +235,8 @@ export async function buildContextState(
   if (activeProseIds.length === 0) {
     requestLogger.debug('No prose chain found, falling back to listing all prose')
     proseFragments = await listFragments(dataDir, storyId, 'prose')
+    // Not from a chain: order by `order`, then createdAt
+    proseFragments.sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt))
 
     if (proseBeforeFragmentId) {
       const beforeFragment = await getFragment(dataDir, storyId, proseBeforeFragmentId)
@@ -288,10 +290,8 @@ export async function buildContextState(
     characterCount: allCharacters.length,
   })
 
-  // Sort prose by order, then createdAt
-  const sortedProse = proseFragments.sort(
-    (a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt),
-  )
+  // Chain order is authoritative; the no-chain fallback was sorted above
+  const sortedProse = proseFragments
 
   // Resolve the prose compact option: opts override > legacy proseLimit > story setting > default
   const effectiveCompact: ContextCompactOption =

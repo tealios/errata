@@ -74,7 +74,7 @@ const analyzeDefinition: AgentDefinition<typeof AnalyzeInputSchema> = {
   description: 'Analyze a prose fragment for continuity signals and summary updates.',
   inputSchema: AnalyzeInputSchema,
   run: async (ctx, input) => {
-    return runLibrarian(ctx.dataDir, ctx.storyId, input.fragmentId)
+    return runLibrarian(ctx.dataDir, ctx.storyId, input.fragmentId, ctx.abortSignal)
   },
 }
 

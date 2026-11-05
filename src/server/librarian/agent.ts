@@ -41,6 +41,10 @@ import type { AgentBlockContext } from '../agents/agent-block-context'
 
 const logger = createLogger('librarian-agent')
 
+/** Caps on the rolling librarian state so it can't grow without bound. */
+const MAX_RECENT_MENTIONS_PER_CHARACTER = 50
+const MAX_TIMELINE_ENTRIES = 500
+
 function compactSummaryByCharacters(summary: string, maxCharacters: number, targetCharacters: number): string {
   const normalized = summary.trim()
   if (normalized.length <= maxCharacters) return normalized
@@ -60,12 +64,13 @@ export async function runLibrarian(
   dataDir: string,
   storyId: string,
   fragmentId: string,
+  abortSignal?: AbortSignal,
 ): Promise<LibrarianAnalysis> {
   // Serialize analysis runs per story. Concurrent runs would clobber state.json,
   // the live SSE buffer, the analysis index, deferred summary fragments, and the
   // summarizedUpTo watermark — all unguarded read-modify-write.
   return withKeyLock(`librarian:${storyId}`, () =>
-    withBranch(dataDir, storyId, () => runLibrarianInner(dataDir, storyId, fragmentId)),
+    withBranch(dataDir, storyId, () => runLibrarianInner(dataDir, storyId, fragmentId, abortSignal)),
   )
 }
 
@@ -73,6 +78,7 @@ async function runLibrarianInner(
   dataDir: string,
   storyId: string,
   fragmentId: string,
+  abortSignal?: AbortSignal,
 ): Promise<LibrarianAnalysis> {
   const requestLogger = logger.child({ storyId })
   requestLogger.info('Starting librarian analysis...', { fragmentId })
@@ -184,6 +190,7 @@ async function runLibrarianInner(
   try {
     const result = await agent.stream({
       prompt: userMessage?.content ?? '',
+      abortSignal,
     })
 
     // Iterate fullStream, mapping events to buffer
@@ -220,6 +227,27 @@ async function runLibrarianInner(
             result: p.output,
           })
           break
+        }
+        case 'tool-error': {
+          // Record the failure in the trace as an errored tool result
+          const err = p.error
+          const message = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err)
+          pushEvent(buffer, {
+            type: 'tool-result',
+            id: p.toolCallId as string,
+            toolName: (p.toolName as string) ?? '',
+            result: { error: message },
+          })
+          requestLogger.warn('Librarian tool call failed', { toolName: p.toolName, error: message })
+          break
+        }
+        case 'error': {
+          // Provider failure: abort so nothing is saved as an (empty) analysis
+          const err = p.error
+          const message = err instanceof Error
+            ? err.message
+            : typeof err === 'string' ? err : JSON.stringify(err)
+          throw err instanceof Error ? err : new Error(message || 'Librarian stream error')
         }
         case 'finish-step':
           stepCount++
@@ -363,17 +391,30 @@ async function runLibrarianInner(
 
   // Update librarian state
   requestLogger.debug('Updating librarian state...')
-  const updatedMentions = { ...state.recentMentions }
+  // Reanalysis replaces this fragment's earlier entries instead of appending duplicates.
+  const updatedMentions: Record<string, string[]> = {}
+  for (const [charId, ids] of Object.entries(state.recentMentions)) {
+    const kept = ids.filter(id => id !== fragmentId)
+    if (kept.length > 0) updatedMentions[charId] = kept
+  }
   for (const charId of mentionedCharacterIds) {
     if (!updatedMentions[charId]) {
       updatedMentions[charId] = []
     }
     updatedMentions[charId].push(fragmentId)
   }
+  for (const charId of Object.keys(updatedMentions)) {
+    if (updatedMentions[charId].length > MAX_RECENT_MENTIONS_PER_CHARACTER) {
+      updatedMentions[charId] = updatedMentions[charId].slice(-MAX_RECENT_MENTIONS_PER_CHARACTER)
+    }
+  }
 
-  const updatedTimeline = [...state.timeline]
+  const updatedTimeline = state.timeline.filter(t => t.fragmentId !== fragmentId)
   for (const event of analysis.timelineEvents) {
     updatedTimeline.push({ event: event.event, fragmentId })
+  }
+  if (updatedTimeline.length > MAX_TIMELINE_ENTRIES) {
+    updatedTimeline.splice(0, updatedTimeline.length - MAX_TIMELINE_ENTRIES)
   }
 
   const updatedState = {

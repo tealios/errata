@@ -365,6 +365,22 @@ describe('context-builder', () => {
     expect(included).toEqual(['pr-0001', 'pr-0002'])
   })
 
+  it('preserves prose chain order even when order/createdAt disagree', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+    const stamps = ['2025-03-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', '2025-02-01T00:00:00.000Z']
+    for (let i = 0; i < 3; i++) {
+      const f = makeFragment({
+        id: `pr-000${i + 1}`, type: 'prose', name: `P${i + 1}`, content: `c${i + 1}`,
+        order: 0, createdAt: stamps[i], updatedAt: stamps[i],
+      })
+      await createFragment(dataDir, story.id, f)
+      await addProseSection(dataDir, story.id, f.id)
+    }
+    const state = await buildContextState(dataDir, story.id, 'Continue')
+    expect(state.proseFragments.map(f => f.id)).toEqual(['pr-0001', 'pr-0002', 'pr-0003'])
+  })
+
   it('omits story summary when excludeStorySummary is true', async () => {
     const story = makeStory({ summary: 'Late events that should not leak into regenerate context.' })
     await createStory(dataDir, story)

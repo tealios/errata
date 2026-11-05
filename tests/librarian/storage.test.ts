@@ -9,6 +9,8 @@ import {
   saveState,
   getLatestAnalysisIdsByFragment,
   rebuildAnalysisIndex,
+  createConversation,
+  listConversations,
   type LibrarianAnalysis,
   type LibrarianState,
 } from '@/server/librarian/storage'
@@ -198,6 +200,13 @@ describe('librarian storage', () => {
       expect(loaded.lastAnalyzedFragmentId).toBe('pr-0002')
       expect(loaded.recentMentions['ch-0001']).toEqual(['pr-0002'])
       expect(loaded.timeline).toHaveLength(1)
+    })
+  })
+
+  describe('conversations index', () => {
+    it('keeps every conversation created concurrently', async () => {
+      await Promise.all(Array.from({ length: 12 }, (_, i) => createConversation(dataDir, storyId, ('chat ' + i))))
+      expect(await listConversations(dataDir, storyId)).toHaveLength(12)
     })
   })
 })

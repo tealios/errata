@@ -4,6 +4,9 @@ import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import type { WritingPlugin } from './types'
 import { registerRuntimePluginUi } from './runtime-ui'
+import { createLogger } from '../logging'
+
+const logger = createLogger('plugin-loader')
 
 const SERVER_ENTRY_CANDIDATES = ['entry.server.ts', 'entry.server.js', 'plugin.ts', 'plugin.js']
 
@@ -21,15 +24,34 @@ interface PluginJson {
   panel?: PluginJsonPanel
 }
 
-function resolvePluginEntryPath(pluginsDir: string, name: string): string | null {
+export interface LoaderOptions {
+  /** Whether `.ts` entrypoints can be imported (defaults to runtime detection) */
+  typescript?: boolean
+}
+
+/** Bun (and test runners) can import .ts directly; plain Node cannot. */
+function runtimeSupportsTypeScript(): boolean {
+  if (typeof process === 'undefined') return false
+  if (process.versions?.bun) return true
+  if (process.env.VITEST) return true
+  return Boolean((process as { features?: { typescript?: unknown } }).features?.typescript)
+}
+
+function resolvePluginEntryPath(
+  pluginsDir: string,
+  name: string,
+  tsSupported: boolean = runtimeSupportsTypeScript(),
+): string | null {
   for (const entryFile of SERVER_ENTRY_CANDIDATES) {
+    if (!tsSupported && entryFile.endsWith('.ts')) continue
     const fullPath = join(pluginsDir, name, entryFile)
     if (existsSync(fullPath)) return fullPath
   }
   return null
 }
 
-export async function discoverPlugins(pluginsDir: string): Promise<string[]> {
+export async function discoverPlugins(pluginsDir: string, options: LoaderOptions = {}): Promise<string[]> {
+  const tsSupported = options.typescript ?? runtimeSupportsTypeScript()
   if (!existsSync(pluginsDir)) return []
 
   const entries = await readdir(pluginsDir)
@@ -40,9 +62,11 @@ export async function discoverPlugins(pluginsDir: string): Promise<string[]> {
     const entryStat = await stat(entryPath)
     if (!entryStat.isDirectory()) continue
 
-    const pluginEntry = resolvePluginEntryPath(pluginsDir, entry)
+    const pluginEntry = resolvePluginEntryPath(pluginsDir, entry, tsSupported)
     if (pluginEntry) {
       names.push(entry)
+    } else if (!tsSupported && resolvePluginEntryPath(pluginsDir, entry, true)) {
+      logger.warn(`Skipping plugin "${entry}": it only has a TypeScript entrypoint, which this runtime cannot load (precompile to .js)`, { plugin: entry })
     }
   }
 
@@ -52,8 +76,9 @@ export async function discoverPlugins(pluginsDir: string): Promise<string[]> {
 export async function loadPlugin(
   pluginsDir: string,
   name: string,
+  options: LoaderOptions = {},
 ): Promise<WritingPlugin> {
-  const pluginPath = resolvePluginEntryPath(pluginsDir, name)
+  const pluginPath = resolvePluginEntryPath(pluginsDir, name, options.typescript ?? runtimeSupportsTypeScript())
   if (!pluginPath) {
     throw new Error(
       `Plugin "${name}" has no supported server entrypoint (${SERVER_ENTRY_CANDIDATES.join(', ')})`,
@@ -129,13 +154,20 @@ export async function loadPlugin(
   return plugin
 }
 
-export async function loadAllPlugins(pluginsDir: string): Promise<WritingPlugin[]> {
-  const names = await discoverPlugins(pluginsDir)
+export async function loadAllPlugins(pluginsDir: string, options: LoaderOptions = {}): Promise<WritingPlugin[]> {
+  const names = await discoverPlugins(pluginsDir, options)
   const plugins: WritingPlugin[] = []
 
   for (const name of names) {
-    const plugin = await loadPlugin(pluginsDir, name)
-    plugins.push(plugin)
+    // One broken plugin must not stop the others from loading.
+    try {
+      plugins.push(await loadPlugin(pluginsDir, name, options))
+    } catch (error) {
+      logger.error(`Failed to load plugin "${name}"`, {
+        plugin: name,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   return plugins

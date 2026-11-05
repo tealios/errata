@@ -598,6 +598,26 @@ describe('librarian agent', () => {
     expect(updated?.refs).toContain('pr-0001')
   })
 
+  it('reanalysis replaces a fragment\'s mentions and timeline entries instead of duplicating', async () => {
+    await createStory(dataDir, makeStory())
+    await createFragment(dataDir, storyId, makeFragment({ id: 'ch-0001', type: 'character', name: 'Alice', description: 'x' }))
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'Alice fought.' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    for (let i = 0; i < 2; i++) {
+      mockStreamWithToolCalls([
+        { toolName: 'updateSummary', args: { summary: 'Alice fought.' } },
+        { toolName: 'reportMentions', args: { mentions: [{ characterId: 'ch-0001', text: 'Alice' }] } },
+        { toolName: 'reportTimeline', args: { events: [{ event: 'Alice fought', position: 'during' }] } },
+      ])
+      await runLibrarian(dataDir, storyId, 'pr-0001')
+    }
+
+    const state = await getState(dataDir, storyId)
+    expect(state.recentMentions['ch-0001']).toEqual(['pr-0001'])
+    expect(state.timeline).toHaveLength(1)
+  })
+
   it('tracks timeline events', async () => {
     await createStory(dataDir, makeStory())
     await createFragment(dataDir, storyId, makeFragment({
@@ -668,6 +688,22 @@ describe('librarian agent', () => {
     })
 
     await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow('LLM connection failed')
+  })
+
+  it('fails (saves nothing) when the stream emits an error part', async () => {
+    await createStory(dataDir, makeStory())
+    await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001' }))
+    await setupProseChain(dataDir, storyId, ['pr-0001'])
+
+    mockAgentStream.mockImplementation(async () => ({
+      fullStream: (async function* () {
+        yield { type: 'error' as const, error: new Error('provider 401') }
+        yield { type: 'finish' as const, finishReason: 'error' }
+      })(),
+    }))
+
+    await expect(runLibrarian(dataDir, storyId, 'pr-0001')).rejects.toThrow('provider 401')
+    expect(await listAnalyses(dataDir, storyId)).toHaveLength(0)
   })
 
   it('throws when story does not exist', async () => {

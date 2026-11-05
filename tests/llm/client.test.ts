@@ -3,7 +3,7 @@ import { streamText } from 'ai'
 import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import { saveGlobalConfig } from '@/server/config/storage'
-import { getModel, buildProviderOptions } from '@/server/llm/client'
+import { getModel, buildProviderOptions, redactResolvedModelForLog } from '@/server/llm/client'
 import type { StoryMeta } from '@/server/fragments/schema'
 
 function makeStory(): StoryMeta {
@@ -308,5 +308,19 @@ describe('buildProviderOptions', () => {
     expect(buildProviderOptions(false, { kind: 'gemini', modelId: 'gemini-3.8-flash' })).toEqual({
       google: { thinkingConfig: { includeThoughts: true } },
     })
+  })
+})
+
+describe('redactResolvedModelForLog', () => {
+  it('hides header values and the model object', () => {
+    const logged = redactResolvedModelForLog({
+      model: {} as never,
+      kind: 'openai-compatible',
+      providerId: 'p',
+      modelId: 'm',
+      config: { providerName: 'P', baseURL: 'http://x', headers: { Authorization: 'Bearer sk-secret' } },
+    })
+    expect(JSON.stringify(logged)).not.toContain('sk-secret')
+    expect((logged.config as { headers: Record<string, string> }).headers).toEqual({ Authorization: '[redacted]' })
   })
 })

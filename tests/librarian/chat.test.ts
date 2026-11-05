@@ -92,6 +92,34 @@ describe('librarian chat endpoint', () => {
     await cleanup()
   })
 
+  it('passes an abort signal that fires when the client cancels the stream', async () => {
+    const story = makeStory()
+    await createStory(dataDir, story)
+
+    mockAgentStream.mockResolvedValue({
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'Hello' }
+        await new Promise((r) => setTimeout(r, 50))
+        yield { type: 'finish', finishReason: 'stop' }
+      })(),
+    })
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stories/${story.id}/librarian/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] }),
+      }),
+    )
+    const signal = mockAgentStream.mock.calls.at(-1)![0].abortSignal as AbortSignal
+    expect(signal).toBeInstanceOf(AbortSignal)
+    expect(signal.aborted).toBe(false)
+
+    await res.body!.cancel()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(signal.aborted).toBe(true)
+  })
+
   it('streams NDJSON events for a text-only response', async () => {
     const story = makeStory()
     await createStory(dataDir, story)

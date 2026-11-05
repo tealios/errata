@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createTempDir, makeTestSettings } from '../setup'
+import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
+import { getContentRoot } from '@/server/fragments/branches'
 import { createStory } from '@/server/fragments/storage'
 import {
   saveGenerationLog,
   getGenerationLog,
   listGenerationLogs,
+  findGenerationLogByFragment,
   type GenerationLog,
 } from '@/server/llm/generation-logs'
 
@@ -167,5 +171,15 @@ describe('generation-logs storage', () => {
     expect(summary).not.toHaveProperty('messages')
     expect(summary).not.toHaveProperty('generatedText')
     expect(summary).not.toHaveProperty('toolCalls')
+  })
+
+  it('skips corrupt log files when listing and searching', async () => {
+    await saveGenerationLog(dataDir, storyId, makeLog({ id: 'log-good', fragmentId: 'pr-good' }))
+    const dir = join(await getContentRoot(dataDir, storyId), 'generation-logs')
+    await writeFile(join(dir, 'log-bad.json'), '{ truncated', 'utf-8')
+
+    const list = await listGenerationLogs(dataDir, storyId)
+    expect(list.map(l => l.id)).toEqual(['log-good'])
+    expect((await findGenerationLogByFragment(dataDir, storyId, 'pr-good'))?.id).toBe('log-good')
   })
 })

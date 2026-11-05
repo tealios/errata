@@ -30,6 +30,8 @@ export interface AgentInvocationContext {
   parentRunId: string | null
   rootRunId: string
   depth: number
+  /** Aborted when the run times out; pass to LLM calls so they stop. */
+  abortSignal?: AbortSignal
   invokeAgent: <TInput, TOutput>(name: string, input: TInput) => Promise<TOutput>
 }
 
