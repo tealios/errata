@@ -56,6 +56,10 @@ export function FragmentEditor({
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userEditedRef = useRef(false)
+  // Latest local editor state, readable from timers/cleanups without stale closures.
+  const latestRef = useRef({ id: undefined as string | undefined, name: '', description: '', content: '' })
+  // Debounced save that has been scheduled but not yet fired.
+  const pendingSaveRef = useRef<{ id: string; data: { name: string; description: string; content: string } } | null>(null)
 
   // Fetch live fragment data so sticky/placement updates are reflected immediately.
   // initialDataUpdatedAt prevents TanStack Query from treating initialData as immediately
@@ -69,6 +73,7 @@ export function FragmentEditor({
   })
 
   const fragment = liveFragment ?? fragmentProp
+  latestRef.current = { id: fragment?.id, name, description, content }
   const isVersionedType = !!fragment && ['prose', 'character', 'guideline', 'knowledge'].includes(fragment.type)
 
   // Media queries for clipboard copy (embed attached images)
@@ -199,7 +204,20 @@ export function FragmentEditor({
   const autoSaveMutation = useMutation({
     mutationFn: (data: { name: string; description: string; content: string }) =>
       api.fragments.update(storyId, fragment!.id, data),
-    onSuccess: () => {
+    onSuccess: (_result, vars) => {
+      const savedId = fragment?.id
+      // Keep the cached fragment equal to the server so later meta writes and
+      // external-sync comparisons never see stale content.
+      if (savedId) {
+        queryClient.setQueryData<Fragment | undefined>(['fragment', storyId, savedId], (old) =>
+          old ? { ...old, name: vars.name, description: vars.description, content: vars.content } : old)
+        queryClient.invalidateQueries({ queryKey: ['fragment-versions', storyId, savedId] })
+      }
+      // Saved state matches what's on screen: let incoming server changes sync again.
+      const l = latestRef.current
+      if (l.id === savedId && l.name === vars.name && l.description === vars.description && l.content === vars.content) {
+        userEditedRef.current = false
+      }
       const fType = fragment?.type
       queryClient.invalidateQueries({
         queryKey: ['fragments', storyId],
@@ -228,7 +246,9 @@ export function FragmentEditor({
     if (!name.trim()) return
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    pendingSaveRef.current = { id: fragment.id, data: { name, description, content } }
     autoSaveTimerRef.current = setTimeout(() => {
+      pendingSaveRef.current = null
       setSaveStatus('saving')
       autoSaveMutation.mutate({ name, description, content })
     }, 800)
@@ -238,10 +258,33 @@ export function FragmentEditor({
     }
   }, [name, description, content, mode, fragment?.id])
 
+  // Flush a pending debounced save when switching fragments or unmounting,
+  // writing the previous fragment's own content.
+  const flushPendingSave = useCallback((forId: string | undefined) => {
+    const pending = pendingSaveRef.current
+    if (!pending || pending.id !== forId) return
+    pendingSaveRef.current = null
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    api.fragments.update(storyId, pending.id, pending.data).then(() => {
+      queryClient.setQueryData<Fragment | undefined>(['fragment', storyId, pending.id], (old) =>
+        old ? { ...old, ...pending.data } : old)
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['fragments-archived', storyId] })
+      queryClient.invalidateQueries({ queryKey: ['fragment-versions', storyId, pending.id] })
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
+    }).catch(() => {})
+  }, [storyId, queryClient])
+
+  useEffect(() => {
+    const id = fragment?.id
+    return () => flushPendingSave(id)
+  }, [fragment?.id, flushPendingSave])
+
   // Flush pending auto-save on close
   const handleClose = useCallback(() => {
     if (autoSaveTimerRef.current && userEditedRef.current && mode === 'edit' && fragment && name.trim()) {
       clearTimeout(autoSaveTimerRef.current)
+      pendingSaveRef.current = null
       autoSaveMutation.mutate({ name, description, content })
     }
     onClose()
@@ -271,9 +314,9 @@ export function FragmentEditor({
     mutationFn: (newMeta: Record<string, unknown>) => {
       if (!fragment) throw new Error('No fragment')
       return api.fragments.update(storyId, fragment.id, {
-        name: fragment.name,
-        description: fragment.description,
-        content: fragment.content,
+        name: latestRef.current.id === fragment.id ? latestRef.current.name || fragment.name : fragment.name,
+        description: latestRef.current.id === fragment.id ? latestRef.current.description : fragment.description,
+        content: latestRef.current.id === fragment.id ? latestRef.current.content : fragment.content,
         meta: newMeta,
       })
     },
@@ -391,7 +434,6 @@ export function FragmentEditor({
   }
 
   const isEditing = mode === 'edit'
-  const isPending = updateMutation.isPending
   const isMediaType = type === 'image' || type === 'icon'
 
   const handleImageUpload = async (file: File) => {
