@@ -41,6 +41,10 @@ import type { AgentBlockContext } from '../agents/agent-block-context'
 
 const logger = createLogger('librarian-agent')
 
+/** Caps on the rolling librarian state so it can't grow without bound. */
+const MAX_RECENT_MENTIONS_PER_CHARACTER = 50
+const MAX_TIMELINE_ENTRIES = 500
+
 function compactSummaryByCharacters(summary: string, maxCharacters: number, targetCharacters: number): string {
   const normalized = summary.trim()
   if (normalized.length <= maxCharacters) return normalized
@@ -387,17 +391,30 @@ async function runLibrarianInner(
 
   // Update librarian state
   requestLogger.debug('Updating librarian state...')
-  const updatedMentions = { ...state.recentMentions }
+  // Reanalysis replaces this fragment's earlier entries instead of appending duplicates.
+  const updatedMentions: Record<string, string[]> = {}
+  for (const [charId, ids] of Object.entries(state.recentMentions)) {
+    const kept = ids.filter(id => id !== fragmentId)
+    if (kept.length > 0) updatedMentions[charId] = kept
+  }
   for (const charId of mentionedCharacterIds) {
     if (!updatedMentions[charId]) {
       updatedMentions[charId] = []
     }
     updatedMentions[charId].push(fragmentId)
   }
+  for (const charId of Object.keys(updatedMentions)) {
+    if (updatedMentions[charId].length > MAX_RECENT_MENTIONS_PER_CHARACTER) {
+      updatedMentions[charId] = updatedMentions[charId].slice(-MAX_RECENT_MENTIONS_PER_CHARACTER)
+    }
+  }
 
-  const updatedTimeline = [...state.timeline]
+  const updatedTimeline = state.timeline.filter(t => t.fragmentId !== fragmentId)
   for (const event of analysis.timelineEvents) {
     updatedTimeline.push({ event: event.event, fragmentId })
+  }
+  if (updatedTimeline.length > MAX_TIMELINE_ENTRIES) {
+    updatedTimeline.splice(0, updatedTimeline.length - MAX_TIMELINE_ENTRIES)
   }
 
   const updatedState = {
