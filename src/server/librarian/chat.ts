@@ -75,7 +75,13 @@ async function librarianChatInner(
     .map((name) => pluginRegistry.get(name))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
   const fragmentTools = createFragmentTools(dataDir, storyId, { readOnly: false })
-  const pluginTools = collectPluginTools(enabledPlugins, dataDir, storyId)
+  const coreChatToolNames = ['reanalyzeFragment', 'optimizeCharacter', 'inspectGeneration']
+  const pluginTools = collectPluginTools(
+    enabledPlugins,
+    dataDir,
+    storyId,
+    [...Object.keys(fragmentTools), ...coreChatToolNames],
+  )
 
   const reanalyzeFragmentTool = tool({
     description: 'Re-run librarian analysis on a prose fragment. Updates its summary, detects mentions, flags contradictions, and suggests knowledge.',
@@ -139,7 +145,7 @@ async function librarianChatInner(
     },
   })
 
-  const allTools = { ...fragmentTools, ...pluginTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool, inspectGeneration: inspectGenerationTool }
+  const allTools = { ...pluginTools, ...fragmentTools, reanalyzeFragment: reanalyzeFragmentTool, optimizeCharacter: optimizeCharacterTool, inspectGeneration: inspectGenerationTool }
 
   // Build plugin tool descriptions for the block context
   const pluginToolDescriptions = Object.entries(pluginTools).map(([name, def]) => ({

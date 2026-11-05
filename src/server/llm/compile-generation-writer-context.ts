@@ -36,8 +36,8 @@ export async function compileGenerationWriterContext(args: {
   if (modelId) ctxState.modelId = modelId
 
   const fragmentTools = createFragmentTools(dataDir, storyId, { readOnly: true })
-  const { tools: pluginTools, origins: pluginToolOrigins } = collectPluginToolsWithOrigin(enabledPlugins, dataDir, storyId)
-  const allTools = { ...fragmentTools, ...pluginTools }
+  const { tools: pluginTools, origins: pluginToolOrigins } = collectPluginToolsWithOrigin(enabledPlugins, dataDir, storyId, Object.keys(fragmentTools))
+  const allTools = { ...pluginTools, ...fragmentTools }
 
   const pluginToolDescriptions = Object.entries(pluginTools).map(([name, tool]) => ({
     name,
