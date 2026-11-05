@@ -113,16 +113,28 @@ async function librarianChatInner(
       fragmentId: z.string().describe('The character fragment ID to optimize (e.g. ch-bakumo)'),
       instructions: z.string().optional().describe('Optional specific instructions for the optimization'),
     }),
-    execute: async ({ fragmentId, instructions }: { fragmentId: string; instructions?: string }) => {
+    execute: async (
+      { fragmentId, instructions }: { fragmentId: string; instructions?: string },
+      options?: { abortSignal?: AbortSignal },
+    ) => {
       requestLogger.info('Optimizing character via chat tool', { fragmentId })
       const agent = createAgentInstance('librarian.optimize-character', { dataDir, storyId })
+      const abortSignal = options?.abortSignal
+      let onAbort: (() => void) | undefined
       try {
         const result = await agent.execute({ fragmentId, instructions })
+        // Cancelling the nested event stream aborts its LLM call (createStreamingRunner),
+        // so a cancelled chat doesn't leave the optimize run going.
+        onAbort = () => { result.eventStream.cancel().catch(() => {}) }
+        if (abortSignal?.aborted) onAbort()
+        else abortSignal?.addEventListener('abort', onAbort, { once: true })
         await result.completion
         return { ok: true, fragmentId }
       } catch (err) {
         agent.fail(err)
         return { error: err instanceof Error ? err.message : String(err) }
+      } finally {
+        if (onAbort) abortSignal?.removeEventListener('abort', onAbort)
       }
     },
   })
