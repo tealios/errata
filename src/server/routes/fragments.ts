@@ -209,7 +209,12 @@ export function fragmentRoutes(dataDir: string) {
         set.status = 404
         return { error: 'Fragment not found' }
       }
-      const newContent = existing.content.replace(body.oldText, body.newText)
+      if (body.oldText === '' || !existing.content.includes(body.oldText)) {
+        set.status = 422
+        return { error: 'oldText not found in fragment content' }
+      }
+      // Function replacer: newText is literal, `$&` / `$1` etc. must not be expanded.
+      const newContent = existing.content.replace(body.oldText, () => body.newText)
       const updated = await updateFragmentVersioned(
         dataDir,
         params.storyId,
