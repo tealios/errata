@@ -1,3 +1,6 @@
+import { mkdir, writeFile, readFile } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
+import { getContentRoot } from '@/server/fragments/branches'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createTempDir, makeTestSettings } from '../setup'
 import { createStory } from '@/server/fragments/storage'
@@ -169,4 +172,22 @@ describe('Agent Block Config Storage', () => {
     expect(chatConfig.overrides.instructions).toBeUndefined()
     expect(chatConfig.blockOrder).toEqual(['instructions'])
   })
-})
+
+  it('does not overwrite a corrupt config when mutating', async () => {
+    const path = join(await getContentRoot(dataDir, STORY_ID), 'agent-blocks', `${AGENT_NAME}.json`)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, '{ not json', 'utf-8')
+
+    await expect(updateAgentDisabledTools(dataDir, STORY_ID, AGENT_NAME, ['x'])).rejects.toThrow('corrupt')
+    expect(await readFile(path, 'utf-8')).toBe('{ not json')
+    // Readers still fall back to defaults so generation keeps working
+    expect((await getAgentBlockConfig(dataDir, STORY_ID, AGENT_NAME)).disabledTools).toEqual([])
+  })
+
+  it('serializes concurrent mutations', async () => {
+    await Promise.all(Array.from({ length: 8 }, (_, i) => addAgentCustomBlock(dataDir, STORY_ID, AGENT_NAME, {
+      id: `cb-conc${i}`, name: `b${i}`, role: 'user', order: 100 + i, enabled: true, type: 'simple', content: 'x',
+    } as CustomBlockDefinition)))
+    const config = await getAgentBlockConfig(dataDir, STORY_ID, AGENT_NAME)
+    expect(config.customBlocks).toHaveLength(8)
+  })})
