@@ -14,6 +14,12 @@ const StorySetupSessionSchema = z.object({
   messages: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string(),
+    toolCalls: z.array(z.object({
+      toolName: z.string(),
+      args: z.record(z.string(), z.unknown()).optional(),
+      result: z.unknown().optional(),
+      error: z.string().optional(),
+    })).optional(),
   })),
   checklist: z.array(z.object({
     key: z.enum(['starting-point', 'premise', 'characters', 'goal', 'setting', 'voice', 'opening']),

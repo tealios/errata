@@ -1,8 +1,11 @@
 import { apiFetch, fetchEventStream } from './client'
+import type { ChatToolCallRecord } from './types'
 
 export interface StorySetupMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Tool activity behind an assistant turn, replayed so the model knows what was really saved. */
+  toolCalls?: ChatToolCallRecord[]
 }
 
 export type StorySetupChecklistKey =

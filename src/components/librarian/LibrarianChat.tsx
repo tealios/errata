@@ -70,15 +70,24 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
   useEffect(() => {
     if (chatHistory && !loaded && !isStreaming) {
       if (chatHistory.messages.length > 0) {
-        setMessages(chatHistory.messages.map(m => {
+        setMessages(chatHistory.messages.map((m, i) => {
           if (m.role === 'assistant') {
             return {
               role: 'assistant' as const,
               content: m.content,
               ...(m.reasoning ? { reasoning: m.reasoning } : {}),
+              ...(m.toolCalls ? {
+                toolCalls: m.toolCalls.map((tc, j) => ({
+                  id: `history-${i}-${j}`,
+                  toolName: tc.toolName,
+                  args: tc.args ?? {},
+                  ...(tc.result !== undefined ? { result: tc.result } : {}),
+                  ...(tc.error !== undefined ? { error: tc.error } : {}),
+                })),
+              } : {}),
             }
           }
-          return m
+          return { role: 'user' as const, content: m.content }
         }))
       }
       setLoaded(true)
@@ -135,11 +144,20 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
     setIsStreaming(true)
 
     try {
-      // Send only text content for the API (history doesn't include tool calls)
-      const apiMessages = updatedMessages.map(m => ({
-        role: m.role,
-        content: m.content,
-      }))
+      // Text plus a record of the tool calls behind each assistant turn, so the
+      // model sees what actually happened rather than only what it said.
+      const apiMessages = updatedMessages.map(m => m.role === 'assistant' && m.toolCalls
+        ? {
+            role: m.role,
+            content: m.content,
+            toolCalls: m.toolCalls.map(tc => ({
+              toolName: tc.toolName,
+              args: tc.args,
+              ...(tc.result !== undefined ? { result: tc.result } : {}),
+              ...(tc.error !== undefined ? { error: tc.error } : {}),
+            })),
+          }
+        : { role: m.role, content: m.content })
 
       const stream = conversationId
         ? await api.librarian.conversationChat(storyId, conversationId, apiMessages)
@@ -182,6 +200,20 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
             }
             break
           }
+          case 'tool-error': {
+            const calls = currentAssistant.toolCalls ?? []
+            const known = calls.some(tc => tc.id === event.id)
+            currentAssistant = {
+              ...currentAssistant,
+              toolCalls: known
+                ? calls.map(tc => tc.id === event.id ? { ...tc, error: event.error } : tc)
+                : [...calls, { id: event.id, toolName: event.toolName, args: event.args ?? {}, error: event.error }],
+            }
+            break
+          }
+          case 'error':
+            setError(event.error)
+            break
           case 'finish':
             // Stream done
             break
@@ -190,6 +222,8 @@ export function LibrarianChat({ storyId, conversationId, initialInput }: Librari
         setMessages([...updatedMessages, currentAssistant])
       }
 
+      // Always record what the tools did, even when the model wrote nothing.
+      if (!currentAssistant.toolCalls) currentAssistant = { ...currentAssistant, toolCalls: [] }
       setMessages([...updatedMessages, currentAssistant])
 
       // Invalidate fragment queries so sidebar lists update

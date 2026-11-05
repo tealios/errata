@@ -8,6 +8,8 @@ export interface ToolCallInfo {
   toolName: string
   args: Record<string, unknown>
   result?: unknown
+  /** Set when the call failed (invalid input or the tool threw). */
+  error?: string
 }
 
 export interface AssistantMessage {
@@ -32,6 +34,7 @@ export function ToolCallCard({ tc, defaultExpanded = false }: { tc: ToolCallInfo
     .join(', ')
 
   const hasResult = tc.result !== undefined
+  const failed = tc.error !== undefined
 
   return (
     <div className="my-1.5 rounded border border-border/40 bg-muted/20 text-[0.625rem]">
@@ -47,12 +50,19 @@ export function ToolCallCard({ tc, defaultExpanded = false }: { tc: ToolCallInfo
         {argSummary && (
           <span className="text-muted-foreground truncate">{argSummary}</span>
         )}
-        {hasResult && (
+        {failed ? (
+          <Badge variant="destructive" className="text-[0.5625rem] px-1 py-0 h-4 ml-auto shrink-0">
+            failed
+          </Badge>
+        ) : hasResult && (
           <Badge variant="secondary" className="text-[0.5625rem] px-1 py-0 h-4 ml-auto shrink-0">
             done
           </Badge>
         )}
       </button>
+      {failed && !expanded && (
+        <p className="px-2 pb-1.5 text-destructive break-words">{tc.error}</p>
+      )}
       {expanded && (
         <div className="px-2 pb-2 space-y-1.5 border-t border-border/20">
           <div>
@@ -61,6 +71,14 @@ export function ToolCallCard({ tc, defaultExpanded = false }: { tc: ToolCallInfo
               {JSON.stringify(args, null, 2)}
             </pre>
           </div>
+          {failed && (
+            <div>
+              <div className="text-destructive mb-0.5">Error</div>
+              <pre className="bg-destructive/5 text-destructive rounded px-1.5 py-1 font-mono text-[0.625rem] overflow-x-auto whitespace-pre-wrap break-all">
+                {tc.error}
+              </pre>
+            </div>
+          )}
           {hasResult && (
             <div>
               <div className="text-muted-foreground mb-0.5">Result</div>

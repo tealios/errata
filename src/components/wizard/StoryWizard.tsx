@@ -196,6 +196,14 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
     setStreamingText('')
     setError(null)
     let accumulated = ''
+    const toolRecords: NonNullable<StorySetupMessage['toolCalls']> = []
+    const invalidateStoryQueries = () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['story', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['fragments', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['wizard-fragments', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['fragment-count', storyId] }),
+      queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] }),
+    ])
 
     try {
       const stream = await api.storySetup.chat(storyId, history, controller.signal)
@@ -206,34 +214,38 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
         if (value.type === 'text') {
           accumulated += value.text
           setStreamingText(accumulated)
-        } else if (value.type === 'tool-call' && value.toolName === 'updateStorySetup') {
-          const snapshot = value.args as {
+        } else if (value.type === 'tool-result' && value.toolName === 'updateStorySetup') {
+          // Only a successful save updates the rail: the tool returns the real
+          // on-disk set, so what the writer sees here is what exists.
+          const saved = value.result as {
             checklist?: StorySetupChecklistItem[]
             fragments?: StorySetupDraftFragment[]
           }
-          if (Array.isArray(snapshot.checklist)) {
-            const incoming = new Map(snapshot.checklist.map(item => [item.key, item]))
+          if (Array.isArray(saved.checklist)) {
+            const incoming = new Map(saved.checklist.map(item => [item.key, item]))
             setChecklist(CHECKLIST.map(definition => incoming.get(definition.key) ?? {
               key: definition.key,
               status: 'missing',
               note: '',
             }))
           }
-          if (Array.isArray(snapshot.fragments)) {
-            setDraftFragments(snapshot.fragments)
-          }
-        } else if (value.type === 'tool-result' && value.toolName === 'updateStorySetup') {
-          const saved = value.result as { fragments?: StorySetupDraftFragment[] }
           if (Array.isArray(saved.fragments)) {
             setDraftFragments(saved.fragments)
           }
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['story', storyId] }),
-            queryClient.invalidateQueries({ queryKey: ['fragments', storyId] }),
-            queryClient.invalidateQueries({ queryKey: ['wizard-fragments', storyId] }),
-            queryClient.invalidateQueries({ queryKey: ['fragment-count', storyId] }),
-            queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] }),
-          ])
+          toolRecords.push({
+            toolName: value.toolName,
+            result: { saved: true, fragmentCount: saved.fragments?.length ?? 0 },
+          })
+          await invalidateStoryQueries()
+        } else if (value.type === 'tool-error') {
+          toolRecords.push({ toolName: value.toolName, error: value.error })
+          if (value.toolName === 'updateStorySetup') {
+            setError(`Errata could not save the story fragments: ${value.error}`)
+            // A partial save may still have landed before the failure.
+            await invalidateStoryQueries()
+          }
+        } else if (value.type === 'error') {
+          setError(value.error)
         }
       }
     } catch (caught) {
@@ -241,8 +253,8 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
         setError(caught instanceof Error ? caught.message : 'Errata could not continue the conversation.')
       }
     } finally {
-      if (accumulated.trim()) {
-        setMessages([...history, { role: 'assistant', content: accumulated.trim() }])
+      if (accumulated.trim() || toolRecords.length > 0) {
+        setMessages([...history, { role: 'assistant', content: accumulated.trim(), toolCalls: toolRecords }])
       }
       setStreamingText('')
       setIsStreaming(false)
@@ -341,7 +353,7 @@ export function StoryWizard({ storyId, onComplete }: StoryWizardProps) {
             <div className="mx-auto grid w-full max-w-5xl gap-10 px-5 py-8 sm:px-8 sm:py-12 lg:grid-cols-[minmax(0,1fr)_17rem]">
               <div className="order-2 space-y-8 lg:order-1" aria-live="polite">
                 {messages.map((message, index) => message.role === 'assistant' ? (
-                  <AssistantTurn key={`assistant-${index}`} content={message.content} />
+                  message.content ? <AssistantTurn key={`assistant-${index}`} content={message.content} /> : null
                 ) : (
                   <WriterTurn key={`user-${index}`} content={message.content} />
                 ))}
