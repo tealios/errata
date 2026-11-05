@@ -2,10 +2,11 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { AssociationsSchema, type Associations } from './schema'
-import { getFragment, updateFragment } from './storage'
+import { mutateFragment } from './storage'
 import { createLogger } from '../logging/logger'
 import { getContentRoot } from './branches'
 import { writeJsonAtomic } from '../fs-utils'
+import { withKeyLock } from '../async-lock'
 
 const log = createLogger('tags')
 
@@ -43,27 +44,25 @@ export async function addTag(
   fragmentId: string,
   tag: string
 ): Promise<void> {
-  const assoc = await getAssociations(dataDir, storyId)
-  if (!assoc.tagIndex[tag]) {
-    assoc.tagIndex[tag] = []
-  }
-  if (!assoc.tagIndex[tag].includes(fragmentId)) {
-    assoc.tagIndex[tag].push(fragmentId)
-  }
-  await Promise.all([
-    saveAssociations(dataDir, storyId, assoc),
-    (async () => {
-      const fragment = await getFragment(dataDir, storyId, fragmentId)
-      if (!fragment) {
-        log.warn(`Cannot add tag: fragment not found`, { storyId, fragmentId, tag })
-        return
-      }
-      if (fragment.tags.includes(tag)) return
-      fragment.tags.push(tag)
-      fragment.updatedAt = new Date().toISOString()
-      await updateFragment(dataDir, storyId, fragment)
-    })(),
-  ])
+  return withKeyLock(`associations:${dataDir}:${storyId}`, async () => {
+    const assoc = await getAssociations(dataDir, storyId)
+    if (!assoc.tagIndex[tag]) {
+      assoc.tagIndex[tag] = []
+    }
+    if (!assoc.tagIndex[tag].includes(fragmentId)) {
+      assoc.tagIndex[tag].push(fragmentId)
+    }
+    await Promise.all([
+      saveAssociations(dataDir, storyId, assoc),
+      (async () => {
+        const updated = await mutateFragment(dataDir, storyId, fragmentId, (fragment) => {
+          if (fragment.tags.includes(tag)) return fragment
+          return { ...fragment, tags: [...fragment.tags, tag], updatedAt: new Date().toISOString() }
+        })
+        if (!updated) log.warn(`Cannot add tag: fragment not found`, { storyId, fragmentId, tag })
+      })(),
+    ])
+  })
 }
 
 export async function removeTag(
@@ -72,27 +71,25 @@ export async function removeTag(
   fragmentId: string,
   tag: string
 ): Promise<void> {
-  const assoc = await getAssociations(dataDir, storyId)
-  if (assoc.tagIndex[tag]) {
-    assoc.tagIndex[tag] = assoc.tagIndex[tag].filter((id) => id !== fragmentId)
-    if (assoc.tagIndex[tag].length === 0) {
-      delete assoc.tagIndex[tag]
-    }
-  }
-  await Promise.all([
-    saveAssociations(dataDir, storyId, assoc),
-    (async () => {
-      const fragment = await getFragment(dataDir, storyId, fragmentId)
-      if (!fragment) {
-        log.warn(`Cannot remove tag: fragment not found`, { storyId, fragmentId, tag })
-        return
+  return withKeyLock(`associations:${dataDir}:${storyId}`, async () => {
+    const assoc = await getAssociations(dataDir, storyId)
+    if (assoc.tagIndex[tag]) {
+      assoc.tagIndex[tag] = assoc.tagIndex[tag].filter((id) => id !== fragmentId)
+      if (assoc.tagIndex[tag].length === 0) {
+        delete assoc.tagIndex[tag]
       }
-      if (!fragment.tags.includes(tag)) return
-      fragment.tags = fragment.tags.filter(t => t !== tag)
-      fragment.updatedAt = new Date().toISOString()
-      await updateFragment(dataDir, storyId, fragment)
-    })(),
-  ])
+    }
+    await Promise.all([
+      saveAssociations(dataDir, storyId, assoc),
+      (async () => {
+        const updated = await mutateFragment(dataDir, storyId, fragmentId, (fragment) => {
+          if (!fragment.tags.includes(tag)) return fragment
+          return { ...fragment, tags: fragment.tags.filter((t) => t !== tag), updatedAt: new Date().toISOString() }
+        })
+        if (!updated) log.warn(`Cannot remove tag: fragment not found`, { storyId, fragmentId, tag })
+      })(),
+    ])
+  })
 }
 
 export async function getFragmentsByTag(
@@ -112,26 +109,28 @@ export async function addRef(
   fromId: string,
   toId: string
 ): Promise<void> {
-  const assoc = await getAssociations(dataDir, storyId)
+  return withKeyLock(`associations:${dataDir}:${storyId}`, async () => {
+    const assoc = await getAssociations(dataDir, storyId)
 
-  // Forward ref
-  if (!assoc.refIndex[fromId]) {
-    assoc.refIndex[fromId] = []
-  }
-  if (!assoc.refIndex[fromId].includes(toId)) {
-    assoc.refIndex[fromId].push(toId)
-  }
+    // Forward ref
+    if (!assoc.refIndex[fromId]) {
+      assoc.refIndex[fromId] = []
+    }
+    if (!assoc.refIndex[fromId].includes(toId)) {
+      assoc.refIndex[fromId].push(toId)
+    }
 
-  // Back-ref (stored under a __backref:<id> key)
-  const backKey = `__backref:${toId}`
-  if (!assoc.refIndex[backKey]) {
-    assoc.refIndex[backKey] = []
-  }
-  if (!assoc.refIndex[backKey].includes(fromId)) {
-    assoc.refIndex[backKey].push(fromId)
-  }
+    // Back-ref (stored under a __backref:<id> key)
+    const backKey = `__backref:${toId}`
+    if (!assoc.refIndex[backKey]) {
+      assoc.refIndex[backKey] = []
+    }
+    if (!assoc.refIndex[backKey].includes(fromId)) {
+      assoc.refIndex[backKey].push(fromId)
+    }
 
-  await saveAssociations(dataDir, storyId, assoc)
+    await saveAssociations(dataDir, storyId, assoc)
+  })
 }
 
 export async function removeRef(
@@ -140,28 +139,30 @@ export async function removeRef(
   fromId: string,
   toId: string
 ): Promise<void> {
-  const assoc = await getAssociations(dataDir, storyId)
+  return withKeyLock(`associations:${dataDir}:${storyId}`, async () => {
+    const assoc = await getAssociations(dataDir, storyId)
 
-  // Forward ref
-  if (assoc.refIndex[fromId]) {
-    assoc.refIndex[fromId] = assoc.refIndex[fromId].filter((id) => id !== toId)
-    if (assoc.refIndex[fromId].length === 0) {
-      delete assoc.refIndex[fromId]
+    // Forward ref
+    if (assoc.refIndex[fromId]) {
+      assoc.refIndex[fromId] = assoc.refIndex[fromId].filter((id) => id !== toId)
+      if (assoc.refIndex[fromId].length === 0) {
+        delete assoc.refIndex[fromId]
+      }
     }
-  }
 
-  // Back-ref
-  const backKey = `__backref:${toId}`
-  if (assoc.refIndex[backKey]) {
-    assoc.refIndex[backKey] = assoc.refIndex[backKey].filter(
-      (id) => id !== fromId
-    )
-    if (assoc.refIndex[backKey].length === 0) {
-      delete assoc.refIndex[backKey]
+    // Back-ref
+    const backKey = `__backref:${toId}`
+    if (assoc.refIndex[backKey]) {
+      assoc.refIndex[backKey] = assoc.refIndex[backKey].filter(
+        (id) => id !== fromId
+      )
+      if (assoc.refIndex[backKey].length === 0) {
+        delete assoc.refIndex[backKey]
+      }
     }
-  }
 
-  await saveAssociations(dataDir, storyId, assoc)
+    await saveAssociations(dataDir, storyId, assoc)
+  })
 }
 
 export async function getRefs(

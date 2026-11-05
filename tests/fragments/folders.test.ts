@@ -193,3 +193,22 @@ describe('folders', () => {
     expect(assignments).toEqual({})
   })
 })
+
+describe('folders concurrency', () => {
+  beforeEach(async () => {
+    await createStory(dataDir, makeStory())
+  })
+
+  it('keeps every assignment under concurrent writes', async () => {
+    const folder = await createFolder(dataDir, 'story-1', 'F')
+    const ids = Array.from({ length: 20 }, (_, i) => `ch-conc${i}`)
+    await Promise.all(ids.map((id) => assignFragment(dataDir, 'story-1', id, folder.id)))
+    const assignments = await getAssignments(dataDir, 'story-1')
+    expect(Object.keys(assignments).sort()).toEqual([...ids].sort())
+  })
+
+  it('keeps every folder under concurrent creates', async () => {
+    await Promise.all(Array.from({ length: 10 }, (_, i) => createFolder(dataDir, 'story-1', `F${i}`)))
+    expect(await listFolders(dataDir, 'story-1')).toHaveLength(10)
+  })
+})

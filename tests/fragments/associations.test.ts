@@ -121,3 +121,20 @@ describe('Ref operations', () => {
     expect(refs).toEqual([])
   })
 })
+
+describe('associations concurrency', () => {
+  it('keeps every ref under concurrent addRef calls', async () => {
+    const targets = Array.from({ length: 20 }, (_, i) => `kn-conc${i}`)
+    await Promise.all(targets.map((t) => addRef(dataDir, storyId, 'ch-source', t)))
+    const refs = await getRefs(dataDir, storyId, 'ch-source')
+    expect([...refs].sort()).toEqual([...targets].sort())
+  })
+
+  it('keeps every tag under concurrent addTag calls', async () => {
+    const tags = Array.from({ length: 10 }, (_, i) => `tag${i}`)
+    await Promise.all(tags.map((t) => addTag(dataDir, storyId, 'ch-missing', t)))
+    for (const t of tags) {
+      expect(await getFragmentsByTag(dataDir, storyId, t)).toEqual(['ch-missing'])
+    }
+  })
+})

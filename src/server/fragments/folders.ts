@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { generateFolderId } from '@/lib/fragment-ids'
 import { writeJsonAtomic } from '../fs-utils'
+import { withKeyLock } from '../async-lock'
 import { assertStoryId } from '../safe-id'
 
 export interface Folder {
@@ -51,16 +52,18 @@ export async function getFolder(dataDir: string, storyId: string, folderId: stri
 }
 
 export async function createFolder(dataDir: string, storyId: string, name: string): Promise<Folder> {
-  const index = await readIndex(dataDir, storyId)
-  const maxOrder = index.folders.reduce((max, f) => Math.max(max, f.order), -1)
-  const folder: Folder = {
-    id: generateFolderId(),
-    name,
-    order: maxOrder + 1,
-  }
-  index.folders.push(folder)
-  await writeIndex(dataDir, storyId, index)
-  return folder
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    const maxOrder = index.folders.reduce((max, f) => Math.max(max, f.order), -1)
+    const folder: Folder = {
+      id: generateFolderId(),
+      name,
+      order: maxOrder + 1,
+    }
+    index.folders.push(folder)
+    await writeIndex(dataDir, storyId, index)
+    return folder
+  })
 }
 
 export async function updateFolder(
@@ -69,39 +72,43 @@ export async function updateFolder(
   folderId: string,
   updates: { name?: string; color?: string | null },
 ): Promise<Folder | null> {
-  const index = await readIndex(dataDir, storyId)
-  const folder = index.folders.find((f) => f.id === folderId)
-  if (!folder) return null
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    const folder = index.folders.find((f) => f.id === folderId)
+    if (!folder) return null
 
-  if (updates.name !== undefined) folder.name = updates.name
-  if (updates.color !== undefined) {
-    if (updates.color === null) {
-      delete folder.color
-    } else {
-      folder.color = updates.color
+    if (updates.name !== undefined) folder.name = updates.name
+    if (updates.color !== undefined) {
+      if (updates.color === null) {
+        delete folder.color
+      } else {
+        folder.color = updates.color
+      }
     }
-  }
 
-  await writeIndex(dataDir, storyId, index)
-  return folder
+    await writeIndex(dataDir, storyId, index)
+    return folder
+  })
 }
 
 export async function deleteFolder(dataDir: string, storyId: string, folderId: string): Promise<boolean> {
-  const index = await readIndex(dataDir, storyId)
-  const idx = index.folders.findIndex((f) => f.id === folderId)
-  if (idx === -1) return false
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    const idx = index.folders.findIndex((f) => f.id === folderId)
+    if (idx === -1) return false
 
-  index.folders.splice(idx, 1)
+    index.folders.splice(idx, 1)
 
-  // Remove all assignments pointing to this folder
-  for (const [fragId, assignedFolder] of Object.entries(index.assignments)) {
-    if (assignedFolder === folderId) {
-      delete index.assignments[fragId]
+    // Remove all assignments pointing to this folder
+    for (const [fragId, assignedFolder] of Object.entries(index.assignments)) {
+      if (assignedFolder === folderId) {
+        delete index.assignments[fragId]
+      }
     }
-  }
 
-  await writeIndex(dataDir, storyId, index)
-  return true
+    await writeIndex(dataDir, storyId, index)
+    return true
+  })
 }
 
 export async function reorderFolders(
@@ -109,14 +116,16 @@ export async function reorderFolders(
   storyId: string,
   items: Array<{ id: string; order: number }>,
 ): Promise<void> {
-  const index = await readIndex(dataDir, storyId)
-  const orderMap = new Map(items.map((item) => [item.id, item.order]))
-  for (const folder of index.folders) {
-    const newOrder = orderMap.get(folder.id)
-    if (newOrder !== undefined) folder.order = newOrder
-  }
-  index.folders.sort((a, b) => a.order - b.order)
-  await writeIndex(dataDir, storyId, index)
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    const orderMap = new Map(items.map((item) => [item.id, item.order]))
+    for (const folder of index.folders) {
+      const newOrder = orderMap.get(folder.id)
+      if (newOrder !== undefined) folder.order = newOrder
+    }
+    index.folders.sort((a, b) => a.order - b.order)
+    await writeIndex(dataDir, storyId, index)
+  })
 }
 
 export async function getAssignments(dataDir: string, storyId: string): Promise<FolderAssignments> {
@@ -130,13 +139,15 @@ export async function assignFragment(
   fragmentId: string,
   folderId: string | null,
 ): Promise<void> {
-  const index = await readIndex(dataDir, storyId)
-  if (folderId === null) {
-    delete index.assignments[fragmentId]
-  } else {
-    index.assignments[fragmentId] = folderId
-  }
-  await writeIndex(dataDir, storyId, index)
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    if (folderId === null) {
+      delete index.assignments[fragmentId]
+    } else {
+      index.assignments[fragmentId] = folderId
+    }
+    await writeIndex(dataDir, storyId, index)
+  })
 }
 
 export async function assignFragmentsBulk(
@@ -144,13 +155,15 @@ export async function assignFragmentsBulk(
   storyId: string,
   assignments: Array<{ fragmentId: string; folderId: string | null }>,
 ): Promise<void> {
-  const index = await readIndex(dataDir, storyId)
-  for (const { fragmentId, folderId } of assignments) {
-    if (folderId === null) {
-      delete index.assignments[fragmentId]
-    } else {
-      index.assignments[fragmentId] = folderId
+  return withKeyLock(`folders:${dataDir}:${storyId}`, async () => {
+    const index = await readIndex(dataDir, storyId)
+    for (const { fragmentId, folderId } of assignments) {
+      if (folderId === null) {
+        delete index.assignments[fragmentId]
+      } else {
+        index.assignments[fragmentId] = folderId
+      }
     }
-  }
-  await writeIndex(dataDir, storyId, index)
+    await writeIndex(dataDir, storyId, index)
+  })
 }
