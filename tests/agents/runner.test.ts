@@ -100,4 +100,25 @@ describe('agent runner', () => {
       input: {},
     })).rejects.toThrow('cycle detected')
   })
+
+  it('aborts the agent signal when the run times out', async () => {
+    let seen: AbortSignal | undefined
+    agentRegistry.register({
+      name: `${prefix}.slow`,
+      description: 'Never finishes',
+      inputSchema: z.object({}),
+      run: async (ctx) => {
+        seen = ctx.abortSignal
+        return new Promise(() => {})
+      },
+    })
+    await expect(invokeAgent({
+      dataDir: '/tmp',
+      storyId: 'story-test',
+      agentName: `${prefix}.slow`,
+      input: {},
+      options: { timeoutMs: 20 },
+    })).rejects.toThrow('timed out')
+    expect(seen?.aborted).toBe(true)
+  })
 })

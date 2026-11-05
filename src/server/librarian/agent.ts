@@ -60,12 +60,13 @@ export async function runLibrarian(
   dataDir: string,
   storyId: string,
   fragmentId: string,
+  abortSignal?: AbortSignal,
 ): Promise<LibrarianAnalysis> {
   // Serialize analysis runs per story. Concurrent runs would clobber state.json,
   // the live SSE buffer, the analysis index, deferred summary fragments, and the
   // summarizedUpTo watermark — all unguarded read-modify-write.
   return withKeyLock(`librarian:${storyId}`, () =>
-    withBranch(dataDir, storyId, () => runLibrarianInner(dataDir, storyId, fragmentId)),
+    withBranch(dataDir, storyId, () => runLibrarianInner(dataDir, storyId, fragmentId, abortSignal)),
   )
 }
 
@@ -73,6 +74,7 @@ async function runLibrarianInner(
   dataDir: string,
   storyId: string,
   fragmentId: string,
+  abortSignal?: AbortSignal,
 ): Promise<LibrarianAnalysis> {
   const requestLogger = logger.child({ storyId })
   requestLogger.info('Starting librarian analysis...', { fragmentId })
@@ -184,6 +186,7 @@ async function runLibrarianInner(
   try {
     const result = await agent.stream({
       prompt: userMessage?.content ?? '',
+      abortSignal,
     })
 
     // Iterate fullStream, mapping events to buffer

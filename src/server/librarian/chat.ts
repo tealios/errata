@@ -195,9 +195,12 @@ async function librarianChatInner(
   ]
 
   // Stream with write tools
+  // Abort the tool loop if the client disconnects mid-stream.
+  const abortController = new AbortController()
   const result = await chatAgent.stream({
     messages: aiMessages,
+    abortSignal: abortController.signal,
   })
 
-  return createEventStream(result.fullStream)
+  return createEventStream(result.fullStream, () => abortController.abort())
 }

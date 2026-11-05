@@ -32,15 +32,23 @@ function makeRunId(): string {
   return `ar-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, agentName: string): Promise<T> {
-  if (timeoutMs <= 0) return promise
+function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  agentName: string,
+  controller: AbortController = new AbortController(),
+): Promise<T> {
+  if (timeoutMs <= 0) return run(controller.signal)
   let timer: ReturnType<typeof setTimeout> | null = null
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(`Agent timed out: ${agentName} (${timeoutMs}ms)`))
+      const error = new Error(`Agent timed out: ${agentName} (${timeoutMs}ms)`)
+      // Tell the underlying work to stop instead of leaving it running
+      controller.abort(error)
+      reject(error)
     }, timeoutMs)
   })
-  return Promise.race([promise, timeout]).finally(() => {
+  return Promise.race([run(controller.signal), timeout]).finally(() => {
     if (timer) clearTimeout(timer)
   })
 }
@@ -98,7 +106,9 @@ async function invokeInternal<TOutput>(args: {
 
   try {
     const parsedInput = definition.inputSchema.parse(args.input)
+    const abortController = new AbortController()
     const context: AgentInvocationContext = {
+      abortSignal: abortController.signal,
       dataDir: args.dataDir,
       storyId: args.storyId,
       logger,
@@ -121,9 +131,10 @@ async function invokeInternal<TOutput>(args: {
     }
 
     const rawOutput = await withTimeout(
-      Promise.resolve(definition.run(context, parsedInput)),
+      () => Promise.resolve(definition.run(context, parsedInput)),
       args.runtime.options.timeoutMs,
       args.agentName,
+      abortController,
     )
     const output = definition.outputSchema ? definition.outputSchema.parse(rawOutput) : rawOutput
     const finishedAt = new Date().toISOString()
