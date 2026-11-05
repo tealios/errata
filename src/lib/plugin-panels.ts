@@ -113,7 +113,11 @@ function broadcastToPluginIframes(type: string, payload: Record<string, unknown>
   const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-component-id*="panel-iframe"]')
   const message = { type, ...payload }
   for (const iframe of iframes) {
-    iframe.contentWindow?.postMessage(message, '*')
+    let targetOrigin = window.location.origin
+    try {
+      targetOrigin = new URL(iframe.src, window.location.href).origin
+    } catch { /* fall back to same origin */ }
+    iframe.contentWindow?.postMessage(message, targetOrigin)
   }
 }
 

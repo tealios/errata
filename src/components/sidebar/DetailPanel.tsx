@@ -306,6 +306,8 @@ export function DetailPanel({
               src={`${pluginPanel.url}?storyId=${encodeURIComponent(storyId)}`}
               title={`${pluginPanel.title} plugin panel`}
               className="h-full w-full border-0 bg-background"
+              // NOTE: allow-scripts + allow-same-origin together let a same-origin panel
+              // remove its own sandbox attribute and escape the sandbox entirely.
               sandbox="allow-scripts allow-same-origin allow-forms"
               data-component-id={componentId('plugin', pluginName, 'panel-iframe')}
             />
