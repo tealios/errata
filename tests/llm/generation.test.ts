@@ -232,6 +232,7 @@ describe('generation endpoint', () => {
       },
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
 
     mockAgentStream.mockResolvedValue(
@@ -270,6 +271,7 @@ describe('generation endpoint', () => {
       },
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
 
     mockAgentStream.mockResolvedValue(
@@ -372,6 +374,7 @@ describe('generation endpoint', () => {
       overrides: {},
       blockOrder: [],
       disabledTools: ['listFragments', 'getFragment', 'searchFragments'],
+      disableAutoAnalysis: false,
     })
 
     mockAgentStream.mockResolvedValue(

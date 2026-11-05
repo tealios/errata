@@ -172,6 +172,7 @@ describe('prose transform sticky context', () => {
       },
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
 
     const userContent = await runTransform()

@@ -65,6 +65,7 @@ async function seedAnalysis(dataDir: string, fragmentId: string) {
     mentionedCharacters: [],
     contradictions: [],
     fragmentSuggestions: [],
+    timelineEvents: [],
   })
 }
 

@@ -58,6 +58,7 @@ describe('Agent Block Config Storage', () => {
       overrides: { instructions: { enabled: false } },
       blockOrder: ['instructions', 'story-summary'],
       disabledTools: ['reportTimeline'],
+      disableAutoAnalysis: false,
     })
     const loaded = await getAgentBlockConfig(dataDir, STORY_ID, AGENT_NAME)
     expect(loaded.overrides.instructions?.enabled).toBe(false)
@@ -153,12 +154,14 @@ describe('Agent Block Config Storage', () => {
       overrides: { instructions: { enabled: false } },
       blockOrder: [],
       disabledTools: ['reportTimeline'],
+      disableAutoAnalysis: false,
     })
     await saveAgentBlockConfig(dataDir, STORY_ID, 'librarian.chat', {
       customBlocks: [],
       overrides: {},
       blockOrder: ['instructions'],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
 
     const analyzeConfig = await getAgentBlockConfig(dataDir, STORY_ID, 'librarian.analyze')

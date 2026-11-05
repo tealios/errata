@@ -18,7 +18,7 @@ describe('apiFetch', () => {
   })
   it('keeps ApiError message a string when error is an object', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { message: 'bad' } }), { status: 400 })))
-    const err = await apiFetch('/x').catch((e) => e)
+    const err = (await apiFetch('/x').catch((e: unknown) => e)) as ApiError
     expect(err).toBeInstanceOf(ApiError)
     expect(err.message).toBe('bad')
   })

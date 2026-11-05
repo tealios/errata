@@ -28,7 +28,7 @@ async function listFilesRecursive(rootDir) {
 async function findLatestBinary() {
   const entries = await readdir(distDir, { withFileTypes: true })
   const candidates = entries
-    .filter((entry) => entry.isFile() && /^errata.*\.exe$/i.test(entry.name))
+    .filter((entry) => entry.isFile() && (/^errata.*\.exe$/i.test(entry.name) || /^errata[\w-]*$/i.test(entry.name)))
     .map((entry) => join(distDir, entry.name))
 
   if (candidates.length === 0) {
@@ -64,6 +64,7 @@ async function main() {
     filesForZip[rel] = new Uint8Array(await readFile(fullPath))
   }
 
+  const isWindows = /\.exe$/i.test(binaryName)
   filesForZip['README.txt'] = strToU8(
     [
       `Errata v${version}`,
@@ -71,11 +72,16 @@ async function main() {
       `Included binary: ${binaryName}`,
       'Required static assets are in ./public.',
       '',
-      'Run on Windows:',
-      `  .\\${binaryName}`,
-      '',
-      'Check version:',
-      `  .\\${binaryName} --version`,
+      ...(isWindows
+        ? ['Run on Windows:', `  .\\${binaryName}`, '', 'Check version:', `  .\\${binaryName} --version`]
+        : [
+            'Run on Linux / macOS (mark executable first if needed):',
+            `  chmod +x ./${binaryName}`,
+            `  ./${binaryName}`,
+            '',
+            'Check version:',
+            `  ./${binaryName} --version`,
+          ]),
       '',
       'Optional environment variables:',
       '  DATA_DIR=<path>',

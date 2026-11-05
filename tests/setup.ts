@@ -24,6 +24,7 @@ export function makeTestSettings(overrides?: Partial<StorySettings>): StorySetti
     disableLibrarianDirections: false,
     disableLibrarianSuggestions: false,
     disableThinking: false,
+    expandThoughtsByDefault: false,
     contextOrderMode: 'simple',
     fragmentOrder: [],
     customFragmentTypes: [],
@@ -70,4 +71,10 @@ export async function seedTestProvider(dataDir: string): Promise<void> {
     defaultProviderId: 'test-provider',
   }
   await writeFile(join(dataDir, 'config.json'), JSON.stringify(config))
+}
+
+/** Required global-config fields besides providers, for tests that call saveGlobalConfig directly. */
+export const TEST_GLOBAL_CONFIG_DEFAULTS = {
+  sharing: { authEnabled: false, username: 'errata', passwordHash: '', lanEnabled: false, tunnelEnabled: false },
+  erratanet: { hubUrl: '', token: '', enabled: false, introSeen: false },
 }
