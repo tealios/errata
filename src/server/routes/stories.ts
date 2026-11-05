@@ -6,7 +6,8 @@ import {
   updateStory,
   deleteStory,
 } from '../fragments/storage'
-import { exportStoryAsZip, importStoryFromZip } from '../story-archive'
+import { exportStoryAsZip, importStoryFromZip, StoryNotFoundError } from '../story-archive'
+import { isValidStoryId } from '../safe-id'
 import type { StoryMeta } from '../fragments/schema'
 
 export function storyRoutes(dataDir: string) {
@@ -101,7 +102,11 @@ export function storyRoutes(dataDir: string) {
       detail: { summary: 'Update story metadata' },
     })
 
-    .delete('/stories/:storyId', async ({ params }) => {
+    .delete('/stories/:storyId', async ({ params, set }) => {
+      if (!isValidStoryId(params.storyId)) {
+        set.status = 404
+        return { error: 'Story not found' }
+      }
       await deleteStory(dataDir, params.storyId)
       return { ok: true }
     }, { detail: { summary: 'Delete a story' } })
@@ -117,7 +122,11 @@ export function storyRoutes(dataDir: string) {
           },
         })
       } catch (err) {
-        set.status = 404
+        if (err instanceof StoryNotFoundError) {
+          set.status = 404
+          return { error: 'Story not found' }
+        }
+        set.status = 500
         return { error: err instanceof Error ? err.message : 'Export failed' }
       }
     }, { detail: { summary: 'Export story as ZIP archive' } })

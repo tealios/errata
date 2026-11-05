@@ -5,6 +5,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { BranchesIndex, BranchMeta, ProseChain } from './schema'
 import { generateBranchId } from '@/lib/fragment-ids'
 import { writeJsonAtomic } from '../fs-utils'
+import { assertBranchId, assertStoryId } from '../safe-id'
 
 // --- Branch scope (AsyncLocalStorage) ---
 
@@ -18,7 +19,7 @@ const branchScope = new AsyncLocalStorage<BranchScopeContext>()
 // --- Path helpers ---
 
 function storyDir(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId)
+  return join(dataDir, 'stories', assertStoryId(storyId))
 }
 
 function branchesIndexPath(storyDir: string): string {
@@ -30,7 +31,7 @@ function branchesDir(storyDir: string): string {
 }
 
 function branchDir(storyDir: string, branchId: string): string {
-  return join(branchesDir(storyDir), branchId)
+  return join(branchesDir(storyDir), assertBranchId(branchId))
 }
 
 // --- JSON helpers ---

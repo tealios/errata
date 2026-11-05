@@ -5,7 +5,7 @@ import type { Fragment, FragmentVersion, StoryMeta } from './schema'
 import { getContentRoot, initBranches } from './branches'
 import { createLogger } from '../logging'
 import { writeJsonAtomic } from '../fs-utils'
-import { assertFragmentId, isValidFragmentId } from '../safe-id'
+import { assertFragmentId, assertStoryId, isValidFragmentId, isValidStoryId } from '../safe-id'
 
 const requestLogger = createLogger('fragment-storage')
 
@@ -16,7 +16,7 @@ function storiesDir(dataDir: string) {
 }
 
 function storyDir(dataDir: string, storyId: string) {
-  return join(storiesDir(dataDir), storyId)
+  return join(storiesDir(dataDir), assertStoryId(storyId))
 }
 
 function storyMetaPath(dataDir: string, storyId: string) {
@@ -83,6 +83,7 @@ export async function getStory(
   dataDir: string,
   storyId: string
 ): Promise<StoryMeta | null> {
+  if (!isValidStoryId(storyId)) return null
   return readJson<StoryMeta>(storyMetaPath(dataDir, storyId))
 }
 
@@ -114,6 +115,7 @@ export async function deleteStory(
   dataDir: string,
   storyId: string
 ): Promise<void> {
+  if (!isValidStoryId(storyId)) return
   const dir = storyDir(dataDir, storyId)
   if (existsSync(dir)) {
     await rm(dir, { recursive: true, force: true })

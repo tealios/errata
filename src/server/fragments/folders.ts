@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { generateFolderId } from '@/lib/fragment-ids'
 import { writeJsonAtomic } from '../fs-utils'
+import { assertStoryId } from '../safe-id'
 
 export interface Folder {
   id: string
@@ -20,7 +21,7 @@ interface FoldersIndex {
 }
 
 function foldersPath(dataDir: string, storyId: string): string {
-  return join(dataDir, 'stories', storyId, 'folders.json')
+  return join(dataDir, 'stories', assertStoryId(storyId), 'folders.json')
 }
 
 async function readIndex(dataDir: string, storyId: string): Promise<FoldersIndex> {

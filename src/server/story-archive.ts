@@ -7,7 +7,15 @@ import { createStory } from './fragments/storage'
 import { saveProseChain } from './fragments/prose-chain'
 import { saveAssociations } from './fragments/associations'
 import { getBranchesIndex, getContentRoot } from './fragments/branches'
+import { isValidStoryId } from './safe-id'
 import type { StoryMeta, Fragment, Associations, ProseChain, BranchesIndex } from './fragments/schema'
+
+export class StoryNotFoundError extends Error {
+  constructor(storyId: string) {
+    super(`Story not found: ${storyId}`)
+    this.name = 'StoryNotFoundError'
+  }
+}
 
 export interface ExportResult {
   buffer: Uint8Array
@@ -41,9 +49,10 @@ export async function exportStoryAsZip(
   dataDir: string,
   storyId: string,
 ): Promise<ExportResult> {
+  if (!isValidStoryId(storyId)) throw new StoryNotFoundError(storyId)
   const storyDir = join(dataDir, 'stories', storyId)
   if (!existsSync(storyDir)) {
-    throw new Error(`Story not found: ${storyId}`)
+    throw new StoryNotFoundError(storyId)
   }
 
   const files: Record<string, Uint8Array> = {}
