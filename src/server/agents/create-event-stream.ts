@@ -1,8 +1,26 @@
-import type { AgentStreamEvent, AgentStreamCompletion, AgentStreamResult } from './stream-types'
+import type { AgentStreamEvent, AgentStreamCompletion, AgentStreamResult, AgentToolCallRecord } from './stream-types'
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+    return (error as { message: string }).message
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
 
 /**
  * Converts an AI SDK v6 fullStream into an NDJSON event stream + completion promise.
- * Handles: text-delta, reasoning-delta, tool-call, tool-result, finish-step, finish.
+ * Handles: text-delta, reasoning-delta, tool-call, tool-result, tool-error, error,
+ * finish-step, finish.
+ *
+ * `tool-error` is what the SDK emits when a tool's input fails schema validation
+ * or its `execute` throws. It must reach the client: otherwise a failed write
+ * looks identical to one that never happened, and the UI never refreshes.
  *
  * @param onCancel - invoked when the returned stream is cancelled (client
  *   disconnect). Wire this to an AbortController so the underlying LLM call
@@ -21,11 +39,12 @@ export function createEventStream(
 
   let fullText = ''
   let fullReasoning = ''
-  const toolCalls: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> = []
+  const toolCalls: AgentToolCallRecord[] = []
   // Correlate a tool-result back to the args from its tool-call event.
   const toolCallArgs = new Map<string, Record<string, unknown>>()
   let lastFinishReason = 'unknown'
   let stepCount = 0
+  let streamError: string | undefined
 
   const eventStream = new ReadableStream<string>({
     async start(controller) {
@@ -72,6 +91,21 @@ export function createEventStream(
               }
               break
             }
+            case 'tool-error': {
+              const toolCallId = p.toolCallId as string
+              const toolName = (p.toolName as string) ?? ''
+              const args = toolCallArgs.get(toolCallId)
+                ?? ((p.input && typeof p.input === 'object') ? p.input as Record<string, unknown> : {})
+              const error = errorMessage(p.error)
+              toolCalls.push({ toolName, args, result: undefined, error })
+              event = { type: 'tool-error', id: toolCallId, toolName, args, error }
+              break
+            }
+            case 'error': {
+              streamError = errorMessage(p.error)
+              event = { type: 'error', error: streamError }
+              break
+            }
             // `finish-step` fires once per LLM step; `finish` fires once for the
             // whole generation. Count steps, capture the final reason.
             case 'finish-step':
@@ -102,6 +136,7 @@ export function createEventStream(
           toolCalls,
           stepCount,
           finishReason: lastFinishReason,
+          ...(streamError !== undefined ? { error: streamError } : {}),
         })
       } catch (err) {
         controller.error(err)

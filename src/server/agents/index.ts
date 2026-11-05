@@ -18,6 +18,7 @@ export type { AgentRunTraceRecord } from './traces'
 export type {
   AgentStreamEvent,
   AgentStreamCompletion,
+  AgentToolCallRecord,
   AgentStreamResult,
   ChatStreamEvent,
   ChatResult,
