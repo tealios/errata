@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -28,10 +28,16 @@ export function RefinementPanel({
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const outputRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Stop the LLM call if the panel closes mid-refine
+  useEffect(() => () => { abortRef.current?.abort() }, [])
 
   const handleRefine = useCallback(async () => {
     if (isRefining) return
 
+    const abortController = new AbortController()
+    abortRef.current = abortController
     setIsRefining(true)
     setStreamedText('')
     setError(null)
@@ -42,6 +48,7 @@ export function RefinementPanel({
         storyId,
         fragmentId,
         instructions.trim() || undefined,
+        abortController.signal,
       )
 
       const reader = stream.getReader()
@@ -73,8 +80,10 @@ export function RefinementPanel({
       setDone(true)
       onComplete?.()
     } catch (err) {
+      if (abortController.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
       setError(err instanceof Error ? err.message : 'Refinement failed')
     } finally {
+      if (abortRef.current === abortController) abortRef.current = null
       setIsRefining(false)
     }
   }, [instructions, isRefining, storyId, fragmentId, queryClient, onComplete])

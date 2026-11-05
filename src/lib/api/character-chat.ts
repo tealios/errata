@@ -45,9 +45,11 @@ export const characterChat = {
     storyId: string,
     conversationId: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    signal?: AbortSignal,
   ) =>
     fetchEventStream(
       `/stories/${storyId}/character-chat/conversations/${conversationId}/chat`,
       { messages },
+      signal,
     ),
 }
