@@ -74,7 +74,9 @@ export function ScriptBlockEditor({
   )
 
   useEffect(() => {
-    setLocal(value)
+    // Only adopt the incoming value if there are no local edits newer than the
+    // last synced/saved one (e.g. typed while a save round-trip was in flight).
+    setLocal(prev => (prev === savedRef.current ? value : prev))
     savedRef.current = value
   }, [value])
 
@@ -82,6 +84,8 @@ export function ScriptBlockEditor({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!local.trim()) {
+      // Invalidate any in-flight eval so a stale result can't land after clearing.
+      requestIdRef.current++
       setEvalResult(null)
       setEvalLoading(false)
       return

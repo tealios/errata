@@ -429,6 +429,11 @@ export function ProseChainView({
   const restoredRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // A different story needs its own scroll restore.
+  useEffect(() => {
+    restoredRef.current = false
+  }, [storyId])
+
   useEffect(() => {
     const viewport = getViewport()
     if (!viewport) return
