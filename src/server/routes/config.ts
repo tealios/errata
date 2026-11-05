@@ -5,11 +5,12 @@ import {
   updateProvider as updateProviderConfig,
   deleteProvider as deleteProviderConfig,
   duplicateProvider as duplicateProviderConfig,
-  getGlobalConfig,
-  saveGlobalConfig,
+  updateGlobalConfig,
+  ProviderNotFoundError,
   getProvider,
   maskApiKey,
 } from '../config/storage'
+import { z } from 'zod/v4'
 import { ProviderConfigSchema } from '../config/schema'
 import { isGeminiProvider, normalizeGeminiBaseURL, isGeminiChatModel, minimalGeminiThinking } from '../llm/gemini'
 import {
@@ -121,9 +122,11 @@ export function configRoutes(dataDir: string) {
       detail: { summary: 'Get global config with masked API keys' },
     })
 
-    .post('/config/providers', async ({ body }) => {
+    .post('/config/providers', async ({ body, set }) => {
       const id = `prov-${Date.now().toString(36)}`
-      const provider = ProviderConfigSchema.parse({
+      let provider: ReturnType<typeof ProviderConfigSchema.parse>
+      try {
+        provider = ProviderConfigSchema.parse({
         id,
         name: body.name,
         preset: body.preset ?? 'custom',
@@ -134,7 +137,14 @@ export function configRoutes(dataDir: string) {
         customHeaders: body.customHeaders ?? {},
         temperature: body.temperature,
         createdAt: new Date().toISOString(),
-      })
+        })
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          set.status = 400
+          return { error: 'Invalid provider', issues: err.issues }
+        }
+        throw err
+      }
       const config = await addProvider(dataDir, provider)
       return maskConfigProviders(config)
     }, {
@@ -150,7 +160,7 @@ export function configRoutes(dataDir: string) {
       }),
     })
 
-    .put('/config/providers/:providerId', async ({ params, body }) => {
+    .put('/config/providers/:providerId', async ({ params, body, set }) => {
       const updates: Record<string, unknown> = {}
       if (body.name !== undefined) updates.name = body.name
       if (body.baseURL !== undefined) updates.baseURL = body.baseURL
@@ -159,8 +169,16 @@ export function configRoutes(dataDir: string) {
       if (body.enabled !== undefined) updates.enabled = body.enabled
       if (body.customHeaders !== undefined) updates.customHeaders = body.customHeaders
       if (body.temperature !== undefined) updates.temperature = body.temperature
-      const config = await updateProviderConfig(dataDir, params.providerId, updates)
-      return maskConfigProviders(config)
+      try {
+        const config = await updateProviderConfig(dataDir, params.providerId, updates)
+        return maskConfigProviders(config)
+      } catch (err) {
+        if (err instanceof ProviderNotFoundError) {
+          set.status = 404
+          return { error: 'Provider not found' }
+        }
+        throw err
+      }
     }, {
       detail: { summary: 'Update a provider' },
       body: t.Object({
@@ -181,17 +199,25 @@ export function configRoutes(dataDir: string) {
       detail: { summary: 'Delete a provider' },
     })
 
-    .post('/config/providers/:providerId/duplicate', async ({ params }) => {
-      const config = await duplicateProviderConfig(dataDir, params.providerId)
-      return maskConfigProviders(config)
+    .post('/config/providers/:providerId/duplicate', async ({ params, set }) => {
+      try {
+        const config = await duplicateProviderConfig(dataDir, params.providerId)
+        return maskConfigProviders(config)
+      } catch (err) {
+        if (err instanceof ProviderNotFoundError) {
+          set.status = 404
+          return { error: 'Provider not found' }
+        }
+        throw err
+      }
     }, {
       detail: { summary: 'Duplicate a provider' },
     })
 
     .patch('/config/default-provider', async ({ body }) => {
-      const config = await getGlobalConfig(dataDir)
-      config.defaultProviderId = body.providerId
-      await saveGlobalConfig(dataDir, config)
+      await updateGlobalConfig(dataDir, (config) => {
+        config.defaultProviderId = body.providerId
+      })
       return { ok: true, defaultProviderId: body.providerId }
     }, {
       detail: { summary: 'Set the default provider' },
