@@ -625,6 +625,7 @@ describe('prewriter', () => {
         overrides: {},
         blockOrder: [],
         disabledTools: [],
+        disableAutoAnalysis: false,
       })
 
       let callCount = 0
@@ -731,6 +732,7 @@ describe('prewriter', () => {
         overrides: {},
         blockOrder: [],
         disabledTools: [],
+        disableAutoAnalysis: false,
       })
 
       let callCount = 0
@@ -765,6 +767,7 @@ describe('prewriter', () => {
         overrides: { 'writing-brief': { enabled: false } },
         blockOrder: [],
         disabledTools: [],
+        disableAutoAnalysis: false,
       })
 
       let callCount = 0

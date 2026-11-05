@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { streamText } from 'ai'
-import { createTempDir, makeTestSettings } from '../setup'
+import { createTempDir, makeTestSettings, TEST_GLOBAL_CONFIG_DEFAULTS } from '../setup'
 import { createStory } from '@/server/fragments/storage'
 import { saveGlobalConfig } from '@/server/config/storage'
 import { getModel, buildProviderOptions, redactResolvedModelForLog } from '@/server/llm/client'
@@ -37,6 +37,7 @@ describe('llm client model resolution', () => {
   it('uses librarian-specific provider/model when configured', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'gen',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [
         {
           id: 'gen',
@@ -80,6 +81,7 @@ describe('llm client model resolution', () => {
   it('falls back to generation provider/model when librarian settings are unset', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'gen',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [
         {
           id: 'gen',
@@ -109,6 +111,7 @@ describe('llm client model resolution', () => {
   it('uses a model-only override with the inherited provider', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'openrouter',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [
         {
           id: 'openrouter',
@@ -139,6 +142,7 @@ describe('llm client model resolution', () => {
   it('uses the native Google provider for Gemini presets', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'gemini',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [{
         id: 'gemini',
         name: 'Google Gemini',
@@ -165,6 +169,7 @@ describe('llm client model resolution', () => {
   it('falls back to the preset default model for new Gemini generations', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'gemini',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [{
         id: 'gemini',
         name: 'Google Gemini',
@@ -189,6 +194,7 @@ describe('llm client model resolution', () => {
   it('migrates Google OpenAI-compatible endpoints to the native Gemini provider', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'legacy-gemini',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [{
         id: 'legacy-gemini',
         name: 'Gemini (legacy)',
@@ -213,6 +219,7 @@ describe('llm client model resolution', () => {
   it('extracts inline <think> tags into reasoning parts for OpenAI-compatible providers', async () => {
     await saveGlobalConfig(dataDir, {
       defaultProviderId: 'local',
+      ...TEST_GLOBAL_CONFIG_DEFAULTS,
       providers: [{
         id: 'local',
         name: 'Local Qwen',

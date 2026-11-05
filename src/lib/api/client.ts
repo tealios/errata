@@ -18,6 +18,17 @@ export class ApiError extends Error {
   }
 }
 
+function errorMessage(err: unknown, fallback: string): string {
+  const value = (err as { error?: unknown } | null)?.error
+  if (typeof value === 'string' && value) return value
+  if (value && typeof value === 'object') {
+    const msg = (value as { message?: unknown }).message
+    if (typeof msg === 'string' && msg) return msg
+    try { return JSON.stringify(value) } catch { /* fall through */ }
+  }
+  return fallback
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body != null && !headers.has('Content-Type')) {
@@ -30,9 +41,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new ApiError(err.error ?? `API error: ${res.status}`, res.status, err)
+    throw new ApiError(errorMessage(err, `API error: ${res.status}`), res.status, err ?? {})
   }
-  return res.json()
+  if (res.status === 204) return undefined as T
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 /**
@@ -42,14 +56,16 @@ export async function fetchStream(
   path: string,
   body: Record<string, unknown>,
 ): Promise<ReadableStream<string>> {
+  const abort = new AbortController()
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: abort.signal,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? `API error: ${res.status}`)
+    throw new Error(errorMessage(err, `API error: ${res.status}`))
   }
   if (!res.body) {
     throw new Error('No response body')
@@ -60,10 +76,16 @@ export async function fetchStream(
     async pull(controller) {
       const { done, value } = await reader.read()
       if (done) {
+        const tail = decoder.decode()
+        if (tail) controller.enqueue(tail)
         controller.close()
         return
       }
       controller.enqueue(decoder.decode(value, { stream: true }))
+    },
+    cancel(reason) {
+      abort.abort()
+      return reader.cancel(reason).catch(() => {})
     },
   })
 }
@@ -72,10 +94,11 @@ export async function fetchStream(
  * Fetches an NDJSON event stream via GET and returns a ReadableStream of parsed ChatEvent objects.
  */
 export async function fetchGetEventStream(path: string): Promise<ReadableStream<ChatEvent>> {
-  const res = await fetch(`${API_BASE}${path}`)
+  const abort = new AbortController()
+  const res = await fetch(`${API_BASE}${path}`, { signal: abort.signal })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? `API error: ${res.status}`)
+    throw new Error(errorMessage(err, `API error: ${res.status}`))
   }
   if (!res.body) {
     throw new Error('No response body')
@@ -117,6 +140,10 @@ export async function fetchGetEventStream(path: string): Promise<ReadableStream<
         buffer += decoder.decode(value, { stream: true })
       }
     },
+    cancel(reason) {
+      abort.abort()
+      return reader.cancel(reason).catch(() => {})
+    },
   })
 }
 
@@ -128,15 +155,20 @@ export async function fetchEventStream(
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<ReadableStream<ChatEvent>> {
+  const abort = new AbortController()
+  if (signal) {
+    if (signal.aborted) abort.abort()
+    else signal.addEventListener('abort', () => abort.abort(), { once: true })
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal,
+    signal: abort.signal,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? `API error: ${res.status}`)
+    throw new Error(errorMessage(err, `API error: ${res.status}`))
   }
   if (!res.body) {
     throw new Error('No response body')
@@ -180,6 +212,10 @@ export async function fetchEventStream(
         }
         buffer += decoder.decode(value, { stream: true })
       }
+    },
+    cancel(reason) {
+      abort.abort()
+      return reader.cancel(reason).catch(() => {})
     },
   })
 }

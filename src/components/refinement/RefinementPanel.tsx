@@ -46,6 +46,7 @@ export function RefinementPanel({
 
       const reader = stream.getReader()
       let accumulated = ''
+      let streamError: string | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -53,6 +54,8 @@ export function RefinementPanel({
         if (value.type === 'text') {
           accumulated += value.text
           setStreamedText(accumulated)
+        } else if (value.type === 'error') {
+          streamError = value.error
         }
 
         if (outputRef.current) {
@@ -63,6 +66,10 @@ export function RefinementPanel({
       // Invalidate fragment queries to show updated content
       await queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
       await queryClient.invalidateQueries({ queryKey: ['fragment', storyId, fragmentId] })
+      if (streamError) {
+        setError(streamError)
+        return
+      }
       setDone(true)
       onComplete?.()
     } catch (err) {

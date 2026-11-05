@@ -291,6 +291,8 @@ interface Session {
   /** Whether at least one chunk has actually played (to detect total failure). */
   played: boolean
   audio: HTMLAudioElement | null
+  /** Work deferred because playback was paused when it came due; run on resume. */
+  pendingAdvance: (() => void) | null
 }
 
 let session: Session | null = null
@@ -381,10 +383,16 @@ export function resumeTts(): void {
   if (!session) return
   if (session.settings.engine === 'browser') {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.resume()
-  } else {
-    void session.audio?.play()
+  } else if (session.audio && !session.audio.ended) {
+    // An ended chunk (we're in the inter-chunk gap) must not be replayed; the
+    // advance timer moves on to the next chunk.
+    void session.audio.play()
   }
   emit({ status: 'playing' })
+  // The next chunk came due while paused — start it now.
+  const pending = session.pendingAdvance
+  session.pendingAdvance = null
+  pending?.()
 }
 
 export function togglePlayPause(): void {
@@ -416,14 +424,23 @@ export function setTtsPitch(v: number): void {
   if (session.audio) session.audio.playbackRate = pitch
 }
 
+/** Run `play(i)` now, or park it until resume if the user paused meanwhile. */
+function startOrDefer(i: number, play: (i: number) => void) {
+  if (session && state.status === 'paused') {
+    session.pendingAdvance = () => play(i)
+    return
+  }
+  play(i)
+}
+
 /** Advance to chunk `i`, inserting the inter-sentence pause before it. */
 function scheduleAdvance(i: number, play: (i: number) => void) {
   const count = session?.chunks.length ?? 0
   if (INTER_CHUNK_PAUSE_MS > 0 && i > 0 && i < count) {
     const t = token
-    window.setTimeout(() => { if (alive(t)) play(i) }, INTER_CHUNK_PAUSE_MS)
+    window.setTimeout(() => { if (alive(t)) startOrDefer(i, play) }, INTER_CHUNK_PAUSE_MS)
   } else {
-    play(i)
+    startOrDefer(i, play)
   }
 }
 
@@ -491,7 +508,7 @@ async function neuralPlay(i: number) {
   // Pre-generated chunks play seamlessly; only show loading when truly waiting.
   const wasReady = session.ready.has(i)
   ttsLog(`♪ playing chunk ${i + 1}/${session.chunks.length}${wasReady ? '' : ' (waiting for synthesis)'}`)
-  emit({ chunkIndex: i, status: wasReady ? 'playing' : 'loading' })
+  emit(state.status === 'paused' ? { chunkIndex: i } : { chunkIndex: i, status: wasReady ? 'playing' : 'loading' })
 
   let blob: Blob
   try {
@@ -503,6 +520,11 @@ async function neuralPlay(i: number) {
     return
   }
   if (!alive(t) || !session) return
+  if (state.status === 'paused') {
+    // Paused while synthesizing — don't start audio; resume picks this chunk up.
+    session.pendingAdvance = () => { void neuralPlay(i) }
+    return
+  }
 
   const audio = new Audio(URL.createObjectURL(blob))
   audio.volume = session.settings.volume
@@ -534,7 +556,7 @@ export function playFragment(id: string, rawText: string, title: string, setting
   if (chunks.length === 0) return
 
   const t = ++token
-  session = { id, chunks, settings, token: t, blobs: new Map(), ready: new Set(), played: false, audio: null }
+  session = { id, chunks, settings, token: t, blobs: new Map(), ready: new Set(), played: false, audio: null, pendingAdvance: null }
   emit({
     status: 'loading',
     activeId: id,

@@ -96,7 +96,7 @@ export function AgentConfigImportView({ id, version, storyId }: AgentConfigImpor
       if (applyToStory && storyId) {
         qc.invalidateQueries({ queryKey: ['agent-blocks'] })
         qc.invalidateQueries({ queryKey: ['story', storyId] })
-        qc.invalidateQueries({ queryKey: ['config'] })
+        qc.invalidateQueries({ queryKey: ['global-config'] })
       }
     },
   })

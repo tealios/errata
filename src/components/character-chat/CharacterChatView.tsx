@@ -226,6 +226,20 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
             }
             break
           }
+          case 'tool-error': {
+            const calls = currentAssistant.toolCalls ?? []
+            const known = calls.some((tc) => tc.id === event.id)
+            currentAssistant = {
+              ...currentAssistant,
+              toolCalls: known
+                ? calls.map((tc) => (tc.id === event.id ? { ...tc, error: event.error } : tc))
+                : [...calls, { id: event.id, toolName: event.toolName, args: event.args ?? {}, error: event.error }],
+            }
+            break
+          }
+          case 'error':
+            setError(event.error)
+            break
           case 'finish':
             break
         }
@@ -239,7 +253,8 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
       await queryClient.invalidateQueries({ queryKey: ['character-chat-conversations', storyId] })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chat failed')
-      setMessages(updatedMessages)
+      // Keep whatever reply streamed before the failure
+      setMessages((prev) => (prev.length > updatedMessages.length ? prev : updatedMessages))
     } finally {
       setIsStreaming(false)
       textareaRef.current?.focus()

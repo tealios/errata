@@ -195,7 +195,7 @@ function parseCardData(raw: Record<string, unknown>): TavernCardData {
 
 // ── Character book / lorebook parsing ──────────────────────────────────
 
-function parseCharacterBookEntry(raw: unknown): CharacterBookEntry | null {
+function parseCharacterBookEntry(raw: unknown, index = 0): CharacterBookEntry | null {
   if (!raw || typeof raw !== 'object') return null
   const e = raw as Record<string, unknown>
   // Must have at least content to be useful
@@ -217,7 +217,7 @@ function parseCharacterBookEntry(raw: unknown): CharacterBookEntry | null {
       ? String(e.position)
       : '') as CharacterBookEntry['position'],
     priority: Number(e.priority ?? 0),
-    id: (typeof e.id === 'number' || typeof e.id === 'string') ? e.id : 0,
+    id: (typeof e.id === 'number' || typeof e.id === 'string') ? e.id : index,
   }
 }
 
@@ -226,7 +226,7 @@ function parseCharacterBook(raw: unknown): CharacterBook | null {
   const book = raw as Record<string, unknown>
   const rawEntries = Array.isArray(book.entries) ? book.entries : []
   const entries = rawEntries
-    .map(parseCharacterBookEntry)
+    .map((raw, index) => parseCharacterBookEntry(raw, index))
     .filter((e): e is CharacterBookEntry => e !== null)
   if (entries.length === 0 && !book.name) return null
   return {

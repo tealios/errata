@@ -59,6 +59,11 @@ export const Route = createFileRoute('/story/$storyId')({
 
 function StoryEditorPage() {
   const { storyId } = Route.useParams()
+  // Key by storyId so all editor state resets when navigating between stories
+  return <StoryEditor key={storyId} storyId={storyId} />
+}
+
+function StoryEditor({ storyId }: { storyId: string }) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const pluginSidebarPrefsKey = `errata:plugin-sidebar:${storyId}`
@@ -231,7 +236,11 @@ function StoryEditorPage() {
       }
       const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-component-id*="panel-iframe"]')
       for (const iframe of iframes) {
-        iframe.contentWindow?.postMessage({ type: 'errata:data-changed', queryKeys }, '*')
+        let targetOrigin = window.location.origin
+        try {
+          targetOrigin = new URL(iframe.src, window.location.href).origin
+        } catch { /* fall back to same origin */ }
+        iframe.contentWindow?.postMessage({ type: 'errata:data-changed', queryKeys }, targetOrigin)
       }
     }
     window.addEventListener('errata:plugin:invalidate', handler)
@@ -239,13 +248,12 @@ function StoryEditorPage() {
   }, [queryClient])
 
   // Auto-show wizard when story has no fragments
-  if (showWizard === null && fragmentCount !== undefined) {
-    if (fragmentCount === 0) {
-      setShowWizard(true)
-    } else {
-      setShowWizard(false)
+  // Latched once: the wizard creates fragments, so it must not re-evaluate afterwards.
+  useEffect(() => {
+    if (showWizard === null && fragmentCount !== undefined) {
+      setShowWizard(fragmentCount === 0)
     }
-  }
+  }, [showWizard, fragmentCount])
 
   const handleSelectFragment = (fragment: Fragment) => {
     setSelectedFragment(fragment)
@@ -301,19 +309,15 @@ function StoryEditorPage() {
     setPluginCloseReturnSection(null)
     setActiveSection(section)
     if (section === null) {
-      setSelectedFragment((prev) => {
-        if (prev || editorMode !== 'view') {
-          notifyPluginPanelClose({ panel: 'fragment-editor' }, { storyId })
-        }
-        return null
-      })
+      if (selectedFragment || editorMode !== 'view') {
+        notifyPluginPanelClose({ panel: 'fragment-editor' }, { storyId })
+      }
+      setSelectedFragment(null)
       setEditorMode('view')
-      setDebugLogId((prev) => {
-        if (prev) notifyPluginPanelClose({ panel: 'debug' }, { storyId })
-        return null
-      })
+      if (debugLogId) notifyPluginPanelClose({ panel: 'debug' }, { storyId })
+      setDebugLogId(null)
     }
-  }, [editorMode, storyId])
+  }, [editorMode, selectedFragment, debugLogId, storyId])
 
   const handleOpenPluginPanelFromSettings = useCallback((pluginName: string) => {
     setPluginCloseReturnSection('settings')
@@ -447,6 +451,7 @@ function StoryEditorPage() {
     }
 
     const handleDrop = async (e: DragEvent) => {
+      if (!hasFiles(e)) return
       e.preventDefault()
       dragCounter.current = 0
       setFileDragOver(false)

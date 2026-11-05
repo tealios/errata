@@ -28,7 +28,7 @@ function makeNoIcuRegExp(): RegExpConstructor {
     if (/\\[pP]\{/.test(source)) throw new SyntaxError(`Invalid regular expression: /${source}/: Invalid property name`)
     return new Native(pattern, flags)
   } as unknown as RegExpConstructor
-  NoIcu.prototype = Native.prototype
+  Object.defineProperty(NoIcu, 'prototype', { value: Native.prototype })
   return NoIcu
 }
 

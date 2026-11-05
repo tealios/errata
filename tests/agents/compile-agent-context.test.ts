@@ -108,6 +108,7 @@ describe('compileAgentContext', () => {
       overrides: {},
       blockOrder: [],
       disabledTools: ['toolB'],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', makeContext(), tools)
     expect(Object.keys(result.tools)).toEqual(['toolA', 'toolC'])
@@ -122,6 +123,7 @@ describe('compileAgentContext', () => {
       },
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', makeContext(), {})
     const blockIds = result.blocks.map(b => b.id)
@@ -137,6 +139,7 @@ describe('compileAgentContext', () => {
       },
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', makeContext(), {})
     const instBlock = result.blocks.find(b => b.id === 'instructions')!
@@ -157,6 +160,7 @@ describe('compileAgentContext', () => {
       overrides: {},
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', makeContext(), {})
     const customBlock = result.blocks.find(b => b.id === 'cb-extra1')
@@ -174,6 +178,7 @@ describe('compileAgentContext', () => {
       overrides: {},
       blockOrder: ['new-prose', 'story-summary', 'instructions'],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', ctx, {})
     const proseBlock = result.blocks.find(b => b.id === 'new-prose')!
@@ -232,6 +237,7 @@ describe('compileAgentContext', () => {
       overrides: {},
       blockOrder: [],
       disabledTools: [],
+      disableAutoAnalysis: false,
     })
     const result = await compileAgentContext(dataDir, STORY_ID, 'librarian.analyze', makeContext(), {})
     const scriptBlock = result.blocks.find(b => b.id === 'cb-script1')

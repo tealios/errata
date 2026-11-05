@@ -46,16 +46,11 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     onOpenChange(v)
   }, [onOpenChange, reset])
 
-  /** Store parsed card data in sessionStorage and navigate to the new story */
+  /** Store parsed card data in sessionStorage (before creating the story, so a quota failure can't orphan it) and navigate */
   const importCharacterCard = useCallback(async (
     parsed: ParsedCharacterCard,
     imageDataUrl?: string | null,
   ) => {
-    const newStory = await api.stories.create({
-      name: parsed.card.name,
-      description: parsed.card.description.slice(0, 250) || 'Imported from character card',
-    })
-
     const cardJson = JSON.stringify({
       data: {
         name: parsed.card.name,
@@ -90,6 +85,17 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       imageDataUrl: imageDataUrl ?? undefined,
       cardJson,
     }))
+
+    let newStory: Awaited<ReturnType<typeof api.stories.create>>
+    try {
+      newStory = await api.stories.create({
+        name: parsed.card.name,
+        description: parsed.card.description.slice(0, 250) || 'Imported from character card',
+      })
+    } catch (err) {
+      sessionStorage.removeItem('errata:pending-card-import')
+      throw err
+    }
 
     await queryClient.invalidateQueries({ queryKey: ['stories'] })
     handleOpenChange(false)

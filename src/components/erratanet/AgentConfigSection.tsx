@@ -202,7 +202,7 @@ function PresetRow({ preset, storyId }: { preset: AgentPresetSummary; storyId: s
       setConfirmingScripts(false)
       qc.invalidateQueries({ queryKey: ['agent-blocks'] })
       qc.invalidateQueries({ queryKey: ['story', storyId] })
-      qc.invalidateQueries({ queryKey: ['config'] })
+      qc.invalidateQueries({ queryKey: ['global-config'] })
     },
     onError: (err) => {
       // The stored summary can be stale about scripts; when the server says

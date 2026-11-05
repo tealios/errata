@@ -365,6 +365,8 @@ type CollapsedTraceItem =
   | { kind: 'tool-call'; toolName: string; args: Record<string, unknown> }
   | { kind: 'tool-result'; toolName: string; result: unknown }
 
+const MAX_TRACE_EVENTS = 500
+
 function LiveAnalysisTrace({ storyId }: { storyId: string }) {
   const [events, setEvents] = useState<ChatEvent[]>([])
   const [connected, setConnected] = useState(false)
@@ -372,6 +374,8 @@ function LiveAnalysisTrace({ storyId }: { storyId: string }) {
 
   useEffect(() => {
     let cancelled = false
+    setEvents([])
+    setConnected(false)
 
     async function connect() {
       try {
@@ -384,7 +388,10 @@ function LiveAnalysisTrace({ storyId }: { storyId: string }) {
         while (true) {
           const { done, value } = await reader.read()
           if (done || cancelled) break
-          setEvents((prev) => [...prev, value])
+          setEvents((prev) => {
+            const next = [...prev, value]
+            return next.length > MAX_TRACE_EVENTS ? next.slice(-MAX_TRACE_EVENTS) : next
+          })
         }
       } catch {
         // Stream ended or error
