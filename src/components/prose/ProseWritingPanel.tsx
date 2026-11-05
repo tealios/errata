@@ -192,6 +192,7 @@ export function ProseWritingPanel({
   fragmentIdRef.current = fragmentId
   // Token identifying the in-flight selection transform (stale runs are ignored).
   const transformRunRef = useRef(0)
+  const transformAbortRef = useRef<AbortController | null>(null)
   const [sidebarSearch, setSidebarSearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -490,9 +491,18 @@ export function ProseWritingPanel({
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [fragmentId])
 
+  // Abort an in-flight selection transform when the passage changes
+  useEffect(() => {
+    return () => {
+      transformAbortRef.current?.abort()
+      transformAbortRef.current = null
+    }
+  }, [fragmentId])
+
   // Cleanup timers
   useEffect(() => {
     return () => {
+      transformAbortRef.current?.abort()
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
       if (transformUndoTimerRef.current) clearTimeout(transformUndoTimerRef.current)
     }
@@ -507,6 +517,9 @@ export function ProseWritingPanel({
     const selectedText = editor.state.doc.textBetween(from, to, '\n')
     if (!selectedText.trim()) return
 
+    transformAbortRef.current?.abort()
+    const abortController = new AbortController()
+    transformAbortRef.current = abortController
     const runId = ++transformRunRef.current
     const startFragmentId = fragmentId
     const isStale = () => transformRunRef.current !== runId || fragmentIdRef.current !== startFragmentId
@@ -532,6 +545,7 @@ export function ProseWritingPanel({
           contextBefore,
           contextAfter,
           instruction,
+          signal: abortController.signal,
         },
       )
 
@@ -566,7 +580,11 @@ export function ProseWritingPanel({
       setShowTransformUndo(true)
       if (transformUndoTimerRef.current) clearTimeout(transformUndoTimerRef.current)
       transformUndoTimerRef.current = setTimeout(() => setShowTransformUndo(false), 6000)
+    } catch (err) {
+      // Cancelled (passage change / unmount / superseded) is not a user-facing error.
+      if (!(abortController.signal.aborted || (err instanceof Error && err.name === 'AbortError'))) throw err
     } finally {
+      if (transformAbortRef.current === abortController) transformAbortRef.current = null
       if (transformRunRef.current === runId) {
         setIsTransformingSelection(false)
         setSelectionTransformMode(null)

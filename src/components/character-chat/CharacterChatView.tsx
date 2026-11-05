@@ -106,8 +106,13 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
     el.style.height = Math.min(el.scrollHeight, 400) + 'px'
   }, [input])
 
+  // Stop any in-flight reply (view closes, or the conversation is swapped out)
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
   // Handle character change — reset conversation
   const handleCharacterChange = useCallback((id: string) => {
+    abortRef.current?.abort()
     setCharacterId(id)
     setConversationId(null)
     setMessages([])
@@ -116,6 +121,7 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
 
   // Start new conversation
   const startNewConversation = useCallback(() => {
+    abortRef.current?.abort()
     setConversationId(null)
     setMessages([])
     setError(null)
@@ -125,6 +131,7 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
 
   // Resume a conversation
   const resumeConversation = useCallback(async (conv: CharacterChatConversationSummary) => {
+    abortRef.current?.abort()
     try {
       const full = await api.characterChat.getConversation(storyId, conv.id)
       setCharacterId(full.characterId)
@@ -163,6 +170,8 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
     // Add placeholder assistant message
     const emptyAssistant: AssistantMessage = { role: 'assistant', content: '' }
     setMessages([...updatedMessages, emptyAssistant])
+    const abortController = new AbortController()
+    abortRef.current = abortController
     setIsStreaming(true)
 
     try {
@@ -184,7 +193,7 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
         content: m.content,
       }))
 
-      const stream = await api.characterChat.chat(storyId, activeConvId, apiMessages)
+      const stream = await api.characterChat.chat(storyId, activeConvId, apiMessages, abortController.signal)
       const reader = stream.getReader()
 
       let currentAssistant: AssistantMessage = { role: 'assistant', content: '' }
@@ -252,10 +261,13 @@ export function CharacterChatView({ storyId, initialCharacterId, onClose }: Char
       // Invalidate conversation list
       await queryClient.invalidateQueries({ queryKey: ['character-chat-conversations', storyId] })
     } catch (err) {
+      // Cancelled (closed / conversation swapped) is not an error
+      if (abortController.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
       setError(err instanceof Error ? err.message : 'Chat failed')
       // Keep whatever reply streamed before the failure
       setMessages((prev) => (prev.length > updatedMessages.length ? prev : updatedMessages))
     } finally {
+      if (abortRef.current === abortController) abortRef.current = null
       setIsStreaming(false)
       textareaRef.current?.focus()
     }
