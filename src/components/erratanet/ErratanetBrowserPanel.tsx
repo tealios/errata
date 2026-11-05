@@ -178,6 +178,7 @@ export function ErratanetBrowserPanel({ storyId, onClose }: ErratanetBrowserPane
       }
       if (storyId) {
         queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
+        queryClient.invalidateQueries({ queryKey: ['fragment-count', storyId] })
         queryClient.invalidateQueries({ queryKey: ['proseChain', storyId] })
       }
       const where = res.createdStory ? 'a new story' : 'this story'
