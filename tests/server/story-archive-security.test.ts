@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { zipSync, strToU8 } from 'fflate'
 import { createTempDir, makeTestSettings } from '../setup'
-import { importStoryFromZip } from '@/server/story-archive'
+import { importStoryFromZip, importStoryFromZipDetailed } from '@/server/story-archive'
 import { unwrapPack } from '@/server/erratanet/pack-install'
 import { resolveInside } from '@/server/safe-id'
 
@@ -85,5 +86,43 @@ describe('importStoryFromZip zip-slip', () => {
       'payload/story/../../evil.json': strToU8('{}'),
     })
     expect(() => unwrapPack(zip)).toThrow(/Invalid story pack: Unsafe path/)
+  })
+})
+
+describe('importStoryFromZip script-block trust', () => {
+  const agentCfg = JSON.stringify({
+    customBlocks: [
+      { id: 'cb-aaaa', name: 'Safe', role: 'system', order: 0, enabled: true, type: 'simple', content: 'hi' },
+      { id: 'cb-bbbb', name: 'Evil', role: 'system', order: 1, enabled: true, type: 'script', content: 'process.exit()' },
+    ],
+    overrides: {},
+    blockOrder: ['cb-aaaa', 'cb-bbbb'],
+  })
+
+  it('strips script blocks from agent-blocks and block-config (new format)', async () => {
+    const zip = zipSync({
+      [`${ROOT}/meta.json`]: strToU8(metaJson()),
+      [`${ROOT}/branches.json`]: strToU8(branches(['main'])),
+      [`${ROOT}/branches/main/agent-blocks/librarian.analyze.json`]: strToU8(agentCfg),
+      [`${ROOT}/branches/main/block-config.json`]: strToU8(agentCfg),
+    })
+    const { meta, stats } = await importStoryFromZipDetailed(dataDir, zip)
+    expect(stats.strippedScriptBlocks).toBe(2)
+    for (const f of ['agent-blocks/librarian.analyze.json', 'block-config.json']) {
+      const out = JSON.parse(await readFile(join(dataDir, 'stories', meta.id, 'branches', 'main', f), 'utf-8'))
+      expect(out.customBlocks.map((b: { id: string }) => b.id)).toEqual(['cb-aaaa'])
+      expect(out.blockOrder).toEqual(['cb-aaaa'])
+    }
+  })
+
+  it('strips script blocks in legacy archives too', async () => {
+    const zip = zipSync({
+      [`${ROOT}/meta.json`]: strToU8(metaJson()),
+      [`${ROOT}/agent-blocks/librarian.analyze.json`]: strToU8(agentCfg),
+    })
+    const { meta, stats } = await importStoryFromZipDetailed(dataDir, zip)
+    expect(stats.strippedScriptBlocks).toBe(1)
+    const out = JSON.parse(await readFile(join(dataDir, 'stories', meta.id, 'branches', 'main', 'agent-blocks', 'librarian.analyze.json'), 'utf-8'))
+    expect(out.customBlocks).toHaveLength(1)
   })
 })

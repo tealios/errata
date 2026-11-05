@@ -89,10 +89,28 @@ export async function exportStoryAsZip(
 
 // --- Import ---
 
+export interface ImportStats {
+  /** Executable `script` custom blocks dropped from imported block configs. */
+  strippedScriptBlocks: number
+}
+
+export interface ImportStoryResult {
+  meta: StoryMeta
+  stats: ImportStats
+}
+
 export async function importStoryFromZip(
   dataDir: string,
   zipBuffer: Uint8Array,
 ): Promise<StoryMeta> {
+  return (await importStoryFromZipDetailed(dataDir, zipBuffer)).meta
+}
+
+export async function importStoryFromZipDetailed(
+  dataDir: string,
+  zipBuffer: Uint8Array,
+): Promise<ImportStoryResult> {
+  const stats: ImportStats = { strippedScriptBlocks: 0 }
   const extracted = unzipSync(zipBuffer)
 
   const paths = Object.keys(extracted)
@@ -132,12 +150,53 @@ export async function importStoryFromZip(
   await createStory(dataDir, newMeta)
 
   if (branchesKey) {
-    await importNewFormat(dataDir, newStoryId, extracted, decoder, branchesKey)
+    await importNewFormat(dataDir, newStoryId, extracted, decoder, branchesKey, stats)
   } else {
-    await importLegacyFormat(dataDir, newStoryId, extracted, paths, decoder)
+    await importLegacyFormat(dataDir, newStoryId, extracted, paths, decoder, stats)
   }
 
-  return newMeta
+  return { meta: newMeta, stats }
+}
+
+// --- Trust: strip executable blocks from imported configs ---
+
+const BLOCK_CONFIG_RE = /^(block-config\.json|agent-blocks\/[^/]+\.json)$/
+
+/**
+ * Archives are untrusted input. Custom blocks of `type: 'script'` run code with
+ * no consent step, so they are removed from block/agent-block configs on
+ * import (the same stance the fragment-bundle route and pack build take).
+ * Returns the bytes to write, or null when the file should be dropped.
+ */
+function sanitizeImportedFile(
+  relativePath: string,
+  content: Uint8Array,
+  stats: ImportStats,
+): Uint8Array | null {
+  if (!BLOCK_CONFIG_RE.test(relativePath)) return content
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(content))
+  } catch {
+    return null // unreadable config: don't carry it over
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const cfg = parsed as { customBlocks?: unknown; blockOrder?: unknown }
+  if (!Array.isArray(cfg.customBlocks)) return content
+  const removed = new Set<string>()
+  cfg.customBlocks = cfg.customBlocks.filter((b) => {
+    if (b && typeof b === 'object' && (b as { type?: unknown }).type === 'script') {
+      removed.add(String((b as { id?: unknown }).id))
+      return false
+    }
+    return true
+  })
+  if (removed.size === 0) return content
+  stats.strippedScriptBlocks += removed.size
+  if (Array.isArray(cfg.blockOrder)) {
+    cfg.blockOrder = cfg.blockOrder.filter((id) => !removed.has(String(id)))
+  }
+  return new TextEncoder().encode(JSON.stringify(parsed, null, 2))
 }
 
 // --- New format import (with branches/) ---
@@ -148,6 +207,7 @@ async function importNewFormat(
   extracted: Record<string, Uint8Array>,
   decoder: TextDecoder,
   branchesKey: string,
+  stats: ImportStats,
 ): Promise<void> {
   const storyDir = join(dataDir, 'stories', storyId)
 
@@ -202,7 +262,7 @@ async function importNewFormat(
     await writeBranchGenerationLogs(extracted, decoder, branchPrefix, bDir, idMap, handled)
 
     // Copy all remaining branch files verbatim (block-config, agent-blocks, librarian, etc.)
-    await copyRemainingBranchFiles(extracted, branchPrefix, bDir, handled)
+    await copyRemainingBranchFiles(extracted, branchPrefix, bDir, handled, stats)
   }
 }
 
@@ -214,6 +274,7 @@ async function importLegacyFormat(
   extracted: Record<string, Uint8Array>,
   paths: string[],
   decoder: TextDecoder,
+  stats: ImportStats,
 ): Promise<void> {
   // Collect fragment IDs and build remap
   const idMap = new Map<string, string>()
@@ -300,8 +361,10 @@ async function importLegacyFormat(
     if (relativePath === 'prose-chain.json' || relativePath === 'associations.json') continue
     if (handledLegacy.has(path)) continue
     const targetPath = resolveInside(root, relativePath)
+    const safe = sanitizeImportedFile(relativePath, content, stats)
+    if (!safe) continue
     await mkdir(dirname(targetPath), { recursive: true })
-    await writeFile(targetPath, content)
+    await writeFile(targetPath, safe)
   }
 }
 
@@ -410,14 +473,17 @@ async function copyRemainingBranchFiles(
   branchPrefix: string,
   bDir: string,
   handled: Set<string>,
+  stats: ImportStats,
 ): Promise<void> {
   const prefix = branchPrefix + '/'
   for (const [path, content] of Object.entries(extracted)) {
     if (!path.startsWith(prefix) || handled.has(path)) continue
     const relativePath = path.slice(prefix.length)
     const targetPath = resolveInside(bDir, relativePath)
+    const safe = sanitizeImportedFile(relativePath, content, stats)
+    if (!safe) continue
     await mkdir(dirname(targetPath), { recursive: true })
-    await writeFile(targetPath, content)
+    await writeFile(targetPath, safe)
   }
 }
 

@@ -6,7 +6,7 @@ import {
   updateStory,
   deleteStory,
 } from '../fragments/storage'
-import { exportStoryAsZip, importStoryFromZip, StoryNotFoundError } from '../story-archive'
+import { exportStoryAsZip, importStoryFromZipDetailed, StoryNotFoundError } from '../story-archive'
 import { isValidStoryId } from '../safe-id'
 import type { StoryMeta } from '../fragments/schema'
 
@@ -141,8 +141,11 @@ export function storyRoutes(dataDir: string) {
         }
         const arrayBuffer = await file.arrayBuffer()
         const zipBuffer = new Uint8Array(arrayBuffer)
-        const newStory = await importStoryFromZip(dataDir, zipBuffer)
-        return newStory
+        const { meta: newStory, stats } = await importStoryFromZipDetailed(dataDir, zipBuffer)
+        // Surface trust-driven stripping so the client can tell the user.
+        return stats.strippedScriptBlocks > 0
+          ? { ...newStory, strippedScriptBlocks: stats.strippedScriptBlocks }
+          : newStory
       } catch (err) {
         set.status = 422
         return { error: err instanceof Error ? err.message : 'Import failed' }
