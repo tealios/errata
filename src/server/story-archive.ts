@@ -1,4 +1,5 @@
-import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
+import { readdir, readFile, mkdir, writeFile, rm } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { existsSync } from 'node:fs'
 import { zipSync, unzipSync } from 'fflate'
@@ -124,7 +125,11 @@ export async function importStoryFromZipDetailed(
   const originalMeta = JSON.parse(decoder.decode(extracted[metaKey])) as StoryMeta
 
   // Generate new story ID
-  const newStoryId = `story-${Date.now().toString(36)}`
+  // Random suffix keeps two imports in the same millisecond from colliding.
+  let newStoryId: string
+  do {
+    newStoryId = `story-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`
+  } while (existsSync(join(dataDir, 'stories', newStoryId)))
   const now = new Date().toISOString()
 
   // Detect format: new (has branches.json at root) or legacy (root-level content)
@@ -146,13 +151,19 @@ export async function importStoryFromZipDetailed(
     },
   }
 
-  // Create story (sets up branches/main/ + branches.json)
-  await createStory(dataDir, newMeta)
+  // Create story (sets up branches/main/ + branches.json). If anything below
+  // fails, remove the half-built story so it doesn't show up in the library.
+  try {
+    await createStory(dataDir, newMeta)
 
-  if (branchesKey) {
-    await importNewFormat(dataDir, newStoryId, extracted, decoder, branchesKey, stats)
-  } else {
-    await importLegacyFormat(dataDir, newStoryId, extracted, paths, decoder, stats)
+    if (branchesKey) {
+      await importNewFormat(dataDir, newStoryId, extracted, decoder, branchesKey, stats)
+    } else {
+      await importLegacyFormat(dataDir, newStoryId, extracted, paths, decoder, stats)
+    }
+  } catch (err) {
+    await rm(join(dataDir, 'stories', newStoryId), { recursive: true, force: true }).catch(() => {})
+    throw err
   }
 
   return { meta: newMeta, stats }

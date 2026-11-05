@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { zipSync, strToU8 } from 'fflate'
 import { createTempDir, makeTestSettings } from '../setup'
@@ -124,5 +124,28 @@ describe('importStoryFromZip script-block trust', () => {
     expect(stats.strippedScriptBlocks).toBe(1)
     const out = JSON.parse(await readFile(join(dataDir, 'stories', meta.id, 'branches', 'main', 'agent-blocks', 'librarian.analyze.json'), 'utf-8'))
     expect(out.customBlocks).toHaveLength(1)
+  })
+})
+
+describe('importStoryFromZip failure cleanup', () => {
+  it('removes the half-created story when import fails', async () => {
+    const zip = zipSync({
+      [`${ROOT}/meta.json`]: strToU8(metaJson()),
+      [`${ROOT}/branches.json`]: strToU8(branches(['main'])),
+      [`${ROOT}/branches/main/fragments/pr-bad.json`]: strToU8('{not json'),
+    })
+    await expect(importStoryFromZip(dataDir, zip)).rejects.toThrow()
+    const storiesDir = join(dataDir, 'stories')
+    const left = existsSync(storiesDir) ? await readdir(storiesDir) : []
+    expect(left).toEqual([])
+  })
+
+  it('gives same-millisecond imports distinct ids', async () => {
+    const zip = zipSync({
+      [`${ROOT}/meta.json`]: strToU8(metaJson()),
+      [`${ROOT}/branches.json`]: strToU8(branches(['main'])),
+    })
+    const metas = await Promise.all([importStoryFromZip(dataDir, zip), importStoryFromZip(dataDir, zip), importStoryFromZip(dataDir, zip)])
+    expect(new Set(metas.map((m) => m.id)).size).toBe(3)
   })
 })
