@@ -151,15 +151,6 @@ export function FragmentEditor({
     await Promise.all(promises)
   }
 
-  const updateMutation = useMutation({
-    mutationFn: (data: { name: string; description: string; content: string }) =>
-      api.fragments.update(storyId, fragment!.id, data),
-    onSuccess: () => {
-      invalidate()
-      onSaved()
-    },
-  })
-
   const deleteMutation = useMutation({
     mutationFn: () => api.fragments.delete(storyId, fragment!.id),
     onSuccess: () => {
