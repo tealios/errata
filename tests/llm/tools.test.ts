@@ -318,6 +318,17 @@ describe('LLM tools', () => {
       expect(updated!.versions?.[0].content).toBe('The cat sat on the mat.')
     })
 
+    it('inserts newText literally, including $ replacement patterns', async () => {
+      await createFragment(dataDir, storyId, makeFragment({ id: 'pr-0001', content: 'It cost cat.' }))
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      await tools.editFragment.execute!(
+        { fragmentId: 'pr-0001', oldText: 'cat', newText: "$& and $' and $$5" },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+      const updated = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(updated!.content).toBe("It cost $& and $' and $$5.")
+    })
+
     it('returns error when oldText not found', async () => {
       const frag = makeFragment({
         id: 'pr-0001',
