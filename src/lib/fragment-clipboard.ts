@@ -181,12 +181,31 @@ export function isAgentBlockConfigEmpty(config: AgentBlockConfig): boolean {
   )
 }
 
+const MAX_DESCRIPTION_LENGTH = 250
+
+function isValidEntryShape(f: any): boolean {
+  if (!f || typeof f.type !== 'string' || typeof f.name !== 'string' || typeof f.content !== 'string') return false
+  if (f.description !== undefined && f.description !== null) {
+    if (typeof f.description !== 'string' || f.description.length > MAX_DESCRIPTION_LENGTH) return false
+  }
+  if (f.attachments !== undefined) {
+    if (!Array.isArray(f.attachments)) return false
+    for (const att of f.attachments) {
+      if (!att || (att.kind !== 'image' && att.kind !== 'icon')) return false
+      if (typeof att.name !== 'string' || typeof att.content !== 'string') return false
+      if (att.description !== undefined && att.description !== null
+        && (typeof att.description !== 'string' || att.description.length > MAX_DESCRIPTION_LENGTH)) return false
+    }
+  }
+  return true
+}
+
 export function parseFragmentClipboard(text: string): FragmentClipboardData | null {
   try {
     const data = JSON.parse(text)
     if (data?._errata !== 'fragment' || data?.version !== 1) return null
     const f = data.fragment
-    if (!f || typeof f.type !== 'string' || typeof f.name !== 'string' || typeof f.content !== 'string') return null
+    if (!isValidEntryShape(f)) return null
     return data as FragmentClipboardData
   } catch {
     return null
@@ -199,7 +218,7 @@ export function parseBundleClipboard(text: string): FragmentBundleData | null {
     if (data?._errata !== 'fragment-bundle' || data?.version !== 1) return null
     if (!Array.isArray(data.fragments) || data.fragments.length === 0) return null
     for (const f of data.fragments) {
-      if (!f || typeof f.type !== 'string' || typeof f.name !== 'string' || typeof f.content !== 'string') return null
+      if (!isValidEntryShape(f)) return null
     }
     return data as FragmentBundleData
   } catch {
@@ -254,37 +273,46 @@ export function downloadTextFile(text: string, filename: string): void {
 
 export async function importFragmentEntry(storyId: string, entry: FragmentExportEntry): Promise<Fragment> {
   // 1. Create attachment image/icon fragments first
+  const createdAttachmentIds: string[] = []
   const visualRefs: Array<{ fragmentId: string; kind: 'image' | 'icon'; boundary?: { x: number; y: number; width: number; height: number } }> = []
-  if (entry.attachments && entry.attachments.length > 0) {
-    for (const att of entry.attachments) {
-      const created = await api.fragments.create(storyId, {
-        type: att.kind,
-        name: att.name,
-        description: att.description || '',
-        content: att.content,
-      })
-      visualRefs.push({
-        fragmentId: created.id,
-        kind: att.kind,
-        ...(att.boundary ? { boundary: att.boundary } : {}),
-      })
+  let created: Fragment
+  try {
+    if (entry.attachments && entry.attachments.length > 0) {
+      for (const att of entry.attachments) {
+        const attachment = await api.fragments.create(storyId, {
+          type: att.kind,
+          name: att.name,
+          description: att.description || '',
+          content: att.content,
+        })
+        createdAttachmentIds.push(attachment.id)
+        visualRefs.push({
+          fragmentId: attachment.id,
+          kind: att.kind,
+          ...(att.boundary ? { boundary: att.boundary } : {}),
+        })
+      }
     }
-  }
 
-  // 2. Create the main fragment with tags and meta
-  const createMeta = {
-    ...(entry.meta ?? {}),
-    ...(visualRefs.length > 0 ? { visualRefs } : {}),
+    // 2. Create the main fragment with tags and meta
+    const createMeta = {
+      ...(entry.meta ?? {}),
+      ...(visualRefs.length > 0 ? { visualRefs } : {}),
+    }
+    created = await api.fragments.create(storyId, {
+      type: entry.type,
+      name: entry.name,
+      description: entry.description || '',
+      content: entry.content,
+      ...(entry.id ? { id: entry.id } : {}),
+      ...(entry.tags && entry.tags.length > 0 ? { tags: entry.tags } : {}),
+      ...(Object.keys(createMeta).length > 0 ? { meta: createMeta } : {}),
+    })
+  } catch (err) {
+    // Don't leave orphaned attachment fragments behind
+    await Promise.all(createdAttachmentIds.map((id) => api.fragments.delete(storyId, id).catch(() => {})))
+    throw err
   }
-  const created = await api.fragments.create(storyId, {
-    type: entry.type,
-    name: entry.name,
-    description: entry.description || '',
-    content: entry.content,
-    ...(entry.id ? { id: entry.id } : {}),
-    ...(entry.tags && entry.tags.length > 0 ? { tags: entry.tags } : {}),
-    ...(Object.keys(createMeta).length > 0 ? { meta: createMeta } : {}),
-  })
 
   // 3. Apply additional properties that require update
   const needsUpdate =
