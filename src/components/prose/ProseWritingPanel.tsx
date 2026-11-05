@@ -186,6 +186,12 @@ export function ProseWritingPanel({
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
   const dirtyRef = useRef(false)
   const savingFragmentRef = useRef<string | null>(null)
+  // Fragment whose content the editor was last synced from, and the live fragment id.
+  const lastSyncedIdRef = useRef<string | null>(null)
+  const fragmentIdRef = useRef(fragmentId)
+  fragmentIdRef.current = fragmentId
+  // Token identifying the in-flight selection transform (stale runs are ignored).
+  const transformRunRef = useRef(0)
   const [sidebarSearch, setSidebarSearch] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -267,16 +273,21 @@ export function ProseWritingPanel({
       ])
       return result
     },
-    onSuccess: () => {
+    onSuccess: (_result, vars) => {
       queryClient.invalidateQueries({ queryKey: ['fragments', storyId] })
-      dirtyRef.current = false
-      savingFragmentRef.current = null
+      // Only the passage that was saved may touch the dirty flag, and it stays
+      // dirty if the author kept typing while the save was in flight.
+      if (vars.fId === fragmentIdRef.current) {
+        const current = editor?.getText({ blockSeparator: '\n\n' }) ?? vars.content
+        dirtyRef.current = current !== vars.content
+      }
+      if (savingFragmentRef.current === vars.fId) savingFragmentRef.current = null
       setSaveState('saved')
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
       savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2000)
     },
-    onError: () => {
-      savingFragmentRef.current = null
+    onError: (_err, vars) => {
+      if (savingFragmentRef.current === vars.fId) savingFragmentRef.current = null
       setSaveState('idle')
     },
   })
@@ -315,8 +326,15 @@ export function ProseWritingPanel({
   useEffect(() => {
     if (!editor || !currentFragment) return
     if (savingFragmentRef.current === fragmentId) return
+    const sameFragment = lastSyncedIdRef.current === fragmentId
+    // Same passage, newer local edits (e.g. typed during a save): don't wipe them.
+    if (sameFragment && dirtyRef.current) return
+    lastSyncedIdRef.current = fragmentId
+    // Same passage and the editor already shows this text: nothing to sync.
+    if (sameFragment && editor.getText({ blockSeparator: '\n\n' }) === currentFragment.content) return
     editor.commands.setContent(plainTextToDoc(currentFragment.content), { emitUpdate: false })
     dirtyRef.current = false
+    transformRunRef.current++
     setSaveState('idle')
     setSelectionTransformReasoning('')
     setSelectionTransformMode(null)
@@ -489,6 +507,10 @@ export function ProseWritingPanel({
     const selectedText = editor.state.doc.textBetween(from, to, '\n')
     if (!selectedText.trim()) return
 
+    const runId = ++transformRunRef.current
+    const startFragmentId = fragmentId
+    const isStale = () => transformRunRef.current !== runId || fragmentIdRef.current !== startFragmentId
+
     setIsTransformingSelection(true)
     setSelectionTransformMode(mode)
     setSelectionTransformReasoning('')
@@ -526,6 +548,9 @@ export function ProseWritingPanel({
         }
       }
 
+      // The author moved to another passage mid-transform: positions no longer apply.
+      if (isStale()) return
+
       const compact = transformed.trim()
       if (!compact) return
 
@@ -542,9 +567,11 @@ export function ProseWritingPanel({
       if (transformUndoTimerRef.current) clearTimeout(transformUndoTimerRef.current)
       transformUndoTimerRef.current = setTimeout(() => setShowTransformUndo(false), 6000)
     } finally {
-      setIsTransformingSelection(false)
-      setSelectionTransformMode(null)
-      setCustomTransformLabel(null)
+      if (transformRunRef.current === runId) {
+        setIsTransformingSelection(false)
+        setSelectionTransformMode(null)
+        setCustomTransformLabel(null)
+      }
     }
   }
 
