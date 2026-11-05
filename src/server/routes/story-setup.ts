@@ -85,7 +85,7 @@ export function storySetupRoutes(dataDir: string) {
             t.Literal('prose'),
           ]),
           name: t.String({ minLength: 1, maxLength: 100 }),
-          description: t.String({ minLength: 1, maxLength: 50 }),
+          description: t.String({ minLength: 1, maxLength: 250 }),
           content: t.String({ minLength: 1 }),
         }))),
       }),

@@ -86,3 +86,70 @@ describe('story setup fragment sync', () => {
     expect(chain?.entries[0].proseFragments[0]).toBe(result.fragments[0].id)
   })
 })
+
+describe('story setup fragment sync: partial snapshots', () => {
+  let dataDir: string
+  let cleanup: () => Promise<void>
+
+  beforeEach(async () => {
+    const temp = await createTempDir()
+    dataDir = temp.path
+    cleanup = temp.cleanup
+    await createStory(dataDir, makeStory())
+  })
+
+  afterEach(async () => cleanup())
+
+  it('keeps existing content when a resent fragment omits it', async () => {
+    await syncStorySetupSnapshot(dataDir, 'story-setup-sync', {
+      story: null,
+      fragments: [{
+        key: 'mara',
+        type: 'character',
+        name: 'Mara',
+        description: 'Courier',
+        content: 'Mara is a cautious courier.',
+      }],
+    })
+
+    const result = await syncStorySetupSnapshot(dataDir, 'story-setup-sync', {
+      story: null,
+      fragments: [
+        { key: 'mara', type: 'character', name: 'Mara Venn', description: 'Courier' },
+        { key: 'city', type: 'knowledge', name: 'The City', description: 'Setting', content: 'A city of canals.' },
+      ],
+    })
+
+    expect(result.fragments.find(f => f.key === 'mara')?.content).toBe('Mara is a cautious courier.')
+    const fragments = await listFragments(dataDir, 'story-setup-sync')
+    const mara = fragments.find(f => f.meta.storySetupKey === 'mara')
+    expect(mara).toMatchObject({ name: 'Mara Venn', content: 'Mara is a cautious courier.', version: 2 })
+    expect(fragments.find(f => f.meta.storySetupKey === 'city')).toBeDefined()
+  })
+
+  it('refuses a brand-new fragment that has no content', async () => {
+    await expect(syncStorySetupSnapshot(dataDir, 'story-setup-sync', {
+      story: null,
+      fragments: [{ key: 'ghost', type: 'character', name: 'Ghost', description: 'No body' }],
+    })).rejects.toThrow(/content/i)
+  })
+
+  it('reports fragments that were left out of the snapshot but still exist', async () => {
+    await syncStorySetupSnapshot(dataDir, 'story-setup-sync', {
+      story: null,
+      fragments: [
+        { key: 'mara', type: 'character', name: 'Mara', description: 'Courier', content: 'Mara.' },
+        { key: 'city', type: 'knowledge', name: 'The City', description: 'Setting', content: 'Canals.' },
+      ],
+    })
+
+    const result = await syncStorySetupSnapshot(dataDir, 'story-setup-sync', {
+      story: null,
+      fragments: [{ key: 'mara', type: 'character', name: 'Mara', description: 'Courier' }],
+    })
+
+    // Omitted fragments are not deleted; they are returned so the caller can show the real set.
+    expect(result.fragments.map(f => f.key).sort()).toEqual(['city', 'mara'])
+    expect(await listFragments(dataDir, 'story-setup-sync')).toHaveLength(2)
+  })
+})

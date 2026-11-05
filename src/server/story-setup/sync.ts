@@ -23,6 +23,7 @@ export interface StorySetupSyncInput {
 
 export interface PersistedStorySetupFragment extends StorySetupDraftFragment {
   id: string
+  content: string
 }
 
 export async function listStorySetupFragmentContext(
@@ -47,7 +48,7 @@ export async function listStorySetupFragmentContext(
   }
 }
 
-function makeSetupFragment(draft: StorySetupDraftFragment, order: number): Fragment {
+function makeSetupFragment(draft: StorySetupDraftFragment & { content: string }, order: number): Fragment {
   const now = new Date().toISOString()
   return {
     id: generateFragmentId(draft.type),
@@ -69,7 +70,25 @@ function makeSetupFragment(draft: StorySetupDraftFragment, order: number): Fragm
   }
 }
 
-/** Persist the model's latest setup snapshot without touching writer-owned fragments. */
+function toPersisted(fragment: Fragment): PersistedStorySetupFragment {
+  return {
+    id: fragment.id,
+    key: fragment.meta.storySetupKey as string,
+    type: fragment.type as StorySetupDraftFragment['type'],
+    name: fragment.name,
+    description: fragment.description,
+    content: fragment.content,
+  }
+}
+
+/**
+ * Persist the model's latest setup snapshot without touching writer-owned fragments.
+ *
+ * A draft may omit `content` when the fragment already exists; the stored content
+ * is kept. Setup fragments missing from the snapshot are never deleted. The
+ * returned set is the complete, actual set of setup fragments on disk, so callers
+ * can show the truth rather than what the model happened to resend.
+ */
 export async function syncStorySetupSnapshot(
   dataDir: string,
   storyId: string,
@@ -95,33 +114,45 @@ export async function syncStorySetupSnapshot(
         .map(fragment => [fragment.meta.storySetupKey as string, fragment]),
     )
     let order = existing.reduce((max, fragment) => Math.max(max, fragment.order), -1) + 1
-    const persisted: PersistedStorySetupFragment[] = []
+
+    // Validate the whole snapshot before writing anything, so a bad entry
+    // doesn't leave half the set saved.
+    for (const draft of input.fragments) {
+      const current = setupByKey.get(draft.key)
+      if (current && current.type !== draft.type) {
+        throw new Error(`Story setup fragment "${draft.key}" cannot change type from ${current.type} to ${draft.type}`)
+      }
+      if (!current && !draft.content?.trim()) {
+        throw new Error(`Story setup fragment "${draft.key}" is new and needs content`)
+      }
+    }
 
     for (const draft of input.fragments) {
       const current = setupByKey.get(draft.key)
       if (current) {
-        if (current.type !== draft.type) {
-          throw new Error(`Story setup fragment ${draft.key} cannot change type`)
-        }
+        const content = draft.content?.trim()
         const updated = await updateFragmentVersioned(dataDir, storyId, current.id, {
           name: draft.name,
           description: draft.description,
-          content: draft.content.trim(),
+          ...(content ? { content } : {}),
         }, { reason: 'story-setup' })
         if (!updated) throw new Error(`Story setup fragment ${current.id} disappeared during update`)
-        persisted.push({ id: updated.id, ...draft })
+        setupByKey.set(draft.key, updated)
         continue
       }
 
-      const created = makeSetupFragment(draft, order++)
+      const created = makeSetupFragment({ ...draft, content: draft.content as string }, order++)
       await createFragment(dataDir, storyId, created)
       if (created.type === 'prose') {
         await addProseSection(dataDir, storyId, created.id)
       }
       setupByKey.set(draft.key, created)
-      persisted.push({ id: created.id, ...draft })
     }
 
-    return { story: input.story, fragments: persisted }
+    const fragments = [...setupByKey.values()]
+      .sort((a, b) => a.order - b.order)
+      .map(toPersisted)
+
+    return { story: input.story, fragments }
   })
 }
