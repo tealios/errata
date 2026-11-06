@@ -363,6 +363,100 @@ export function buildImportableItems(card: TavernCardData, book: CharacterBook |
   return items
 }
 
+// ── Standalone lorebook parsing ────────────────────────────────────────
+
+export interface ParsedLorebook {
+  book: CharacterBook
+  items: ImportableItem[]
+}
+
+function parseSillyTavernBook(raw: Record<string, unknown>): CharacterBook | null {
+  const name = String(raw.name ?? '')
+  const rawEntries = raw.entries
+
+  let entryArray: unknown[]
+  if (Array.isArray(rawEntries)) {
+    entryArray = rawEntries
+  } else if (rawEntries && typeof rawEntries === 'object') {
+    // SillyTavern standalone lorebooks store entries as an object with numeric string keys
+    entryArray = Object.values(rawEntries as Record<string, unknown>)
+  } else {
+    return null
+  }
+
+  const entries = entryArray
+    .map(parseCharacterBookEntry)
+    .filter((e): e is CharacterBookEntry => e !== null)
+
+  return { name, entries }
+}
+
+/** Build importable items from a standalone lorebook (no character card context). */
+export function buildLorebookItems(book: CharacterBook): ImportableItem[] {
+  const items: ImportableItem[] = []
+  let order = 0
+  for (const entry of book.entries) {
+    const entryName = entry.name || entry.comment || entry.keys.slice(0, 3).join(' / ') || `Entry ${entry.id}`
+    const entryType = inferEntryType(entry)
+    items.push({
+      key: `lorebook-${entry.id}`,
+      suggestedType: entryType,
+      name: entryName,
+      description: truncateDescription(entry.content),
+      content: entry.content,
+      tags: entry.keys,
+      sticky: entry.constant,
+      placement: entry.position === 'before_char' ? 'system' : 'user',
+      order: order++,
+      enabled: entry.enabled,
+      source: 'lorebook-entry',
+      meta: {
+        importSource: 'tavern-lorebook',
+        lorebookName: book.name,
+        lorebookEntryId: entry.id,
+        insertionOrder: entry.insertionOrder,
+        priority: entry.priority,
+        selective: entry.selective,
+        secondaryKeys: entry.secondaryKeys,
+        constant: entry.constant,
+        position: entry.position,
+      },
+    })
+  }
+  return items
+}
+
+/**
+ * Parse a SillyTavern standalone lorebook JSON file.
+ * Returns null if the text is not a recognized lorebook format.
+ */
+export function parseSillyTavernLorebook(text: string): ParsedLorebook | null {
+  let raw: Record<string, unknown>
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return null
+  }
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  if ('_errata' in raw) return null
+  if (!('entries' in raw)) return null
+
+  // Must not be a character card
+  if (parseCardJson(text) !== null) return null
+
+  const book = parseSillyTavernBook(raw)
+  if (!book || book.entries.length === 0) return null
+
+  const items = buildLorebookItems(book)
+  return { book, items }
+}
+
+/** Quick detection: is this JSON text a SillyTavern standalone lorebook? */
+export function isSillyTavernLorebook(text: string): boolean {
+  return parseSillyTavernLorebook(text) !== null
+}
+
 // ── Public API ─────────────────────────────────────────────────────────
 
 /** Extract all TavernAI character cards found in a PNG file. */
