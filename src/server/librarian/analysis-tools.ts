@@ -185,7 +185,7 @@ export function createAnalysisTools(collector: AnalysisCollector, opts?: { dataD
         if (!existing.content.includes(oldText)) {
           return { error: `Text not found in fragment ${fragmentId}: "${oldText}"` }
         }
-        const editedContent = existing.content.replace(oldText, newText)
+        const editedContent = existing.content.replace(oldText, () => newText)
         const protection = checkFragmentWrite(existing, { content: editedContent })
         if (!protection.allowed) return { error: protection.reason }
         const updated = await updateFragmentVersioned(opts.dataDir, opts.storyId, fragmentId, { content: editedContent }, { reason: 'librarian-analysis' })

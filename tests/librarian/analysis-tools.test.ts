@@ -336,6 +336,43 @@ describe('analysis-tools', () => {
       )
     })
 
+    it('editFragment inserts newText literally when it contains $ sequences', async () => {
+      const { getFragment, updateFragmentVersioned } = await import('@/server/fragments/storage')
+      vi.mocked(getFragment).mockResolvedValueOnce({
+        id: 'kn-001',
+        type: 'knowledge',
+        name: 'The bar',
+        description: 'A bar',
+        content: 'The sign reads X. Nobody stops.',
+        tags: [],
+        refs: [],
+        sticky: false,
+        placement: 'user',
+        createdAt: '',
+        updatedAt: '',
+        order: 0,
+        meta: {},
+        version: 1,
+        versions: [],
+      })
+      vi.mocked(updateFragmentVersioned).mockResolvedValueOnce({ id: 'kn-001' } as any)
+
+      const tools = createAnalysisTools(createEmptyCollector(), { dataDir: '/tmp', storyId: 'test-story' })
+      await tools.editFragment.execute!({
+        fragmentId: 'kn-001',
+        oldText: 'X',
+        newText: "'all drinks 5$'",
+      }, { toolCallId: 'a', messages: [], abortSignal: undefined as unknown as AbortSignal })
+
+      expect(updateFragmentVersioned).toHaveBeenCalledWith(
+        '/tmp',
+        'test-story',
+        'kn-001',
+        { content: "The sign reads 'all drinks 5$'. Nobody stops." },
+        { reason: 'librarian-analysis' },
+      )
+    })
+
     it('editFragment returns an error when oldText is not present', async () => {
       const { getFragment } = await import('@/server/fragments/storage')
       vi.mocked(getFragment).mockResolvedValueOnce({
