@@ -370,7 +370,7 @@ export function createFragmentTools(
         if (!fragment.content.includes(oldText)) {
           return { error: `Text not found in fragment ${fragmentId}: "${oldText}"` }
         }
-        const editedContent = fragment.content.replace(oldText, newText)
+        const editedContent = fragment.content.replace(oldText, () => newText)
         const protection = checkFragmentWrite(fragment, { content: editedContent })
         if (!protection.allowed) return { error: protection.reason }
         const updated = await updateFragmentVersioned(
@@ -429,7 +429,7 @@ export function createFragmentTools(
         const skipped: string[] = []
         for (const f of proseFragments) {
           if (f.content.includes(oldText)) {
-            const newContent = f.content.replace(oldText, newText)
+            const newContent = f.content.replace(oldText, () => newText)
             const protection = checkFragmentWrite(f, { content: newContent })
             if (!protection.allowed) {
               skipped.push(f.id)

@@ -292,6 +292,22 @@ describe('LLM tools', () => {
   })
 
   describe('editFragment (write)', () => {
+    it('inserts newText literally when it contains $ sequences', async () => {
+      await createFragment(dataDir, storyId, makeFragment({
+        id: 'pr-0001',
+        content: 'The sign read: X. Nobody stopped.',
+      }))
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      await tools.editFragment.execute!(
+        { fragmentId: 'pr-0001', oldText: 'X', newText: "'all drinks 5$', cash only, $$ or $&" },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      const updated = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(updated!.content).toBe("The sign read: 'all drinks 5$', cash only, $$ or $&. Nobody stopped.")
+    })
+
     it('replaces text within a fragment', async () => {
       const frag = makeFragment({
         id: 'pr-0001',
@@ -340,6 +356,22 @@ describe('LLM tools', () => {
   })
 
   describe('editProse (write)', () => {
+    it('inserts newText literally when it contains $ sequences', async () => {
+      await createFragment(dataDir, storyId, makeFragment({
+        id: 'pr-0001',
+        content: 'The sign read: X. Nobody stopped.',
+      }))
+
+      const tools = createFragmentTools(dataDir, storyId, { readOnly: false })
+      await tools.editProse.execute!(
+        { oldText: 'X', newText: "'all drinks 5$'" },
+        { toolCallId: 'tc-1', messages: [] },
+      )
+
+      const updated = await getFragment(dataDir, storyId, 'pr-0001')
+      expect(updated!.content).toBe("The sign read: 'all drinks 5$'. Nobody stopped.")
+    })
+
     it('replaces text across active prose, versioning each edit and preserving meta', async () => {
       const frag = makeFragment({
         id: 'pr-0001',
